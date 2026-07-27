@@ -1,88 +1,137 @@
 import React, { useState } from 'react';
-import clsx from 'clsx';
-import { Info } from 'lucide-react';
-import type { ExplainabilityAnnotation } from '../types';
+import { ChevronDown, ChevronUp, Info } from 'lucide-react';
+import type { ExplainabilityResult, ExplainabilitySignal } from '../types';
 
 interface ExplainabilityViewerProps {
-  annotations: ExplainabilityAnnotation[];
+  explainability?: ExplainabilityResult;
 }
 
-const getHighlightStyle = (weight: number): React.CSSProperties => {
-  const abs = Math.abs(weight);
-  const opacity = Math.min(0.15 + abs * 0.5, 0.65);
-  if (weight > 0.2) return { backgroundColor: `rgba(30, 127, 114, ${opacity})`, borderRadius: 3 };
-  if (weight < -0.2) return { backgroundColor: `rgba(239, 68, 68, ${opacity})`, borderRadius: 3 };
-  return {};
-};
+const ExplainabilityViewer: React.FC<ExplainabilityViewerProps> = ({
+  explainability,
+}) => {
+  const [activeSignal, setActiveSignal] =
+    useState<ExplainabilitySignal | null>(null);
 
-const getWeightLabel = (weight: number): { label: string; color: string } => {
-  if (weight > 0.7) return { label: 'Strong Positive', color: 'text-teal-700' };
-  if (weight > 0.2) return { label: 'Positive', color: 'text-teal-600' };
-  if (weight < -0.5) return { label: 'Strong Negative', color: 'text-red-700' };
-  if (weight < -0.2) return { label: 'Negative', color: 'text-red-600' };
-  return { label: 'Neutral', color: 'text-slate-500' };
-};
+  if (!explainability) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+        <div className="flex items-center gap-2 text-slate-600">
+          <Info size={16} />
+          <p className="text-sm">
+            Explainability data is not available for this report.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-const ExplainabilityViewer: React.FC<ExplainabilityViewerProps> = ({ annotations }) => {
-  const [activeAnnotation, setActiveAnnotation] = useState<ExplainabilityAnnotation | null>(null);
+  const signals = explainability.signals || [];
 
   return (
-    <div className="space-y-4">
-      {/* Legend */}
-      <div className="flex items-center gap-6 text-xs text-slate-500">
-        <div className="flex items-center gap-1.5">
-          <span className="w-4 h-4 rounded" style={{ backgroundColor: 'rgba(30, 127, 114, 0.4)' }} />
-          Positive impact
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-4 h-4 rounded" style={{ backgroundColor: 'rgba(239, 68, 68, 0.4)' }} />
-          Negative impact
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Info size={13} />
-          Hover for details
-        </div>
-      </div>
+    <div className="space-y-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Composite novelty score
+            </p>
 
-      {/* Document */}
-      <div className="bg-white rounded-xl border border-slate-100 p-6 leading-relaxed text-slate-700 text-sm space-y-2">
-        {annotations.map((annotation, i) => (
-          <span
-            key={i}
-            style={getHighlightStyle(annotation.weight)}
-            className="px-0.5 cursor-pointer relative group"
-            onClick={() => setActiveAnnotation(activeAnnotation?.sentence === annotation.sentence ? null : annotation)}
-          >
-            {annotation.sentence}{' '}
-          </span>
-        ))}
-      </div>
+            <div className="mt-1 flex items-end gap-2">
+              <span className="text-3xl font-bold text-navy-900">
+                {explainability.composite_novelty_score.toFixed(1)}
+              </span>
 
-      {/* Detail panel */}
-      {activeAnnotation && (
-        <div className="bg-navy-900 text-white rounded-xl p-5 space-y-3 animate-fade-in">
-          <div className="flex items-start justify-between gap-4">
-            <p className="text-sm font-medium text-white/90 italic">"{activeAnnotation.sentence}"</p>
-            <span className={clsx(
-              'text-xs font-semibold px-2 py-1 rounded-full flex-shrink-0',
-              activeAnnotation.weight > 0 ? 'bg-teal-500/20 text-teal-300' : 'bg-red-500/20 text-red-300'
-            )}>
-              {getWeightLabel(activeAnnotation.weight).label}
-            </span>
-          </div>
-          <p className="text-sm text-white/70">{activeAnnotation.reason}</p>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-white/50">Impact weight:</span>
-            <div className="flex-1 bg-white/10 rounded-full h-2">
-              <div
-                className={clsx('h-2 rounded-full', activeAnnotation.weight > 0 ? 'bg-teal-400' : 'bg-red-400')}
-                style={{ width: `${Math.abs(activeAnnotation.weight) * 100}%` }}
-              />
+              <span className="pb-1 text-sm text-slate-500">/ 100</span>
             </div>
-            <span className="text-xs text-white/50">{(activeAnnotation.weight * 100).toFixed(0)}%</span>
+          </div>
+
+          <div className="text-right">
+            <span className="inline-flex rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700">
+              {explainability.novelty_band}
+            </span>
+
+            <p className="mt-2 text-xs text-slate-500">
+              Model: {explainability.explainer_mode}
+            </p>
           </div>
         </div>
-      )}
+
+        <p className="mt-4 text-sm leading-relaxed text-slate-700">
+          {explainability.overall_summary}
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {signals.map((signal) => {
+          const isOpen = activeSignal?.signal_key === signal.signal_key;
+          const contributionWidth = Math.min(
+            Math.max(signal.percentage_of_max, 0),
+            100,
+          );
+
+          return (
+            <div
+              key={signal.signal_key}
+              className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+            >
+              <button
+                type="button"
+                onClick={() => setActiveSignal(isOpen ? null : signal)}
+                className="w-full p-4 text-left transition hover:bg-slate-50"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-navy-900">
+                        {signal.signal_name}
+                      </h3>
+
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                        Weight {(signal.weight * 100).toFixed(0)}%
+                      </span>
+                    </div>
+
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full bg-teal-500"
+                        style={{ width: `${contributionWidth}%` }}
+                      />
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-slate-500">
+                      <span>
+                        Raw value: {signal.raw_value.toFixed(4)}
+                      </span>
+
+                      <span>
+                        Contribution:{' '}
+                        {signal.weighted_contribution.toFixed(2)} /{' '}
+                        {signal.max_possible_contribution.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-1 text-slate-400">
+                    {isOpen ? (
+                      <ChevronUp size={18} />
+                    ) : (
+                      <ChevronDown size={18} />
+                    )}
+                  </div>
+                </div>
+              </button>
+
+              {isOpen && (
+                <div className="border-t border-slate-100 bg-slate-50 px-4 py-4">
+                  <p className="text-sm leading-relaxed text-slate-700">
+                    {signal.explanation}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };

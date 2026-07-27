@@ -532,7 +532,13 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
                 min="1"
                 max="10"
                 value={facultyRating}
-                onChange={(e) => setFacultyRating(Number(e.target.value))}
+                onChange={(e) => {
+  const value = Number(e.target.value);
+
+  if (value >= 1 && value <= 10) {
+    setFacultyRating(value);
+  }
+}}
                 className="w-20 px-3 py-1.5 bg-slate-950 border border-slate-700 text-slate-100 rounded-lg text-sm font-bold text-center"
               />
             </div>

@@ -1,5 +1,5 @@
 from typing import Optional, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.models.project import SubmissionType, PipelineStatus
 
 
@@ -102,3 +102,8 @@ class ScoreOverrideRequest(BaseModel):
 
 class AddNoteRequest(BaseModel):
     text: str
+
+class FacultyReviewRequest(BaseModel):
+    faculty_score: float = Field(ge=1, le=10)
+    override_reason: str | None = None
+    is_confirmed: bool = True

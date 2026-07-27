@@ -8,6 +8,7 @@ schema defined in Section 7.6 of the AcadEval+ specification.
 import logging
 
 from app.services.classifier import classifier_service
+from app.services.explainability import explainability_service
 from app.services.extractor import extractor_service
 from app.services.graph_db import graph_service
 from app.services.novelty_engine import novelty_engine_service
@@ -60,6 +61,9 @@ class NoveltyReportGeneratorService:
             sub_domain=sub_domain
         )
 
+        # Step 4b: Module 9 — Explainability Layer
+        explainability = explainability_service.generate_explanations(novelty_data)
+
         # Step 5: Module 5 — Trend Scoring
         topic = classification.get("topic", domain)
         trend_data = trend_scorer_service.get_topic_trend(topic)
@@ -83,7 +87,8 @@ class NoveltyReportGeneratorService:
             "trend_context": trend_data,
             "most_similar_projects": novelty_data["similar_projects"],
             "explanation_lines": novelty_data["explanation_bullets"],
-            "graph_stats": graph_stats
+            "graph_stats": graph_stats,
+            "explainability": explainability,
         }
 
         log.info("Generated Explainable Novelty Report for Project %s (Score: %.1f)",

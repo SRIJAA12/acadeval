@@ -299,18 +299,23 @@ export const getNoveltyReport = async (projectId: string, abstract: string): Pro
 export const submitFacultyNoveltyReview = async (
   projectId: string,
   facultyScore: number,
-  systemScore: number,
-  overrideReason?: string
+  overrideReason?: string,
+  isConfirmed = true
 ): Promise<void> => {
-  if (USE_MOCK) { await delay(500); return; }
-  await apiClient.post('/v1/acadeval/faculty-review', {
-    project_id: projectId,
-    faculty_score: facultyScore,
-    system_score: systemScore,
-    override_reason: overrideReason || null,
-  });
-};
+  if (USE_MOCK) {
+    await delay(500);
+    return;
+  }
 
+  await apiClient.post(
+    `/projects/${projectId}/faculty-review`,
+    {
+      faculty_score: facultyScore,
+      override_reason: overrideReason ?? null,
+      is_confirmed: isConfirmed,
+    }
+  );
+};
 // ─── Review Actions ────────────────────────────────────────────────────────────
 export const overrideScore = async (
   projectId: string,

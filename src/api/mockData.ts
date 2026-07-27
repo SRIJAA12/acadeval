@@ -191,13 +191,70 @@ export const mockInternalReport: InternalEvaluationReport = {
       timestamp: '2025-04-12T14:15:00Z',
     },
   ],
-  explainabilityAnnotations: [
-    { sentence: 'The proposed CNN achieves 97.3% accuracy on the PlantVillage dataset.', weight: 0.92, reason: 'High-impact claim with quantified result — positively affects Technical Depth and Novelty scores.' },
-    { sentence: 'We used a basic ResNet architecture without modification.', weight: -0.54, reason: 'Indicates lack of novelty in architecture design — negatively affects Novelty score.' },
-    { sentence: 'The system was tested on real farm conditions.', weight: 0.78, reason: 'Real-world validation improves Feasibility and Publication Potential scores.' },
-    { sentence: 'Future work will be explored.', weight: -0.71, reason: 'Vague future scope — negatively affects Completeness score.' },
-    { sentence: 'Results significantly outperform baseline models.', weight: 0.65, reason: 'Comparative evaluation present — positively affects Technical Depth.' },
+  explainability: {
+  explainer_mode: 'weighted_signal_analysis',
+  composite_novelty_score: 84,
+  novelty_band: 'High Novelty',
+  overall_summary:
+    'The project demonstrates strong novelty through real-world validation, measurable performance improvements, and practical agricultural relevance. The main limitation is the use of an existing model architecture without significant modification.',
+  signals: [
+    {
+      signal_key: 'performance_claim',
+      signal_name: 'Quantified Performance',
+      raw_value: 97.3,
+      weight: 0.92,
+      weighted_contribution: 18.4,
+      max_possible_contribution: 20,
+      percentage_of_max: 92,
+      explanation:
+        'The reported 97.3% accuracy provides a strong measurable result and positively contributes to the novelty assessment.',
+    },
+    {
+      signal_key: 'architecture_novelty',
+      signal_name: 'Architecture Novelty',
+      raw_value: 0.46,
+      weight: 0.54,
+      weighted_contribution: 5.4,
+      max_possible_contribution: 10,
+      percentage_of_max: 54,
+      explanation:
+        'The project uses a standard ResNet architecture with limited modification, reducing the architecture-level novelty contribution.',
+    },
+    {
+      signal_key: 'real_world_validation',
+      signal_name: 'Real-World Validation',
+      raw_value: 0.78,
+      weight: 0.78,
+      weighted_contribution: 15.6,
+      max_possible_contribution: 20,
+      percentage_of_max: 78,
+      explanation:
+        'Testing under real farm conditions strengthens the practical relevance and feasibility of the proposed solution.',
+    },
+    {
+      signal_key: 'future_scope',
+      signal_name: 'Future Scope Quality',
+      raw_value: 0.29,
+      weight: 0.71,
+      weighted_contribution: 2.9,
+      max_possible_contribution: 10,
+      percentage_of_max: 29,
+      explanation:
+        'The future work statement is too general and does not describe specific technical improvements or research directions.',
+    },
+    {
+      signal_key: 'baseline_comparison',
+      signal_name: 'Baseline Comparison',
+      raw_value: 0.65,
+      weight: 0.65,
+      weighted_contribution: 13,
+      max_possible_contribution: 20,
+      percentage_of_max: 65,
+      explanation:
+        'The comparison against baseline models supports the technical depth of the evaluation, although more detailed evidence would improve confidence.',
+    },
   ],
+},
   flaggingReasons: [],
   assignedGuide: 'Dr. Meera Krishnan',
   assignedReviewer: 'Prof. Suresh Rajan',

@@ -260,7 +260,7 @@ const PendingReviewQueue: React.FC = () => {
       {activeTab === 'pending' && (
         <>
           {pendingQuery.isLoading && <LoadingState />}
-          {pendingQuery.isError && <ErrorState message="Failed to load pending entities." onRetry={() => pendingQuery.refetch()} />}
+          {pendingQuery.isError && <ErrorState message="Failed to load pending entities." retry={() => pendingQuery.refetch()} />}
           {!pendingQuery.isLoading && pending.length === 0 && (
             <div className="card flex flex-col items-center justify-center py-16 text-center">
               <CheckCircle size={40} className="text-teal-400 mb-3" />

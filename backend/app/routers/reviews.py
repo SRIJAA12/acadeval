@@ -4,9 +4,17 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import DB, CurrentFacultyOrHOD
 from app.models.project import Project, PipelineStatus
-from app.models.evaluation import EvaluationReport, InternalNote, ScoreOverrideHistory
-from app.schemas.report import ScoreOverrideRequest, AddNoteRequest
-
+from app.models.evaluation import (
+    EvaluationReport,
+    InternalNote,
+    ScoreOverrideHistory,
+    FacultyEvaluation,
+)
+from app.schemas.report import (
+    ScoreOverrideRequest,
+    AddNoteRequest,
+    FacultyReviewRequest,
+)
 router = APIRouter(tags=["Reviews"])
 
 
@@ -93,7 +101,43 @@ def add_note(
     db.commit()
     return {"message": "Note added"}
 
+@router.post("/projects/{project_id}/faculty-review", status_code=status.HTTP_201_CREATED)
+def submit_faculty_review(
+    project_id: str,
+    payload: FacultyReviewRequest,
+    current_user: CurrentFacultyOrHOD,
+    db: DB,
+):
+    """Stores faculty review to validate AI evaluation."""
 
+    project = _get_project_or_404(project_id, db)
+
+    if not project.evaluation:
+        raise HTTPException(
+            status_code=404,
+            detail="Evaluation report not found",
+        )
+
+    system_score = project.evaluation.novelty_score or 0.0
+
+    review = FacultyEvaluation(
+        project_id=project.id,
+        evaluator_id=current_user.id,
+        faculty_score=payload.faculty_score,
+        system_score=system_score,
+        score_delta=(payload.faculty_score * 10) - system_score,
+        override_reason=payload.override_reason,
+        is_confirmed=payload.is_confirmed,
+    )
+
+    db.add(review)
+    db.commit()
+    db.refresh(review)
+
+    return {
+        "message": "Faculty review submitted",
+        "reviewId": str(review.id),
+    }
 @router.post("/projects/{project_id}/publish", status_code=status.HTTP_200_OK)
 def publish_review(
     project_id: str,

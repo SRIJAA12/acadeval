@@ -111,10 +111,23 @@ export interface FacultyNote {
   timestamp: string;
 }
 
-export interface ExplainabilityAnnotation {
-  sentence: string;
+export interface ExplainabilitySignal {
+  signal_key: string;
+  signal_name: string;
+  raw_value: number;
   weight: number;
-  reason: string;
+  weighted_contribution: number;
+  max_possible_contribution: number;
+  percentage_of_max: number;
+  explanation: string;
+}
+
+export interface ExplainabilityResult {
+  explainer_mode: string;
+  composite_novelty_score: number;
+  novelty_band: string;
+  overall_summary: string;
+  signals: ExplainabilitySignal[];
 }
 
 export interface ScoreOverrideEntry {
@@ -128,7 +141,7 @@ export interface ScoreOverrideEntry {
 
 export interface InternalEvaluationReport extends PublicEvaluationReport {
   facultyNotes: FacultyNote[];
-  explainabilityAnnotations: ExplainabilityAnnotation[];
+  explainability?: ExplainabilityResult;
   flaggingReasons: string[];
   assignedGuide: string;
   assignedReviewer: string | null;
