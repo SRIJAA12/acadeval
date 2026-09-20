@@ -12,7 +12,7 @@ import EntityExtractionPanel from '../../components/EntityExtractionPanel';
 import type { PublicEvaluationReport } from '../../types';
 import {
   AlertTriangle, CheckCircle, XCircle, Download, BookOpen,
-  TrendingUp, ChevronDown, ChevronUp, Info, Lightbulb,
+  TrendingUp, ChevronDown, ChevronUp, Info, Award, Lightbulb, GitBranch, ExternalLink,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -262,6 +262,74 @@ const ReportDetail: React.FC = () => {
             {r.missingSections.map(s => (
               <span key={s} className="badge badge-red">{s}</span>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* GitHub Repository Intelligence */}
+      {r.githubAnalysis && r.githubAnalysis.url && (
+        <div className="card border-l-4 border-l-purple-500">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-navy-900 flex items-center gap-2">
+              <GitBranch size={18} className="text-purple-600" /> GitHub Repository Intelligence
+            </h2>
+            <a
+              href={r.githubAnalysis.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-purple-600 hover:text-purple-800 font-medium flex items-center gap-1 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100"
+            >
+              View Repository <ExternalLink size={12} />
+            </a>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-slate-400 font-medium">Repository Description</p>
+                <p className="text-sm text-slate-700 font-medium mt-0.5">
+                  {r.githubAnalysis.description || `${r.githubAnalysis.owner}/${r.githubAnalysis.repo}`}
+                </p>
+              </div>
+
+              {r.githubAnalysis.primaryLanguage && (
+                <div>
+                  <p className="text-xs text-slate-400 font-medium">Primary Language</p>
+                  <span className="badge badge-blue mt-1">{r.githubAnalysis.primaryLanguage}</span>
+                </div>
+              )}
+
+              {r.githubAnalysis.detectedStack && r.githubAnalysis.detectedStack.length > 0 && (
+                <div>
+                  <p className="text-xs text-slate-400 font-medium mb-1">Detected Tech Stack & Dependencies</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {r.githubAnalysis.detectedStack.map((tech) => (
+                      <span key={tech} className="px-2 py-0.5 text-xs font-semibold rounded bg-purple-50 text-purple-700 border border-purple-200">
+                        {tech}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-2">
+              <p className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
+                <BookOpen size={13} className="text-slate-400" /> Repository Structure & README Extract
+              </p>
+              {r.githubAnalysis.fileStructure && r.githubAnalysis.fileStructure.length > 0 && (
+                <div className="text-xs text-slate-600 bg-white p-2 rounded border border-slate-200 font-mono space-y-0.5 max-h-24 overflow-y-auto">
+                  {r.githubAnalysis.fileStructure.slice(0, 8).map((file) => (
+                    <div key={file} className="truncate">📁 {file}</div>
+                  ))}
+                </div>
+              )}
+              {r.githubAnalysis.readmeSnippet && (
+                <p className="text-xs text-slate-600 line-clamp-3 italic">
+                  "{r.githubAnalysis.readmeSnippet}"
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}

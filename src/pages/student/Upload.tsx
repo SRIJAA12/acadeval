@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileText, Video, FileSearch, GitBranch, AlertCircle, CheckCircle, Loader2, ChevronRight } from 'lucide-react';
+import { FileText, Video, FileSearch, GitBranch, AlertCircle, CheckCircle, Loader2, ChevronRight, ExternalLink, X } from 'lucide-react';
 import FileUploader from '../../components/FileUploader';
-import { uploadProject } from '../../api/endpoints';
+import { uploadProject, analyzeGithubRepo } from '../../api/endpoints';
 import { useAuth } from '../../auth/AuthContext';
+import type { GitHubAnalysis } from '../../types';
 import clsx from 'clsx';
 
 type UploadMode = 'document' | 'video' | 'abstract';
@@ -42,6 +43,28 @@ const Upload: React.FC = () => {
   const [githubUrl, setGithubUrl] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [githubPreview, setGithubPreview] = useState<GitHubAnalysis | null>(null);
+  const [githubFetching, setGithubFetching] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced auto-fetch GitHub repo metadata when a valid URL is entered
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setGithubPreview(null);
+    if (!githubUrl || !githubUrl.includes('github.com/')) return;
+    debounceRef.current = setTimeout(async () => {
+      setGithubFetching(true);
+      try {
+        const result = await analyzeGithubRepo(githubUrl);
+        setGithubPreview(result);
+      } catch {
+        setGithubPreview({ url: githubUrl, valid: false });
+      } finally {
+        setGithubFetching(false);
+      }
+    }, 800);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [githubUrl]);
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<AbstractFormData>({
     resolver: zodResolver(abstractSchema),
@@ -140,7 +163,7 @@ const Upload: React.FC = () => {
         <div className="card space-y-6">
           <div>
             <h2 className="text-lg font-semibold text-navy-900 mb-1">Full Document Submission</h2>
-            <p className="text-sm text-slate-500">Upload your project report, slides, and optionally link your GitHub repository.</p>
+            <p className="text-sm text-slate-500">Upload your project report, slides, and optionally link your GitHub repository for code analysis.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -177,15 +200,106 @@ const Upload: React.FC = () => {
             hint="PDF, DOCX, PPTX · Max 50MB per file · You can attach report + slides"
           />
 
+          {/* GitHub URL with live preview */}
           <div>
-            <label className="label flex items-center gap-2"><GitBranch size={15} /> GitHub Repository URL (optional)</label>
-            <input
-              type="url"
-              value={githubUrl}
-              onChange={e => setGithubUrl(e.target.value)}
-              className="input"
-              placeholder="https://github.com/username/project-repo"
-            />
+            <label className="label flex items-center gap-2">
+              <GitBranch size={15} className="text-purple-600" />
+              GitHub Repository URL
+              <span className="text-xs font-normal text-slate-400">(optional — AI will read your repo)</span>
+            </label>
+            <div className="relative">
+              <input
+                type="url"
+                value={githubUrl}
+                onChange={e => setGithubUrl(e.target.value)}
+                className="input pr-10"
+                placeholder="https://github.com/username/project-repo"
+              />
+              {githubUrl && (
+                <button
+                  type="button"
+                  onClick={() => { setGithubUrl(''); setGithubPreview(null); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+
+            {/* Loading state */}
+            {githubFetching && (
+              <div className="mt-3 flex items-center gap-2 text-purple-600 text-sm">
+                <Loader2 size={14} className="animate-spin" />
+                Fetching repository data from GitHub...
+              </div>
+            )}
+
+            {/* Success preview */}
+            {!githubFetching && githubPreview && githubPreview.valid && (
+              <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-purple-500 flex items-center justify-center flex-shrink-0">
+                      <GitBranch size={13} className="text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-purple-900">{githubPreview.owner}/{githubPreview.repo}</p>
+                      <p className="text-xs text-purple-600">{githubPreview.description}</p>
+                    </div>
+                  </div>
+                  <a
+                    href={githubPreview.url ?? ''}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-purple-500 hover:text-purple-700 flex-shrink-0"
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                </div>
+
+                {githubPreview.primaryLanguage && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-purple-700 font-medium">Language:</span>
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 border border-purple-200 font-semibold">
+                      {githubPreview.primaryLanguage}
+                    </span>
+                  </div>
+                )}
+
+                {githubPreview.detectedStack && githubPreview.detectedStack.length > 0 && (
+                  <div>
+                    <p className="text-xs text-purple-700 font-medium mb-1.5">Detected tech stack (will be analysed for novelty):</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {githubPreview.detectedStack.map(tech => (
+                        <span key={tech} className="px-2 py-0.5 text-xs rounded bg-white text-purple-700 border border-purple-200 font-medium">
+                          {tech}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {githubPreview.fileStructure && githubPreview.fileStructure.length > 0 && (
+                  <div className="text-xs font-mono text-purple-600 bg-white rounded-lg p-2 border border-purple-100 space-y-0.5">
+                    {githubPreview.fileStructure.slice(0, 6).map(f => (
+                      <div key={f} className="truncate">📁 {f}</div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1.5 text-xs text-teal-600 font-medium">
+                  <CheckCircle size={12} /> Repository data will be included in AI novelty analysis
+                </div>
+              </div>
+            )}
+
+            {/* Error state */}
+            {!githubFetching && githubPreview && !githubPreview.valid && (
+              <div className="mt-3 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                <AlertCircle size={14} className="flex-shrink-0" />
+                Could not access this repository. It may be private or the URL may be incorrect. You can still submit — the URL will be saved.
+              </div>
+            )}
           </div>
 
           {mutation.isError && (

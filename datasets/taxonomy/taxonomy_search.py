@@ -14,6 +14,7 @@ from taxonomy_loader import load_dataframe, get_all_keywords
 
 # Optional: rank_bm25 for BM25 ranking (pip install rank_bm25)
 try:
+    # pyrefly: ignore [missing-import]
     from rank_bm25 import BM25Okapi
     _BM25_AVAILABLE = True
 except ImportError:

@@ -120,6 +120,7 @@ export interface PublicEvaluationReport {
     gaps: string[];
   } | null;
   evaluationMethodVersion: string | null;
+  githubAnalysis?: GitHubAnalysis;
 }
 
 export interface AssessmentCriterionEvidence {
@@ -131,6 +132,19 @@ export interface AssessmentCriterionEvidence {
 export interface AssessmentDimensionEvidence {
   score: number;
   criteria: Record<string, AssessmentCriterionEvidence>;
+}
+
+export interface GitHubAnalysis {
+  url: string | null;
+  valid: boolean;
+  owner?: string;
+  repo?: string;
+  description?: string;
+  primaryLanguage?: string;
+  topics?: string[];
+  detectedStack?: string[];
+  fileStructure?: string[];
+  readmeSnippet?: string;
 }
 
 // ─── Internal Report (Faculty/HOD only — NEVER fetched on student routes) ────

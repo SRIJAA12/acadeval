@@ -43,3 +43,21 @@ class BatchJobStatusResponse(BaseModel):
     startedAt: str
     completedAt: Optional[str] = None
     projects: list[ProjectSummary] = []
+
+
+class GitHubAnalyzeRequest(BaseModel):
+    githubUrl: str
+
+
+class GitHubAnalyzeResponse(BaseModel):
+    valid: bool
+    owner: str = ""
+    repo: str = ""
+    githubUrl: str
+    description: str = ""
+    primaryLanguage: str = ""
+    topics: list[str] = []
+    detectedStack: list[str] = []
+    fileStructure: list[str] = []
+    readmeSnippet: str = ""
+

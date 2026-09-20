@@ -16,15 +16,25 @@ log = logging.getLogger(__name__)
 
 
 class NoveltyReportGeneratorService:
-    def generate_full_report(self, project_id: str, title: str, abstract: str) -> dict:
+    def generate_full_report(self, project_id: str, title: str, abstract: str, github_url: str = None) -> dict:
         """
         Generates the complete Explainable Novelty Report JSON for a project proposal.
         """
+        # Step 0: GitHub Repository Data Fetching (if URL provided)
+        github_data = None
+        if github_url:
+            from app.services.github_fetcher import github_fetcher_service
+            github_data = github_fetcher_service.fetch_repository_data(github_url)
+
+        # Combine text for classification & extraction
+        full_text = f"{title}\n{abstract}"
+        if github_data and github_data.get("formatted_text"):
+            full_text += f"\n\n{github_data['formatted_text']}"
+
         # Step 1: Module 1 — Domain Classification
         classification = classifier_service.classify_project(title, abstract)
         domain = classification["domain"]
         sub_domain = classification["sub_domain"]
-
         # Step 2: Module 2 — Entity Extraction (use DB persisted entities if available)
         entities = {}
         try:
@@ -39,8 +49,15 @@ class NoveltyReportGeneratorService:
             pass
 
         if not entities or not any(entities.values()):
-            full_text = f"{title}\n{abstract}"
             entities = extractor_service.extract_entities(full_text)
+
+        # If GitHub tech stack was detected, merge into technologies/frameworks
+        if github_data and github_data.get("detected_stack"):
+            existing_techs = set(entities.get("technologies", []))
+            for item in github_data["detected_stack"]:
+                if item and item not in existing_techs:
+                    entities.setdefault("technologies", []).append(item)
+            entities["technologies"] = sorted(list(set(entities.get("technologies", []))))
 
         # Step 3: Module 4 — score the temporary candidate against the frozen
         # historical graph before it is eligible to join that graph.
@@ -78,7 +95,19 @@ class NoveltyReportGeneratorService:
             "trend_context": trend_data,
             "most_similar_projects": novelty_data["similar_projects"],
             "explanation_lines": novelty_data["explanation_bullets"],
-            "scoring_metadata": novelty_data["scoring_metadata"],
+            "scoring_metadata": novelty_data.get("scoring_metadata"),
+            "github_analysis": {
+                "url": github_url,
+                "valid": github_data.get("valid", False) if github_data else False,
+                "owner": github_data.get("owner", "") if github_data else "",
+                "repo": github_data.get("repo", "") if github_data else "",
+                "description": github_data.get("description", "") if github_data else "",
+                "primary_language": github_data.get("primary_language", "") if github_data else "",
+                "topics": github_data.get("topics", []) if github_data else [],
+                "detected_stack": github_data.get("detected_stack", []) if github_data else [],
+                "file_structure": github_data.get("file_structure", []) if github_data else [],
+                "readme_snippet": (github_data.get("readme_text", "")[:500] + "...") if github_data and github_data.get("readme_text") else ""
+            } if github_url else None
         }
 
         log.info("Generated Explainable Novelty Report for Project %s (Score: %.1f)",
@@ -88,3 +117,4 @@ class NoveltyReportGeneratorService:
 
 # Singleton instance
 report_generator_service = NoveltyReportGeneratorService()
+

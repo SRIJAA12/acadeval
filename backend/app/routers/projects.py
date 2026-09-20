@@ -14,6 +14,7 @@ from app.models.project import Project, ProjectFile, PipelineStatus, SubmissionT
 from app.schemas.project import (
     ProjectSummary, ProjectStatusResponse, UploadResponse,
     BatchUploadResponse, BatchJobStatusResponse,
+    GitHubAnalyzeRequest, GitHubAnalyzeResponse,
 )
 from app.utils.files import (
     DOCUMENT_EXTENSIONS,
@@ -22,6 +23,7 @@ from app.utils.files import (
     save_upload_file,
     validate_upload_file,
 )
+from app.services.github_fetcher import github_fetcher_service
 
 log = logging.getLogger(__name__)
 
@@ -252,7 +254,47 @@ def get_pipeline_status(project_id: str, current_user: CurrentUser, db: DB):
     }
 
 
-# ── Upload endpoint (Module 11 — Celery version) ──────────────────────────────
+@router.post("/projects/github-analyze", response_model=GitHubAnalyzeResponse)
+def analyze_github_repo(payload: GitHubAnalyzeRequest, current_user: CurrentUser):
+    """Analyze a GitHub repository URL on demand."""
+    data = github_fetcher_service.fetch_repository_data(payload.githubUrl)
+    return GitHubAnalyzeResponse(
+        valid=data.get("valid", False),
+        owner=data.get("owner", ""),
+        repo=data.get("repo", ""),
+        githubUrl=payload.githubUrl,
+        description=data.get("description", ""),
+        primaryLanguage=data.get("primary_language", ""),
+        topics=data.get("topics", []),
+        detectedStack=data.get("detected_stack", []),
+        fileStructure=data.get("file_structure", []),
+        readmeSnippet=(data.get("readme_text", "")[:500] + "...") if data.get("readme_text") else "",
+    )
+
+
+@router.post("/projects/{project_id}/reprocess", status_code=status.HTTP_202_ACCEPTED)
+def reprocess_project(project_id: str, current_user: CurrentUser, db: DB):
+    """Reprocess an existing project proposal without re-uploading."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project.pipeline_status = PipelineStatus.ai_processing
+    db.commit()
+
+    job_id = _try_enqueue(str(project.id))
+    if job_id and hasattr(project, "celery_task_id"):
+        project.celery_task_id = job_id
+        db.commit()
+    elif not job_id:
+        import threading
+        threading.Thread(
+            target=_fallback_background_pipeline,
+            args=(project.id,),
+            daemon=True,
+        ).start()
+
+    return {"message": "Reprocessing started", "projectId": str(project.id)}
 
 @router.post("/projects/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_project(

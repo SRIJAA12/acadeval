@@ -50,6 +50,21 @@ export const uploadProject = async (formData: FormData): Promise<{ projectId: st
   return data;
 };
 
+export const analyzeGithubRepo = async (githubUrl: string) => {
+  const { data } = await apiClient.post('/projects/github-analyze', { githubUrl });
+  return data;
+};
+
+export const reprocessProject = async (projectId: string): Promise<void> => {
+  await apiClient.post(`/projects/${projectId}/reprocess`);
+};
+
+export const downloadReport = (projectId: string): string => {
+  return `${apiClient.defaults.baseURL}/reports/${projectId}/download`;
+};
+
+// ─── Evaluation Report ────────────────────────────────────────────────────────
+// CRITICAL: branches on role — student routes NEVER call the internal endpoint
 export const getEvaluationReport = async (
   projectId: string,
   role: string,
