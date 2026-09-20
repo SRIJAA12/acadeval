@@ -72,6 +72,10 @@ class Project(Base):
     # Module 11 — Celery task chain root id; used by /pipeline-status to poll AsyncResult
     celery_task_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
+    # Stage 2 — candidate is inserted only after a versioned novelty score is persisted.
+    graph_ingested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    graph_ingestion_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     # Relationships
     student: Mapped["User"] = relationship(
         "User", back_populates="projects", foreign_keys=[student_id]

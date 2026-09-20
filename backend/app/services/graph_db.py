@@ -16,6 +16,8 @@ Neo4j must fail loudly (GraphUnavailableError) rather than silently drifting
 onto a second, ephemeral source of truth.
 """
 
+import hashlib
+import json
 import logging
 from contextlib import contextmanager
 
@@ -25,6 +27,8 @@ from neo4j.exceptions import Neo4jError, ServiceUnavailable
 from app.config import settings
 
 log = logging.getLogger(__name__)
+
+GRAPH_INGESTION_VERSION = "project-graph-v2"
 
 # category key (as produced by extractor_service.extract_entities) -> (Node label, relationship type)
 CATEGORY_EDGE_MAP = {
@@ -52,18 +56,18 @@ class GraphUnavailableError(RuntimeError):
 class ProjectGraphService:
     def __init__(self):
         self.driver = None
-        self._connect_attempted = False
 
     def connect(self):
-        if self._connect_attempted:
+        if self.driver:
             return
-        self._connect_attempted = True
+        driver = None
         try:
             user = settings.effective_neo4j_user
-            self.driver = GraphDatabase.driver(
+            driver = GraphDatabase.driver(
                 settings.NEO4J_URI, auth=(user, settings.NEO4J_PASSWORD)
             )
-            self.driver.verify_connectivity()
+            driver.verify_connectivity()
+            self.driver = driver
             db_label = settings.NEO4J_DATABASE or "default"
             log.info(
                 "Connected to Neo4j Aura at %s  (database=%s)",
@@ -71,13 +75,14 @@ class ProjectGraphService:
             )
         except Exception as e:
             log.warning("Neo4j unavailable at %s (%s).", settings.NEO4J_URI, e)
+            if driver:
+                driver.close()
             self.driver = None
 
     def close(self):
         if self.driver:
             self.driver.close()
         self.driver = None
-        self._connect_attempted = False
 
     @contextmanager
     def session(self):
@@ -126,19 +131,49 @@ class ProjectGraphService:
                 pairs.append((label, name))
         return pairs
 
-    def build_project_graph(self, project_id: str, title: str, domain: str, sub_domain: str,
-                             extracted_entities: dict) -> dict:
+    def build_project_graph(
+        self,
+        project_id: str,
+        title: str,
+        domain: str,
+        sub_domain: str,
+        extracted_entities: dict,
+        source_type: str = "submission",
+        source_version: str = "",
+    ) -> dict:
         """
         Ingests a project's metadata and extracted entities into Neo4j inside a
         single write transaction, so a partially-extracted project never leaves
         a half-written graph (Section 7.3, step 2).
         """
-        entity_pairs = self.entity_label_name_pairs(extracted_entities)
+        entity_pairs = list(dict.fromkeys(self.entity_label_name_pairs(extracted_entities)))
+        content_payload = {
+            "title": title,
+            "domain": domain,
+            "sub_domain": sub_domain,
+            "entities": sorted(
+                (label, str(name).strip().casefold())
+                for label, name in entity_pairs
+                if str(name).strip()
+            ),
+        }
+        content_hash = hashlib.sha256(
+            json.dumps(content_payload, sort_keys=True).encode("utf-8")
+        ).hexdigest()
 
         with self.session() as session:
-            session.execute_write(self._ingest_tx, project_id, title, domain, sub_domain, extracted_entities)
-            if len(entity_pairs) > 1:
-                session.execute_write(self._co_occurrence_tx, project_id, entity_pairs)
+            session.execute_write(
+                self._replace_project_tx,
+                project_id,
+                title,
+                domain,
+                sub_domain,
+                extracted_entities,
+                entity_pairs,
+                content_hash,
+                source_type,
+                source_version,
+            )
 
         nodes_written = 3 + len(entity_pairs)  # Project + Domain + Subdomain + entities
         edges_written = 2 + len(entity_pairs) + (len(entity_pairs) * (len(entity_pairs) - 1)) // 2
@@ -148,22 +183,132 @@ class ProjectGraphService:
             "project_id": project_id,
             "nodes_written": nodes_written,
             "edges_written": edges_written,
+            "content_hash": content_hash,
+            "source_type": source_type,
+            "source_version": source_version,
         }
 
+    def prune_corpus_projects(self, active_project_ids: list[str]) -> int:
+        """Remove corpus nodes no longer present in the versioned source file."""
+        with self.session() as session:
+            return session.execute_write(self._prune_corpus_tx, active_project_ids)
+
     @staticmethod
-    def _ingest_tx(tx, project_id: str, title: str, domain: str, sub_domain: str, extracted_entities: dict):
+    def _prune_corpus_tx(tx, active_project_ids: list[str]) -> int:
+        stale_rows = tx.run(
+            """
+            MATCH (p:Project {source_type: 'corpus'})
+            WHERE NOT p.id IN $active_project_ids
+            RETURN p.id AS project_id
+            """,
+            active_project_ids=active_project_ids,
+        ).data()
+        stale_ids = [row["project_id"] for row in stale_rows]
+        if not stale_ids:
+            return 0
+        tx.run(
+            """
+            MATCH ()-[r:CO_OCCURS]->()
+            WHERE any(pid IN coalesce(r.project_ids, []) WHERE pid IN $stale_ids)
+            WITH r, [pid IN r.project_ids WHERE NOT pid IN $stale_ids] AS remaining
+            SET r.project_ids = remaining, r.weight = size(remaining)
+            WITH r WHERE r.weight = 0
+            DELETE r
+            """,
+            stale_ids=stale_ids,
+        ).consume()
+        tx.run(
+            """
+            MATCH (p:Project)
+            WHERE p.id IN $stale_ids
+            DETACH DELETE p
+            """,
+            stale_ids=stale_ids,
+        ).consume()
+        return len(stale_ids)
+
+    @classmethod
+    def _replace_project_tx(
+        cls,
+        tx,
+        project_id: str,
+        title: str,
+        domain: str,
+        sub_domain: str,
+        extracted_entities: dict,
+        entity_pairs: list[tuple[str, str]],
+        content_hash: str,
+        source_type: str,
+        source_version: str,
+    ):
+        # Remove this project's previous contribution before rebuilding it.
+        # This keeps retries and edited submissions idempotent.
+        tx.run(
+            """
+            MATCH ()-[r:CO_OCCURS]->()
+            WHERE $project_id IN coalesce(r.project_ids, [])
+            SET r.project_ids = [pid IN r.project_ids WHERE pid <> $project_id]
+            SET r.weight = size(r.project_ids)
+            WITH r WHERE r.weight = 0
+            DELETE r
+            """,
+            project_id=project_id,
+        ).consume()
+        tx.run(
+            """
+            MATCH (p:Project {id: $project_id})-[r]->()
+            DELETE r
+            """,
+            project_id=project_id,
+        ).consume()
+        cls._ingest_tx(
+            tx,
+            project_id,
+            title,
+            domain,
+            sub_domain,
+            extracted_entities,
+            content_hash,
+            source_type,
+            source_version,
+        )
+        if len(entity_pairs) > 1:
+            cls._co_occurrence_tx(tx, project_id, entity_pairs)
+
+    @staticmethod
+    def _ingest_tx(
+        tx,
+        project_id: str,
+        title: str,
+        domain: str,
+        sub_domain: str,
+        extracted_entities: dict,
+        content_hash: str,
+        source_type: str,
+        source_version: str,
+    ):
         params = {
             "project_id": project_id,
             "title": title,
             "domain": domain,
             "sub_domain": sub_domain,
+            "content_hash": content_hash,
+            "source_type": source_type,
+            "source_version": source_version,
         }
         for cat_key in CATEGORY_EDGE_MAP:
             params[cat_key] = extracted_entities.get(cat_key, [])
 
         query_parts = ["""
             MERGE (p:Project {id: $project_id})
-            SET p.title = $title, p.domain = $domain, p.sub_domain = $sub_domain, p.updated_at = datetime()
+            ON CREATE SET p.created_at = datetime()
+            SET p.title = $title,
+                p.domain = $domain,
+                p.sub_domain = $sub_domain,
+                p.content_hash = $content_hash,
+                p.source_type = $source_type,
+                p.source_version = $source_version,
+                p.updated_at = datetime()
             MERGE (d:Domain {name: $domain})
             MERGE (sd:Subdomain {name: $sub_domain})
             MERGE (sd)-[:SUBDOMAIN_OF]->(d)

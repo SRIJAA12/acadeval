@@ -43,21 +43,22 @@ class NoveltyReportGeneratorService:
             full_text = f"{title}\n{abstract}"
             entities = extractor_service.extract_entities(full_text)
 
-        # Step 3: Module 3 — Graph Ingestion
-        graph_stats = graph_service.build_project_graph(
-            project_id=project_id,
-            title=title,
-            domain=domain,
-            sub_domain=sub_domain,
-            extracted_entities=entities
-        )
-
-        # Step 4: Module 4 — Novelty Engine
+        # Step 3: Module 4 — score the temporary candidate against the frozen
+        # historical graph before it is eligible to join that graph.
         novelty_data = novelty_engine_service.compute_novelty_signals(
             project_id=project_id,
             extracted_entities=entities,
             domain=domain,
             sub_domain=sub_domain
+        )
+
+        # Step 4: Module 3 — only a scored candidate may become historical data.
+        graph_stats = graph_service.build_project_graph(
+            project_id=project_id,
+            title=title,
+            domain=domain,
+            sub_domain=sub_domain,
+            extracted_entities=entities,
         )
 
         # Step 5: Module 5 — Trend Scoring
@@ -83,6 +84,7 @@ class NoveltyReportGeneratorService:
             "trend_context": trend_data,
             "most_similar_projects": novelty_data["similar_projects"],
             "explanation_lines": novelty_data["explanation_bullets"],
+            "scoring_metadata": novelty_data["scoring_metadata"],
             "graph_stats": graph_stats
         }
 

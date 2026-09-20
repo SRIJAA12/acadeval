@@ -17,6 +17,7 @@ run at least once (i.e. after the API has started once):
 """
 import argparse
 import csv
+import hashlib
 import sys
 import os
 import time
@@ -38,6 +39,9 @@ def main():
 
     graph_service.ensure_constraints()
 
+    with open(CORPUS_CSV, "rb") as corpus_file:
+        corpus_version = hashlib.sha256(corpus_file.read()).hexdigest()
+
     with open(CORPUS_CSV, encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
@@ -46,6 +50,7 @@ def main():
         rows = rows[: args.limit]
 
     total = len(rows)
+    active_project_ids = [f"CORPUS-{row['Project_ID'].strip()}" for row in rows]
     ok, failed = 0, 0
     start = time.time()
 
@@ -65,6 +70,8 @@ def main():
                 domain=domain,
                 sub_domain=sub_domain,
                 extracted_entities=entities,
+                source_type="corpus",
+                source_version=corpus_version,
             )
             ok += 1
         except GraphUnavailableError as e:
@@ -79,7 +86,12 @@ def main():
             elapsed = time.time() - start
             print(f"  [{i}/{total}] ingested (ok={ok}, failed={failed}, {elapsed:.1f}s elapsed)")
 
-    print(f"\nDone: {ok} ingested, {failed} failed, out of {total} corpus rows.")
+    pruned = graph_service.prune_corpus_projects(active_project_ids) if args.limit is None else 0
+
+    print(
+        f"\nDone: {ok} ingested, {failed} failed, out of {total} corpus rows. "
+        f"Pruned: {pruned}. Corpus version: {corpus_version}"
+    )
 
 
 if __name__ == "__main__":

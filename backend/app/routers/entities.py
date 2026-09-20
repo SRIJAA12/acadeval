@@ -330,15 +330,29 @@ def ingest_project_graph(project_id: str, current_user: CurrentFacultyOrHOD, db:
             detail="This project has no extracted_entities yet. Submit it through the AcadEval+ pipeline first.",
         )
 
+    if not project.evaluation or not project.evaluation.novelty_report:
+        raise HTTPException(
+            status_code=409,
+            detail="Novelty evidence must be persisted before graph ingestion.",
+        )
+
     from app.services.graph_db import GraphUnavailableError
     try:
-        result = graph_service.build_project_graph(
+        from datetime import datetime, timezone
+        from app.services.graph_builder import ingest_project_to_relational_graph
+        from app.services.graph_db import GRAPH_INGESTION_VERSION
+
+        result = ingest_project_to_relational_graph(
+            db=db,
             project_id=str(project.id),
             title=project.title or "",
-            domain=project.extracted_entities.get("domain", "Unknown"),
+            domain=project.domain or "Unknown",
             sub_domain=project.extracted_entities.get("sub_domain", "Unknown"),
             extracted_entities=project.extracted_entities,
         )
+        project.graph_ingested_at = datetime.now(timezone.utc)
+        project.graph_ingestion_version = GRAPH_INGESTION_VERSION
+        db.commit()
         return {"status": "ingested", **result}
     except GraphUnavailableError as e:
         raise HTTPException(status_code=503, detail=str(e))

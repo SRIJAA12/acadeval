@@ -2,7 +2,7 @@
 
 AcadEval+ is a graph-based academic project assessment prototype. A submission is parsed, classified, converted into structured entities, compared with the historical project graph, and presented to faculty as an explainable novelty report. Faculty remain the final decision-makers and their ratings form the validation dataset.
 
-## Stage 1 status
+## Stage 1–2 status
 
 The application now uses the real FastAPI/PostgreSQL/Neo4j flow. Browser-side mock
 responses and fabricated evaluation records have been removed.
@@ -18,8 +18,14 @@ Implemented foundation:
 - Persistent batch-upload tracking
 - Read-only persisted novelty report retrieval
 - Upload type, MIME, size, mode, and abstract word-count validation
+- Candidate scoring before graph insertion (no self-comparison leakage)
+- One-transaction historical graph snapshots with persisted corpus versions
+- Nearest-neighbour duplicate sensitivity and five deterministic novelty signals
+- Idempotent project graph replacement using immutable project identifiers
+- Removal of browser-side fabricated projects, scores, users, and reports
 
-The remaining scoring engines and publication-grade validation work are tracked for later stages. A score is not fabricated when an engine or dependency fails.
+Feasibility and the remaining evaluation engines are separate later-stage work.
+A score is not fabricated when an engine or dependency fails.
 
 ## One-command development stack
 
@@ -62,6 +68,21 @@ docker compose down
 ```
 
 Add `-v` only when you intentionally want to delete all local PostgreSQL, Redis, Neo4j, and uploaded-file volumes.
+
+## Build the historical novelty corpus
+
+Novelty requires historical evidence. After the services are healthy, load the
+repository corpus into Neo4j through the same extraction and graph schema used
+for live submissions:
+
+```bash
+docker compose exec api python scripts/backfill_corpus_graph.py
+```
+
+The loader records the SHA-256 version of the source CSV on every corpus
+project. Re-running it is idempotent. A new upload is scored against a frozen
+read-transaction snapshot, the score and snapshot ID are persisted, and only
+then is the candidate inserted into the historical graph.
 
 ## Local frontend verification
 

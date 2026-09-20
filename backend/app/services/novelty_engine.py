@@ -1,83 +1,109 @@
-"""
-Module 4 — Graph-Based Novelty Engine
-=======================================
-Computes 5 explainable graph novelty signals directly from Neo4j (Section 7.4):
-1. Graph Distance          — FastRP node embeddings (GDS), Jaccard-over-entities fallback
-2. Feature Rarity          — 1 / (count of other projects using this entity + 1)
-3. Relationship Rarity     — 1 / (CO_OCCURS edge weight for this entity pair + 1)
-4. Graph Density           — GDS local clustering coefficient around the sub-domain
-                              neighbourhood, sibling-count fallback
-5. New-Connection Discovery — common-neighbours / Adamic-Adar over entity pairs
+"""Versioned graph novelty scoring against a frozen historical snapshot.
 
-There is no in-memory fallback: every signal reads live from Neo4j
-(`graph_service.session()`), which raises GraphUnavailableError if Neo4j can't
-be reached. GDS-specific calls (FastRP, local clustering coefficient) degrade
-to a plain-Cypher equivalent if the GDS plugin isn't installed or the call
-fails for any other reason — the `distance_method`/`density_method` fields in
-the output record which path actually ran, so results stay explainable.
+The candidate project is deliberately not inserted before this service runs.
+All Neo4j reads execute inside one read transaction, so the five signals use
+the same historical graph even while other workers ingest completed projects.
 """
 
-import logging
-import math
+from __future__ import annotations
 
-import joblib
-from pathlib import Path
+import hashlib
+import json
+from datetime import datetime, timezone
+from itertools import combinations
 
-from app.services.graph_db import graph_service
+from app.services.graph_db import CATEGORY_EDGE_MAP, ENTITY_LABELS, graph_service
+from app.services.novelty_math import (
+    combine_signals,
+    feature_rarity,
+    graph_distance,
+    neighborhood_sparsity,
+    new_connection_score,
+    relationship_rarity,
+)
 
-log = logging.getLogger(__name__)
-
-GDS_GRAPH_NAME = "acadeval_novelty_graph"
-FASTRP_DIMENSIONS = 64
+SCORING_METHOD_VERSION = "graph-novelty-v2.0"
+COMBINER_METHOD = "unweighted-mean-v2"
 SIMILAR_PROJECTS_TOP_K = 5
+ADEQUATE_CORPUS_SIZE = 30
 
-_RIDGE_PATH = Path(__file__).resolve().parent / "weights" / "ridge_novelty_combiner.joblib"
+ENTITY_RELATIONSHIPS = [relationship for _label, relationship in CATEGORY_EDGE_MAP.values()]
 
 
-def _combine(signals: list[float]) -> float:
-    if _RIDGE_PATH.exists():
-        try:
-            model = joblib.load(_RIDGE_PATH)
-            import numpy as np
-            return float(np.clip(model.predict([signals])[0], 0.0, 100.0))
-        except Exception as e:
-            log.warning("Ridge combiner load failed (%s); using v1 weighted average.", e)
-    weights = [0.25, 0.20, 0.20, 0.15, 0.20]
-    return round(sum(s * w for s, w in zip(signals, weights)) * 100.0, 1)
+def _entity_key(label: str, name: str) -> str:
+    return f"{label.strip().casefold()}:{name.strip().casefold()}"
 
 
 class NoveltyEngineService:
-    def compute_novelty_signals(self, project_id: str, extracted_entities: dict, domain: str,
-                                 sub_domain: str = "") -> dict:
-        entity_pairs = graph_service.entity_label_name_pairs(extracted_entities)
+    @staticmethod
+    def input_hash(title: str, domain: str, sub_domain: str, extracted_entities: dict) -> str:
+        public_entities = {
+            key: sorted({str(value).strip().casefold() for value in extracted_entities.get(key, []) if str(value).strip()})
+            for key in CATEGORY_EDGE_MAP
+        }
+        payload = {
+            "title": title.strip(),
+            "domain": domain.strip(),
+            "sub_domain": sub_domain.strip(),
+            "entities": public_entities,
+        }
+        return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
 
+    def compute_novelty_signals(
+        self,
+        project_id: str,
+        extracted_entities: dict,
+        domain: str,
+        sub_domain: str = "",
+    ) -> dict:
+        entities = self._candidate_entities(extracted_entities)
         with graph_service.session() as session:
-            signal_1, distance_method, similar_projects = self._signal_graph_distance(session, project_id)
-            signal_2 = self._signal_feature_rarity(session, entity_pairs)
-            signal_3 = self._signal_relationship_rarity(session, entity_pairs)
-            signal_4, density_method = self._signal_graph_density(session, project_id, sub_domain)
-            signal_5 = self._signal_new_connection_discovery(session, entity_pairs)
+            evidence = session.execute_read(
+                self._score_snapshot_tx,
+                project_id,
+                entities,
+                domain,
+                sub_domain,
+            )
 
-        composite_score = _combine([signal_1, signal_2, signal_3, signal_4, signal_5])
+        signals = evidence["signals"]
+        composite_score = combine_signals(signals)
+        corpus_size = evidence["corpus_size"]
 
-        if composite_score >= 75.0:
-            novelty_band = "Highly Novel"
-        elif composite_score >= 50.0:
-            novelty_band = "Moderately Novel"
+        if not entities:
+            novelty_band = "Insufficient Extracted Evidence"
+            evidence_quality = "empty"
+        elif corpus_size == 0:
+            novelty_band = "Insufficient Historical Evidence"
+            evidence_quality = "empty"
+        elif corpus_size < ADEQUATE_CORPUS_SIZE:
+            novelty_band = self._band(composite_score)
+            evidence_quality = "limited"
         else:
-            novelty_band = "Low Novelty / Incremental"
+            novelty_band = self._band(composite_score)
+            evidence_quality = "adequate"
 
+        captured_at = datetime.now(timezone.utc).isoformat()
+        metadata = {
+            "method_version": SCORING_METHOD_VERSION,
+            "combiner": COMBINER_METHOD,
+            "corpus_snapshot_id": evidence["snapshot_id"],
+            "corpus_project_count": corpus_size,
+            "snapshot_captured_at": captured_at,
+            "top_k": SIMILAR_PROJECTS_TOP_K,
+            "evidence_quality": evidence_quality,
+            "candidate_preexisting_in_graph": evidence["candidate_preexisting"],
+            "candidate_excluded_from_snapshot": True,
+        }
+
+        signal_1, signal_2, signal_3, signal_4, signal_5 = signals
         explanation_bullets = [
-            f"Graph Distance Signal ({round(signal_1*100, 1)}%, via {distance_method}): "
-            f"Measures structural separation from historical project proposals.",
-            f"Feature Rarity Signal ({round(signal_2*100, 1)}%): Assesses how unique the selected "
-            f"algorithms/technologies are across the corpus.",
-            f"Relationship Rarity Signal ({round(signal_3*100, 1)}%): Checks how rarely these specific "
-            f"entity pairs co-occur.",
-            f"Graph Density Signal ({round(signal_4*100, 1)}%, via {density_method}): Evaluates domain "
-            f"neighborhood sparsity (higher sparsity indicates untapped areas).",
-            f"New-Connection Discovery ({round(signal_5*100, 1)}%): Adamic-Adar metric indicating novel "
-            f"cross-domain feature synthesis.",
+            f"Nearest-project graph distance ({signal_1 * 100:.1f}%): based on the closest entity-set match, so a near duplicate cannot be hidden by unrelated projects.",
+            f"Feature rarity ({signal_2 * 100:.1f}%): frequency of the extracted features across {corpus_size} frozen historical projects.",
+            f"Relationship rarity ({signal_3 * 100:.1f}%): historical co-occurrence frequency for the candidate's feature pairs.",
+            f"Graph neighborhood sparsity ({signal_4 * 100:.1f}%): inverse saturation of the candidate's domain/sub-domain neighborhood.",
+            f"New-connection discovery ({signal_5 * 100:.1f}%): unseen pairings among features that are individually established in the corpus.",
+            f"Evidence snapshot {evidence['snapshot_id'][:12]} used {corpus_size} projects; the candidate was excluded from every query.",
         ]
 
         return {
@@ -89,206 +115,215 @@ class NoveltyEngineService:
             "composite_novelty_score": composite_score,
             "novelty_band": novelty_band,
             "explanation_bullets": explanation_bullets,
-            "similar_projects": similar_projects,
-            "distance_method": distance_method,
-            "density_method": density_method,
+            "similar_projects": evidence["similar_projects"],
+            "distance_method": "nearest-neighbour-jaccard-v2",
+            "density_method": "historical-neighborhood-saturation-v2",
+            "scoring_metadata": metadata,
         }
 
-    # ── Signal 1: Graph Distance ───────────────────────────────────────────────
-    def _signal_graph_distance(self, session, project_id: str):
-        try:
-            embeddings = self._fastrp_embeddings(session)
-            if project_id not in embeddings:
-                return 0.90, "fastrp", []
-            others = {pid: vec for pid, vec in embeddings.items() if pid != project_id}
-            if not others:
-                return 0.90, "fastrp", []
-            target = embeddings[project_id]
-            similarities = {pid: self._cosine(target, vec) for pid, vec in others.items()}
-            mean_distance = 1.0 - (sum(similarities.values()) / len(similarities))
-            top = sorted(similarities.items(), key=lambda kv: kv[1], reverse=True)[:SIMILAR_PROJECTS_TOP_K]
-            similar_projects = self._similar_projects_payload(session, top)
-            return max(0.0, min(1.0, mean_distance)), "fastrp", similar_projects
-        except Exception as e:
-            log.warning("FastRP graph distance failed (%s); falling back to Jaccard-over-entities.", e)
-
-        entity_sets = session.run(
-            """
-            MATCH (p:Project)-->(e)
-            WHERE NOT e:Domain AND NOT e:Subdomain
-            RETURN p.id AS project_id, collect(DISTINCT e.name) AS entity_names
-            """
-        ).data()
-        entity_map = {row["project_id"]: set(row["entity_names"]) for row in entity_sets}
-        project_entities = entity_map.get(project_id, set())
-        others = {pid: ents for pid, ents in entity_map.items() if pid != project_id}
-        if not others:
-            return 0.90, "jaccard_fallback", []
-
-        distances = {}
-        for pid, ents in others.items():
-            if ents and project_entities:
-                jaccard_sim = len(project_entities & ents) / float(len(project_entities | ents))
-                distances[pid] = 1.0 - jaccard_sim
-            else:
-                distances[pid] = 1.0
-        mean_distance = sum(distances.values()) / len(distances)
-        top = sorted(distances.items(), key=lambda kv: kv[1])[:SIMILAR_PROJECTS_TOP_K]
-        similar_projects = self._similar_projects_payload(session, [(pid, 1.0 - d) for pid, d in top])
-        return max(0.0, min(1.0, mean_distance)), "jaccard_fallback", similar_projects
-
-    def _fastrp_embeddings(self, session) -> dict[str, list[float]]:
-        try:
-            session.run("CALL gds.graph.drop($name, false)", name=GDS_GRAPH_NAME).consume()
-        except Exception:
-            pass
-        session.run(
-            "CALL gds.graph.project($name, '*', '*') YIELD graphName",
-            name=GDS_GRAPH_NAME,
-        ).consume()
-        rows = session.run(
-            """
-            CALL gds.fastRP.stream($name, {embeddingDimension: $dim, randomSeed: 42})
-            YIELD nodeId, embedding
-            WITH gds.util.asNode(nodeId) AS n, embedding
-            WHERE 'Project' IN labels(n)
-            RETURN n.id AS project_id, embedding
-            """,
-            name=GDS_GRAPH_NAME, dim=FASTRP_DIMENSIONS,
-        ).data()
-        return {row["project_id"]: row["embedding"] for row in rows}
+    @staticmethod
+    def _band(score: float) -> str:
+        if score >= 75.0:
+            return "Highly Novel"
+        if score >= 50.0:
+            return "Moderately Novel"
+        return "Low Novelty / Incremental"
 
     @staticmethod
-    def _cosine(a: list[float], b: list[float]) -> float:
-        dot = sum(x * y for x, y in zip(a, b))
-        norm_a = math.sqrt(sum(x * x for x in a))
-        norm_b = math.sqrt(sum(y * y for y in b))
-        if norm_a == 0 or norm_b == 0:
-            return 0.0
-        return dot / (norm_a * norm_b)
+    def _candidate_entities(extracted_entities: dict) -> list[dict]:
+        seen: set[str] = set()
+        result: list[dict] = []
+        for category, (label, _relationship) in CATEGORY_EDGE_MAP.items():
+            for raw_name in extracted_entities.get(category, []):
+                name = str(raw_name).strip().casefold()
+                if not name:
+                    continue
+                key = _entity_key(label, name)
+                if key in seen:
+                    continue
+                seen.add(key)
+                result.append({"key": key, "label": label, "name": name})
+        return result
 
-    def _similar_projects_payload(self, session, ranked: list[tuple[str, float]]) -> list[dict]:
-        if not ranked:
-            return []
-        ids = [pid for pid, _ in ranked]
-        rows = session.run(
-            "MATCH (p:Project) WHERE p.id IN $ids RETURN p.id AS id, p.title AS title",
-            ids=ids,
+    @classmethod
+    def _score_snapshot_tx(cls, tx, project_id: str, entities: list[dict], domain: str, sub_domain: str) -> dict:
+        snapshot_rows = tx.run(
+            """
+            MATCH (p:Project)
+            WITH p, p.id = $project_id AS is_candidate
+            WHERE NOT is_candidate
+              AND EXISTS {
+                  MATCH (p)-[r]->()
+                  WHERE type(r) IN $entity_relationships
+              }
+            RETURN p.id AS project_id,
+                   coalesce(p.content_hash, '') AS content_hash,
+                   coalesce(p.source_version, '') AS source_version,
+                   coalesce(p.title, '') AS title
+            ORDER BY project_id
+            """,
+            project_id=project_id,
+            entity_relationships=ENTITY_RELATIONSHIPS,
         ).data()
-        titles = {row["id"]: row["title"] for row in rows}
-        return [
-            {"project_id": pid, "title": titles.get(pid, pid), "similarity_score": round(sim, 4)}
-            for pid, sim in ranked
-        ]
+        candidate_preexisting = bool(tx.run(
+            "MATCH (p:Project {id: $project_id}) RETURN count(p) > 0 AS present",
+            project_id=project_id,
+        ).single()["present"])
 
-    # ── Signal 2: Feature Rarity ───────────────────────────────────────────────
-    def _signal_feature_rarity(self, session, entity_pairs: list[tuple[str, str]]) -> float:
-        if not entity_pairs:
-            return 0.50
-        pair_params = [{"label": label, "name": name} for label, name in entity_pairs]
-        result = session.run(
+        corpus_ids = [row["project_id"] for row in snapshot_rows]
+        snapshot_material = "\n".join(
+            f"{row['project_id']}:{row['content_hash']}:{row['source_version']}"
+            for row in snapshot_rows
+        )
+        snapshot_id = hashlib.sha256(snapshot_material.encode("utf-8")).hexdigest()
+        corpus_size = len(corpus_ids)
+
+        if not corpus_ids:
+            return {
+                "snapshot_id": snapshot_id,
+                "corpus_size": 0,
+                "candidate_preexisting": candidate_preexisting,
+                "signals": [0.5] * 5,
+                "similar_projects": [],
+            }
+
+        if not entities:
+            return {
+                "snapshot_id": snapshot_id,
+                "corpus_size": corpus_size,
+                "candidate_preexisting": candidate_preexisting,
+                "signals": [0.5] * 5,
+                "similar_projects": [],
+            }
+
+        historical_rows = tx.run(
+            """
+            MATCH (p:Project)
+            WHERE p.id IN $corpus_ids
+            OPTIONAL MATCH (p)-[r]->(e)
+            WHERE type(r) IN $entity_relationships
+            RETURN p.id AS project_id,
+                   coalesce(p.title, p.id) AS title,
+                   collect(DISTINCT CASE
+                       WHEN e IS NULL THEN null
+                       ELSE {labels: labels(e), name: toLower(e.name)}
+                   END) AS raw_entities
+            """,
+            corpus_ids=corpus_ids,
+            entity_relationships=ENTITY_RELATIONSHIPS,
+        ).data()
+        historical_projects = []
+        valid_labels = set(ENTITY_LABELS)
+        for row in historical_rows:
+            names = set()
+            for item in row.get("raw_entities", []):
+                name = item.get("name") if item else None
+                labels = item.get("labels", []) if item else []
+                label = next((value for value in labels if value in valid_labels), None)
+                if label and name:
+                    names.add(_entity_key(label, name))
+            historical_projects.append({
+                "project_id": row["project_id"],
+                "title": row["title"],
+                "entity_names": names,
+            })
+
+        candidate_keys = {entity["key"] for entity in entities}
+        signal_1, similar_projects = graph_distance(
+            candidate_keys,
+            historical_projects,
+            top_k=SIMILAR_PROJECTS_TOP_K,
+        )
+
+        feature_rows = tx.run(
             """
             UNWIND $entities AS ent
-            MATCH (e) WHERE ent.label IN labels(e) AND e.name = ent.name
-            MATCH (e)<-[]-(proj:Project)
-            WITH e, count(DISTINCT proj) AS deg
-            RETURN avg(1.0 / (deg + 1)) AS rarity
+            OPTIONAL MATCH (p:Project)-[r]->(e)
+            WHERE p.id IN $corpus_ids
+              AND type(r) IN $entity_relationships
+              AND ent.label IN labels(e)
+              AND toLower(e.name) = ent.name
+            RETURN ent.key AS key, count(DISTINCT p) AS project_count
             """,
-            entities=pair_params,
-        ).single()
-        return result["rarity"] if result and result["rarity"] is not None else 0.50
+            entities=entities,
+            corpus_ids=corpus_ids,
+            entity_relationships=ENTITY_RELATIONSHIPS,
+        ).data() if entities else []
+        feature_counts = {row["key"]: int(row["project_count"]) for row in feature_rows}
+        signal_2 = feature_rarity(feature_counts.values(), corpus_size)
 
-    # ── Signal 3: Relationship Rarity ──────────────────────────────────────────
-    def _signal_relationship_rarity(self, session, entity_pairs: list[tuple[str, str]]) -> float:
-        pairs = [
-            {"a_label": entity_pairs[i][0], "a_name": entity_pairs[i][1],
-             "b_label": entity_pairs[j][0], "b_name": entity_pairs[j][1]}
-            for i in range(len(entity_pairs))
-            for j in range(i + 1, len(entity_pairs))
-        ]
-        if not pairs:
-            return 0.50
-        result = session.run(
+        pair_payload = []
+        pair_key_lookup: dict[str, tuple[str, str]] = {}
+        for index, (left, right) in enumerate(combinations(entities, 2)):
+            canonical = tuple(sorted((left["key"], right["key"])))
+            pair_id = str(index)
+            pair_key_lookup[pair_id] = canonical
+            pair_payload.append({
+                "id": pair_id,
+                "a_label": left["label"],
+                "a_name": left["name"],
+                "b_label": right["label"],
+                "b_name": right["name"],
+            })
+
+        pair_rows = tx.run(
             """
             UNWIND $pairs AS pair
-            MATCH (a) WHERE pair.a_label IN labels(a) AND a.name = pair.a_name
-            MATCH (b) WHERE pair.b_label IN labels(b) AND b.name = pair.b_name
-            OPTIONAL MATCH (a)-[r:CO_OCCURS]-(b)
-            RETURN avg(1.0 / (coalesce(r.weight, 0) + 1)) AS relationship_rarity
+            CALL {
+                WITH pair
+                OPTIONAL MATCH (p:Project)-[ra]->(a), (p)-[rb]->(b)
+                WHERE p.id IN $corpus_ids
+                  AND type(ra) IN $entity_relationships
+                  AND type(rb) IN $entity_relationships
+                  AND pair.a_label IN labels(a)
+                  AND pair.b_label IN labels(b)
+                  AND toLower(a.name) = pair.a_name
+                  AND toLower(b.name) = pair.b_name
+                RETURN count(DISTINCT p) AS project_count
+            }
+            RETURN pair.id AS id, project_count
             """,
-            pairs=pairs,
-        ).single()
-        return result["relationship_rarity"] if result and result["relationship_rarity"] is not None else 0.50
+            pairs=pair_payload,
+            corpus_ids=corpus_ids,
+            entity_relationships=ENTITY_RELATIONSHIPS,
+        ).data() if pair_payload else []
+        pair_counts = {
+            pair_key_lookup[row["id"]]: int(row["project_count"])
+            for row in pair_rows
+        }
+        signal_3 = relationship_rarity(pair_counts.values())
 
-    # ── Signal 4: Graph Density ────────────────────────────────────────────────
-    def _signal_graph_density(self, session, project_id: str, sub_domain: str):
-        if not sub_domain:
-            return 0.80, "no_subdomain"
-
-        try:
-            try:
-                session.run("CALL gds.graph.drop($name, false)", name=GDS_GRAPH_NAME).consume()
-            except Exception:
-                pass
-            session.run(
-                "CALL gds.graph.project($name, '*', '*') YIELD graphName",
-                name=GDS_GRAPH_NAME,
-            ).consume()
-            result = session.run(
-                """
-                CALL gds.localClusteringCoefficient.stream($name)
-                YIELD nodeId, localClusteringCoefficient
-                WITH gds.util.asNode(nodeId) AS n, localClusteringCoefficient AS lcc
-                WHERE 'Project' IN labels(n) AND n.sub_domain = $sub_domain AND n.id <> $project_id
-                RETURN avg(lcc) AS avg_clustering, count(n) AS sibling_count
-                """,
-                name=GDS_GRAPH_NAME, sub_domain=sub_domain, project_id=project_id,
-            ).single()
-            if result and result["sibling_count"]:
-                return max(0.0, min(1.0, 1.0 - result["avg_clustering"])), "gds_clustering_coefficient"
-            return 0.80, "gds_clustering_coefficient"
-        except Exception as e:
-            log.warning("GDS local clustering coefficient failed (%s); falling back to sibling count.", e)
-
-        result = session.run(
+        neighborhood = tx.run(
             """
-            MATCH (sd:Subdomain {name: $sub_domain})<-[:HAS_SUBDOMAIN]-(proj:Project)
-            WHERE proj.id <> $project_id
-            RETURN count(proj) AS sibling_count
+            MATCH (p:Project)
+            WHERE p.id IN $corpus_ids
+              AND (
+                ($sub_domain <> '' AND toLower(coalesce(p.sub_domain, '')) = toLower($sub_domain))
+                OR ($sub_domain = '' AND toLower(coalesce(p.domain, '')) = toLower($domain))
+              )
+            RETURN count(DISTINCT p) AS sibling_count
             """,
-            sub_domain=sub_domain, project_id=project_id,
+            corpus_ids=corpus_ids,
+            domain=domain,
+            sub_domain=sub_domain,
         ).single()
-        sibling_count = result["sibling_count"] if result else 0
-        return 1.0 / (1.0 + sibling_count), "sibling_count_fallback"
+        sibling_count = int(neighborhood["sibling_count"]) if neighborhood else 0
+        signal_4 = neighborhood_sparsity(sibling_count, corpus_size)
 
-    # ── Signal 5: New-Connection Discovery (common neighbours / Adamic-Adar) ──
-    def _signal_new_connection_discovery(self, session, entity_pairs: list[tuple[str, str]]) -> float:
-        pairs = [
-            {"a_label": entity_pairs[i][0], "a_name": entity_pairs[i][1],
-             "b_label": entity_pairs[j][0], "b_name": entity_pairs[j][1]}
-            for i in range(len(entity_pairs))
-            for j in range(i + 1, len(entity_pairs))
-        ]
-        if not pairs:
-            return 0.75
+        known_features = {key for key, count in feature_counts.items() if count > 0}
+        signal_5 = new_connection_score(
+            pair_key_lookup.values(),
+            pair_counts,
+            known_features,
+        )
 
-        result = session.run(
-            """
-            UNWIND $pairs AS pair
-            MATCH (a) WHERE pair.a_label IN labels(a) AND a.name = pair.a_name
-            MATCH (b) WHERE pair.b_label IN labels(b) AND b.name = pair.b_name
-            OPTIONAL MATCH (a)--(common)--(b)
-            WHERE common IS NOT NULL AND common <> a AND common <> b
-            WITH pair, common
-            OPTIONAL MATCH (common)--(x)
-            WITH pair, common, count(DISTINCT x) AS common_degree
-            WITH pair, sum(CASE WHEN common_degree > 1 THEN 1.0 / log(common_degree) ELSE 0.0 END) AS aa_val
-            RETURN avg(1.0 / (1.0 + aa_val)) AS new_connection_score
-            """,
-            pairs=pairs,
-        ).single()
-        return result["new_connection_score"] if result and result["new_connection_score"] is not None else 0.75
+        return {
+            "snapshot_id": snapshot_id,
+            "corpus_size": corpus_size,
+            "candidate_preexisting": candidate_preexisting,
+            "signals": [signal_1, signal_2, signal_3, signal_4, signal_5],
+            "similar_projects": similar_projects,
+        }
 
 
-# Singleton instance
 novelty_engine_service = NoveltyEngineService()

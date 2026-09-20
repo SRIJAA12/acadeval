@@ -62,7 +62,7 @@ export const getEvaluationReport = async (
   return data;
 };
 
-export const getNoveltyReport = async (projectId: string, _abstract?: string): Promise<NoveltyReportData> => {
+export const getNoveltyReport = async (projectId: string): Promise<NoveltyReportData> => {
   const { data } = await apiClient.get<NoveltyReportData>(`/v1/acadeval/report/${projectId}`);
   return data;
 };

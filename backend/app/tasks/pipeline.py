@@ -6,7 +6,10 @@ Celery's chain() primitive so the submission endpoint stays non-blocking.
 
 Chain order:
   task_parse_and_classify  →  task_extract_entities
-    →  task_ingest_graph  →  task_score_and_report  →  task_finalise
+    →  task_score_and_report  →  task_ingest_graph  →  task_finalise
+
+The candidate is scored before graph ingestion so it cannot affect its own
+rarity, density, connection, or nearest-project evidence.
 
 Every task receives the project_id (str) as its only argument so tasks can be
 individually retried without re-running upstream steps.
@@ -177,7 +180,7 @@ def task_extract_entities(self, project_id: str) -> str:
         db.close()
 
 
-# ── Task 3: Graph ingestion ───────────────────────────────────────────────────
+# ── Task 4: Post-score graph ingestion ───────────────────────────────────────
 
 @celery_app.task(
     bind=True, name="pipeline.ingest_graph",
@@ -186,13 +189,15 @@ def task_extract_entities(self, project_id: str) -> str:
 )
 def task_ingest_graph(self, project_id: str) -> str:
     """
-    Step 3 — Modules 3 & 4 (Graph Construction).
-    Writes the project and its entities into both Neo4j (Modules 3) and the
-    in-process NetworkX graph (Module 4 / relational graph builder).
+    Step 4 — Graph Construction after scoring.
+    Writes the project and its entities only after a versioned novelty report
+    has been persisted.
     """
     db = _get_db()
     try:
+        from datetime import datetime, timezone
         from app.services.graph_builder import ingest_project_to_relational_graph
+        from app.services.graph_db import GRAPH_INGESTION_VERSION
 
         project = _load_project(db, project_id)
         if not project:
@@ -200,6 +205,9 @@ def task_ingest_graph(self, project_id: str) -> str:
 
         entities = project.extracted_entities or {}
         sub_domain = entities.get("sub_domain", "General")
+
+        if not project.evaluation or not project.evaluation.novelty_report:
+            raise RuntimeError("Refusing graph ingestion before novelty evidence is persisted")
 
         ingest_project_to_relational_graph(
             db=db,
@@ -209,6 +217,10 @@ def task_ingest_graph(self, project_id: str) -> str:
             sub_domain=sub_domain,
             extracted_entities=entities,
         )
+
+        project.graph_ingested_at = datetime.now(timezone.utc)
+        project.graph_ingestion_version = GRAPH_INGESTION_VERSION
+        db.commit()
 
         log.info("ingest_graph done for %s", project_id)
         return project_id
@@ -221,7 +233,7 @@ def task_ingest_graph(self, project_id: str) -> str:
         db.close()
 
 
-# ── Task 4: Novelty scoring + report assembly ─────────────────────────────────
+# ── Task 3: Frozen-snapshot novelty scoring + report assembly ─────────────────
 
 @celery_app.task(
     bind=True, name="pipeline.score_and_report",
@@ -230,14 +242,18 @@ def task_ingest_graph(self, project_id: str) -> str:
 )
 def task_score_and_report(self, project_id: str) -> str:
     """
-    Step 4 — Modules 5 & 6 (Novelty Scoring + Report Assembly).
+    Step 3 — Modules 5 & 6 (Novelty Scoring + Report Assembly).
     Runs the novelty engine and trend scorer, then persists the composite
     score onto the EvaluationReport row so the frontend can display it.
     """
     db = _get_db()
     try:
+        from datetime import datetime, timezone
         from app.models.evaluation import EvaluationReport
-        from app.services.novelty_engine import novelty_engine_service
+        from app.services.novelty_engine import (
+            SCORING_METHOD_VERSION,
+            novelty_engine_service,
+        )
         from app.services.trend_scorer import trend_scorer_service
         from app.services.classifier import classifier_service
 
@@ -249,6 +265,26 @@ def task_score_and_report(self, project_id: str) -> str:
         abstract = entities.get("_effective_abstract", project.title)
         domain = project.domain or "General CSE"
         sub_domain = entities.get("sub_domain", "General")
+
+        input_hash = novelty_engine_service.input_hash(
+            project.title,
+            domain,
+            sub_domain,
+            entities,
+        )
+        eval_report = (
+            db.query(EvaluationReport)
+            .filter(EvaluationReport.project_id == project.id)
+            .first()
+        )
+        if (
+            eval_report
+            and eval_report.novelty_report
+            and eval_report.novelty_method_version == SCORING_METHOD_VERSION
+            and eval_report.novelty_input_hash == input_hash
+        ):
+            log.info("score_and_report reused persisted v2 evidence for %s", project_id)
+            return project_id
 
         # Module 5 — Novelty signals. Failure must be visible to Celery/API;
         # a fabricated score would invalidate both the product and the paper.
@@ -264,8 +300,16 @@ def task_score_and_report(self, project_id: str) -> str:
             cls_res = classifier_service.classify_project(project.title, abstract)
             topic = cls_res.get("topic", domain)
             trend = trend_scorer_service.get_topic_trend(topic)
-        except Exception:
-            trend = {}
+        except Exception as exc:
+            log.warning("Trend scoring unavailable for %s: %s", project_id, exc)
+            trend = {
+                "topic": domain,
+                "growth_rate_pct": None,
+                "paper_count_3yr": None,
+                "citation_velocity": None,
+                "trend_status": "Unavailable",
+                "data_source": "unavailable",
+            }
 
         # Module 6 — Citation & Reference Analysis
         citation_analysis = {}
@@ -298,13 +342,10 @@ def task_score_and_report(self, project_id: str) -> str:
             "Highly Novel": "Novel",
             "Moderately Novel": "Somewhat Novel",
             "Low Novelty / Incremental": "Common",
+            "Insufficient Historical Evidence": "Insufficient Evidence",
+            "Insufficient Extracted Evidence": "Insufficient Evidence",
         }
 
-        eval_report = (
-            db.query(EvaluationReport)
-            .filter(EvaluationReport.project_id == project.id)
-            .first()
-        )
         if eval_report is None:
             eval_report = EvaluationReport(project_id=project.id)
             db.add(eval_report)
@@ -339,15 +380,24 @@ def task_score_and_report(self, project_id: str) -> str:
             "trend_context": trend,
             "most_similar_projects": novelty["similar_projects"],
             "explanation_lines": novelty["explanation_bullets"],
+            "scoring_metadata": novelty["scoring_metadata"],
         }
+        metadata = novelty["scoring_metadata"]
+        eval_report.novelty_method_version = metadata["method_version"]
+        eval_report.novelty_corpus_version = metadata["corpus_snapshot_id"]
+        eval_report.novelty_corpus_size = metadata["corpus_project_count"]
+        eval_report.novelty_input_hash = input_hash
+        eval_report.novelty_scored_at = datetime.now(timezone.utc)
 
-        eval_report.strengths = eval_report.strengths or [
-            f"Strong technical architecture in {domain}",
-            "Clear methodology with extracted entity graph",
+        signal_findings = [
+            ("Distinct from the nearest historical project", novelty["signal_1_graph_distance"]),
+            ("Uses uncommon technical features", novelty["signal_2_feature_rarity"]),
+            ("Combines features that rarely co-occur", novelty["signal_3_relationship_rarity"]),
+            ("Targets a relatively sparse graph neighborhood", novelty["signal_4_graph_density"]),
+            ("Creates previously unseen connections between known features", novelty["signal_5_new_connection_discovery"]),
         ]
-        eval_report.weaknesses = eval_report.weaknesses or [
-            "Consider adding more extensive baseline benchmarks",
-        ]
+        eval_report.strengths = [label for label, value in signal_findings if value >= 0.65]
+        eval_report.weaknesses = [label for label, value in signal_findings if value < 0.35]
 
         # Attach Module 6 citations sub-scores and flags to EvaluationReport
         eval_report.citations = citation_analysis
@@ -514,8 +564,8 @@ def enqueue_pipeline(project_id: str):
     pipeline = celery_chain(
         task_parse_and_classify.s(project_id),
         task_extract_entities.s(),
-        task_ingest_graph.s(),
         task_score_and_report.s(),
+        task_ingest_graph.s(),
         task_finalise.s(),
     )
     result = pipeline.apply_async()
