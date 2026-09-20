@@ -83,13 +83,20 @@ export interface PublicEvaluationReport {
   feasibilityRating: FeasibilityRating;
   noveltyVerdict: NoveltyVerdict;
   writingQuality: {
-    readability: number;
+    readability: number | null;
+    clarityScore: number | null;
     passiveVoiceCount: number;
+    wordCount: number;
     toneFlags: string[];
+    methodVersion: string | null;
   } | null;
   citations: {
-    ieeeCompliancePercent: number;
-    missingReferences: string[];
+    verifiedPercent: number;
+    recentPercent: number;
+    referenceCount: number;
+    issues: string[];
+    status: string;
+    methodVersion: string | null;
   } | null;
   strengths: string[];
   weaknesses: string[];
@@ -100,6 +107,30 @@ export interface PublicEvaluationReport {
   }[];
   badges: string[];
   percentileRanks: Record<string, number>;
+  assessmentEvidence: {
+    evidence_quality: string;
+    feasibility: AssessmentDimensionEvidence;
+    completeness: {
+      score: number | null;
+      present_sections: string[];
+      missing_sections: string[];
+      reason?: string;
+    };
+    technical_depth: AssessmentDimensionEvidence;
+    gaps: string[];
+  } | null;
+  evaluationMethodVersion: string | null;
+}
+
+export interface AssessmentCriterionEvidence {
+  score: number;
+  evidence: string[];
+  gaps: string[];
+}
+
+export interface AssessmentDimensionEvidence {
+  score: number;
+  criteria: Record<string, AssessmentCriterionEvidence>;
 }
 
 // ─── Internal Report (Faculty/HOD only — NEVER fetched on student routes) ────

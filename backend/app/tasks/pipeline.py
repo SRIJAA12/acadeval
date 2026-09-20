@@ -159,7 +159,9 @@ def task_extract_entities(self, project_id: str) -> str:
         abstract = project.abstract or cached.get("_effective_abstract", project.title)
 
         entities = extractor_service.extract_from_full_proposal(
-            title=project.title, abstract=abstract
+            title=project.title,
+            abstract=abstract,
+            body=project.parsed_text or "",
         )
         if cached.get("_sub_domain"):
             entities["sub_domain"] = cached["_sub_domain"]
@@ -241,11 +243,7 @@ def task_ingest_graph(self, project_id: str) -> str:
     acks_late=True,
 )
 def task_score_and_report(self, project_id: str) -> str:
-    """
-    Step 3 — Modules 5 & 6 (Novelty Scoring + Report Assembly).
-    Runs the novelty engine and trend scorer, then persists the composite
-    score onto the EvaluationReport row so the frontend can display it.
-    """
+    """Score novelty first, then all remaining dimensions from submission evidence."""
     db = _get_db()
     try:
         from datetime import datetime, timezone
@@ -253,6 +251,10 @@ def task_score_and_report(self, project_id: str) -> str:
         from app.services.novelty_engine import (
             SCORING_METHOD_VERSION,
             novelty_engine_service,
+        )
+        from app.services.assessment_engine import (
+            ASSESSMENT_METHOD_VERSION,
+            assessment_engine,
         )
         from app.services.trend_scorer import trend_scorer_service
         from app.services.classifier import classifier_service
@@ -262,7 +264,8 @@ def task_score_and_report(self, project_id: str) -> str:
             return project_id
 
         entities = project.extracted_entities or {}
-        abstract = entities.get("_effective_abstract", project.title)
+        abstract = entities.get("_effective_abstract", project.abstract or project.title)
+        full_text = project.parsed_text or abstract
         domain = project.domain or "General CSE"
         sub_domain = entities.get("sub_domain", "General")
 
@@ -277,65 +280,78 @@ def task_score_and_report(self, project_id: str) -> str:
             .filter(EvaluationReport.project_id == project.id)
             .first()
         )
-        if (
+        novelty_is_current = bool(
             eval_report
             and eval_report.novelty_report
             and eval_report.novelty_method_version == SCORING_METHOD_VERSION
             and eval_report.novelty_input_hash == input_hash
-        ):
-            log.info("score_and_report reused persisted v2 evidence for %s", project_id)
-            return project_id
-
-        # Module 5 — Novelty signals. Failure must be visible to Celery/API;
-        # a fabricated score would invalidate both the product and the paper.
-        novelty = novelty_engine_service.compute_novelty_signals(
-            project_id=str(project.id),
-            extracted_entities=entities,
-            domain=domain,
-            sub_domain=sub_domain,
         )
 
-        # Module 5 — Trend scoring
-        try:
-            cls_res = classifier_service.classify_project(project.title, abstract)
-            topic = cls_res.get("topic", domain)
-            trend = trend_scorer_service.get_topic_trend(topic)
-        except Exception as exc:
-            log.warning("Trend scoring unavailable for %s: %s", project_id, exc)
-            trend = {
-                "topic": domain,
-                "growth_rate_pct": None,
-                "paper_count_3yr": None,
-                "citation_velocity": None,
-                "trend_status": "Unavailable",
-                "data_source": "unavailable",
+        if novelty_is_current:
+            persisted = eval_report.novelty_report
+            signals = persisted.get("signals_breakdown", {})
+            novelty = {
+                "composite_novelty_score": persisted.get("overall_novelty_score", eval_report.novelty_score),
+                "novelty_band": persisted.get("overall_novelty_band", "Insufficient Historical Evidence"),
+                "signal_1_graph_distance": signals.get("graph_distance", 0.5),
+                "signal_2_feature_rarity": signals.get("feature_rarity", 0.5),
+                "signal_3_relationship_rarity": signals.get("relationship_rarity", 0.5),
+                "signal_4_graph_density": signals.get("graph_density", 0.5),
+                "signal_5_new_connection_discovery": signals.get("new_connection_discovery", 0.5),
+                "similar_projects": persisted.get("most_similar_projects", []),
+                "explanation_bullets": persisted.get("explanation_lines", []),
+                "scoring_metadata": persisted.get("scoring_metadata", {}),
             }
+            trend = persisted.get("trend_context", {})
+            log.info("score_and_report reused persisted novelty evidence for %s", project_id)
+        else:
+            # Novelty failure stays visible; substituting a score would invalidate
+            # graph comparisons and the publication evaluation.
+            novelty = novelty_engine_service.compute_novelty_signals(
+                project_id=str(project.id),
+                extracted_entities=entities,
+                domain=domain,
+                sub_domain=sub_domain,
+            )
+            try:
+                cls_res = classifier_service.classify_project(project.title, abstract)
+                topic = cls_res.get("topic", domain)
+                trend = trend_scorer_service.get_topic_trend(topic)
+            except Exception as exc:
+                log.warning("Trend scoring unavailable for %s: %s", project_id, exc)
+                trend = {
+                    "topic": domain,
+                    "growth_rate_pct": None,
+                    "paper_count_3yr": None,
+                    "citation_velocity": None,
+                    "trend_status": "Unavailable",
+                    "data_source": "unavailable",
+                }
 
         # Module 6 — Citation & Reference Analysis
-        citation_analysis = {}
-        try:
+        if project.submission_type.value == "abstract":
+            citation_analysis = {
+                "status": "not_applicable",
+                "method_version": "citation-verification-v2.0",
+                "summary": {},
+                "flags": [],
+                "references": [],
+                "scope_note": "Citation analysis requires a full submission.",
+            }
+        else:
             from app.services.citation_analyzer import citation_analysis_service
-            # Identify first PDF file attached if any
             first_pdf = next(
                 (pf.storage_path for pf in project.files if pf.storage_path and pf.storage_path.lower().endswith(".pdf")),
                 None
             )
             citation_analysis = citation_analysis_service.analyze_references(
                 file_path=first_pdf,
-                raw_text=abstract
+                raw_text=full_text,
             )
-        except Exception as exc:
-            log.warning("Module 6 Citation analysis skipped (%s)", exc)
-            citation_analysis = {"summary": {}, "flags": [], "references": []}
 
         # Module 7 — Writing Quality Analysis
-        writing_analysis = {}
-        try:
-            from app.services.writing_analyzer import writing_quality_service
-            writing_analysis = writing_quality_service.analyze_text(abstract)
-        except Exception as exc:
-            log.warning("Module 7 Writing Quality analysis skipped (%s)", exc)
-            writing_analysis = {"overall_rating": "N/A", "metrics": {}, "flags": []}
+        from app.services.writing_analyzer import writing_quality_service
+        writing_analysis = writing_quality_service.analyze_text(full_text)
 
         # Persist onto EvaluationReport
         BAND_TO_VERDICT = {
@@ -355,39 +371,85 @@ def task_score_and_report(self, project_id: str) -> str:
 
         eval_report.novelty_score = score
         eval_report.novelty_verdict = BAND_TO_VERDICT.get(band, "Somewhat Novel")
-        # Novelty is one dimension, not a substitute for the overall rubric.
-        # Keep the overall result pending until the remaining engines run.
-        if not eval_report.grade:
-            eval_report.grade = "N/A"
+        if not novelty_is_current:
+            eval_report.novelty_report = {
+                "project_id": str(project.id),
+                "title": project.title,
+                "domain": domain,
+                "sub_domain": sub_domain,
+                "overall_novelty_band": band,
+                "overall_novelty_score": score,
+                "signals_breakdown": {
+                    "graph_distance": novelty["signal_1_graph_distance"],
+                    "feature_rarity": novelty["signal_2_feature_rarity"],
+                    "relationship_rarity": novelty["signal_3_relationship_rarity"],
+                    "graph_density": novelty["signal_4_graph_density"],
+                    "new_connection_discovery": novelty["signal_5_new_connection_discovery"],
+                },
+                "extracted_entities": {
+                    key: value for key, value in entities.items() if not key.startswith("_")
+                },
+                "trend_context": trend,
+                "most_similar_projects": novelty["similar_projects"],
+                "explanation_lines": novelty["explanation_bullets"],
+                "scoring_metadata": novelty["scoring_metadata"],
+            }
+            metadata = novelty["scoring_metadata"]
+            eval_report.novelty_method_version = metadata["method_version"]
+            eval_report.novelty_corpus_version = metadata["corpus_snapshot_id"]
+            eval_report.novelty_corpus_size = metadata["corpus_project_count"]
+            eval_report.novelty_input_hash = input_hash
+            eval_report.novelty_scored_at = datetime.now(timezone.utc)
 
-        eval_report.novelty_report = {
-            "project_id": str(project.id),
-            "title": project.title,
-            "domain": domain,
-            "sub_domain": sub_domain,
-            "overall_novelty_band": band,
-            "overall_novelty_score": score,
-            "signals_breakdown": {
-                "graph_distance": novelty["signal_1_graph_distance"],
-                "feature_rarity": novelty["signal_2_feature_rarity"],
-                "relationship_rarity": novelty["signal_3_relationship_rarity"],
-                "graph_density": novelty["signal_4_graph_density"],
-                "new_connection_discovery": novelty["signal_5_new_connection_discovery"],
-            },
-            "extracted_entities": {
-                key: value for key, value in entities.items() if not key.startswith("_")
-            },
-            "trend_context": trend,
-            "most_similar_projects": novelty["similar_projects"],
-            "explanation_lines": novelty["explanation_bullets"],
-            "scoring_metadata": novelty["scoring_metadata"],
-        }
-        metadata = novelty["scoring_metadata"]
-        eval_report.novelty_method_version = metadata["method_version"]
-        eval_report.novelty_corpus_version = metadata["corpus_snapshot_id"]
-        eval_report.novelty_corpus_size = metadata["corpus_project_count"]
-        eval_report.novelty_input_hash = input_hash
-        eval_report.novelty_scored_at = datetime.now(timezone.utc)
+        assessment_hash = assessment_engine.input_hash(
+            project.title,
+            project.submission_type.value,
+            abstract,
+            full_text,
+            entities,
+            score,
+        )
+        if (
+            eval_report.assessment_evidence
+            and eval_report.assessment_method_version == ASSESSMENT_METHOD_VERSION
+            and eval_report.assessment_input_hash == assessment_hash
+        ):
+            log.info("score_and_report reused persisted Stage 3 evidence for %s", project_id)
+            db.commit()
+            return project_id
+
+        assessment = assessment_engine.evaluate(
+            title=project.title,
+            submission_type=project.submission_type.value,
+            abstract=abstract,
+            full_text=full_text,
+            entities=entities,
+            novelty_score=score,
+            similar_projects=novelty["similar_projects"],
+            writing_analysis=writing_analysis,
+            citation_analysis=citation_analysis,
+            github_url=project.github_url,
+        )
+        dimension_scores = assessment["scores"]
+        eval_report.feasibility_score = dimension_scores["feasibility"]
+        eval_report.completeness_score = dimension_scores["completeness"]
+        eval_report.technical_depth_score = dimension_scores["technical_depth"]
+        eval_report.clarity_score = dimension_scores["clarity"]
+        eval_report.similarity_risk_score = dimension_scores["similarity_risk"]
+        eval_report.publication_potential_score = dimension_scores["publication_potential"]
+        eval_report.overall_score = dimension_scores["overall"] or 0.0
+        eval_report.grade = assessment["grade"]
+        feasibility_score = dimension_scores["feasibility"]
+        eval_report.feasibility_rating = (
+            "High" if feasibility_score >= 75 else "Medium" if feasibility_score >= 50 else "Low"
+        )
+        eval_report.missing_sections = assessment["completeness"]["missing_sections"]
+        eval_report.similarity_internal = dimension_scores["similarity_risk"]
+        eval_report.is_duplicate = dimension_scores["similarity_risk"] >= 85
+        eval_report.assessment_evidence = assessment
+        eval_report.assessment_method_version = ASSESSMENT_METHOD_VERSION
+        eval_report.assessment_input_hash = assessment_hash
+        eval_report.assessment_scored_at = datetime.now(timezone.utc)
 
         signal_findings = [
             ("Distinct from the nearest historical project", novelty["signal_1_graph_distance"]),
@@ -396,69 +458,38 @@ def task_score_and_report(self, project_id: str) -> str:
             ("Targets a relatively sparse graph neighborhood", novelty["signal_4_graph_density"]),
             ("Creates previously unseen connections between known features", novelty["signal_5_new_connection_discovery"]),
         ]
-        eval_report.strengths = [label for label, value in signal_findings if value >= 0.65]
-        eval_report.weaknesses = [label for label, value in signal_findings if value < 0.35]
+        novelty_strengths = [label for label, value in signal_findings if value >= 0.65]
+        novelty_weaknesses = [label for label, value in signal_findings if value < 0.35]
+        eval_report.strengths = novelty_strengths + assessment["strengths"]
+        eval_report.weaknesses = novelty_weaknesses + assessment["weaknesses"]
 
         # Attach Module 6 citations sub-scores and flags to EvaluationReport
         eval_report.citations = citation_analysis
-        if citation_analysis.get("flags"):
-            eval_report.flagging_reasons = list(set((eval_report.flagging_reasons or []) + citation_analysis["flags"]))
-
-        # Attach Module 7 writing quality analysis to EvaluationReport
         eval_report.writing_quality = writing_analysis
-        if writing_analysis.get("flags"):
-            eval_report.flagging_reasons = list(set((eval_report.flagging_reasons or []) + writing_analysis["flags"]))
-
-        # Build dynamic improvement roadmap based on project's actual findings
-        dyn_roadmap = []
-
-        # Week 1: Domain & Missing Section / Baseline focus
-        w1_actions = [f"Compare baseline results against SOTA benchmarks in {domain}"]
-        if citation_analysis.get("flags"):
-            w1_actions.append("Address bibliography quality flags: " + citation_analysis["flags"][0])
-        else:
-            w1_actions.append("Expand literature review with 3-5 recent open-access papers")
-
-        dyn_roadmap.append({
-            "week": 1,
-            "focus": f"Literature & Baselines in {domain}",
-            "actions": w1_actions
-        })
-
-        # Week 2: Technical Architecture & Feature Verification
-        algos = entities.get("algorithms", [])
-        algo_name = algos[0] if algos else "core model"
-        w2_actions = [f"Conduct ablation study on {algo_name} architecture"]
-        if writing_analysis.get("flags"):
-            w2_actions.append("Refine document tone: " + writing_analysis["flags"][0])
-        else:
-            w2_actions.append("Formalize mathematical and architectural parameter definitions")
-
-        dyn_roadmap.append({
-            "week": 2,
-            "focus": f"Ablation Studies & {algo_name.title()} Refinement",
-            "actions": w2_actions
-        })
-
-        # Week 3: Final Documentation & Deployment
-        techs = entities.get("technologies", []) + entities.get("frameworks", [])
-        tech_name = techs[0] if techs else "system"
-        dyn_roadmap.append({
-            "week": 3,
-            "focus": f"System Integration & {tech_name.title()} Deployment",
-            "actions": [
-                f"Containerize {tech_name} pipeline for reproducible evaluation",
-                "Finalize code repository documentation and license"
-            ]
-        })
-
-        eval_report.improvement_roadmap = dyn_roadmap
-        eval_report.badges = eval_report.badges or ["Processed by AcadEval+"]
+        eval_report.flagging_reasons = list(dict.fromkeys(
+            citation_analysis.get("flags", []) + writing_analysis.get("flags", [])
+        ))
+        eval_report.improvement_roadmap = assessment["improvement_roadmap"]
+        eval_report.explainability_annotations = [
+            {"sentence": item, "weight": 1.0, "reason": "Detected submission evidence"}
+            for criterion in assessment["feasibility"]["criteria"].values()
+            for item in criterion["evidence"]
+        ][:20]
+        badges = ["Evidence assessed"]
+        if score >= 75:
+            badges.append("Strong novelty signal")
+        if assessment["evidence_quality"] == "full_document":
+            badges.append("Full-document evidence")
+        eval_report.badges = badges
 
         db.commit()
 
-        log.info("score_and_report done for %s — score=%.1f band=%s",
-                 project_id, score, band)
+        log.info(
+            "score_and_report done for %s — novelty=%.1f overall=%.1f",
+            project_id,
+            score,
+            eval_report.overall_score,
+        )
         return project_id
 
     except Exception as exc:

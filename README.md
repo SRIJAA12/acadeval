@@ -2,7 +2,7 @@
 
 AcadEval+ is a graph-based academic project assessment prototype. A submission is parsed, classified, converted into structured entities, compared with the historical project graph, and presented to faculty as an explainable novelty report. Faculty remain the final decision-makers and their ratings form the validation dataset.
 
-## Stage 1–2 status
+## Stage 1–3 status
 
 The application now uses the real FastAPI/PostgreSQL/Neo4j flow. Browser-side mock
 responses and fabricated evaluation records have been removed.
@@ -22,10 +22,21 @@ Implemented foundation:
 - One-transaction historical graph snapshots with persisted corpus versions
 - Nearest-neighbour duplicate sensitivity and five deterministic novelty signals
 - Idempotent project graph replacement using immutable project identifiers
+- Versioned, deterministic feasibility scoring across data, implementation,
+  evaluation, resources, schedule/scope, and dependency-risk evidence
+- Full-submission completeness checks with abstract-only dimensions kept N/A
+- Technical-depth scoring for specificity, method, architecture, evaluation,
+  and reproducibility evidence
+- Measured writing clarity, passive voice, sentence length, and readability
+- Full-text citation parsing with verifiability/recency reporting (without
+  falsely claiming citation-style compliance)
+- Evidence-based overall and publication-potential scores with similarity
+  treated as a penalty, plus persisted evidence, gaps, and method versions
 - Removal of browser-side fabricated projects, scores, users, and reports
 
-Feasibility and the remaining evaluation engines are separate later-stage work.
-A score is not fabricated when an engine or dependency fails.
+Scores are generated only from evidence present in the submission. Abstract-only
+reports do not fabricate completeness or citation scores. Faculty remain the
+final reviewers and every dimension can be overridden with an audit comment.
 
 ## One-command development stack
 

@@ -191,14 +191,8 @@ const ProjectReportView: React.FC = () => {
                   const rawScore = r.dimensionScores[key as keyof typeof r.dimensionScores];
                   const isEditing = overrideState?.dim === key;
                   const isSimilarityRisk = key === 'similarityRisk';
-                  // Normalise to 0-100 for the progress bar
-                  const normScore = rawScore !== null
-                    ? (rawScore <= 10 && !isSimilarityRisk ? rawScore * 10 : rawScore)
-                    : null;
-                  // Display value: for similarity risk show as %
-                  const displayScore = rawScore !== null
-                    ? (rawScore <= 10 && !isSimilarityRisk ? Math.round(rawScore * 10 * 10) / 10 : rawScore)
-                    : null;
+                  const normScore = rawScore;
+                  const displayScore = rawScore;
 
                   let barColor = '';
                   if (normScore !== null) {

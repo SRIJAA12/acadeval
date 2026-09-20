@@ -9,7 +9,6 @@ import logging
 
 from app.services.classifier import classifier_service
 from app.services.extractor import extractor_service
-from app.services.graph_db import graph_service
 from app.services.novelty_engine import novelty_engine_service
 from app.services.trend_scorer import trend_scorer_service
 
@@ -52,14 +51,9 @@ class NoveltyReportGeneratorService:
             sub_domain=sub_domain
         )
 
-        # Step 4: Module 3 — only a scored candidate may become historical data.
-        graph_stats = graph_service.build_project_graph(
-            project_id=project_id,
-            title=title,
-            domain=domain,
-            sub_domain=sub_domain,
-            extracted_entities=entities,
-        )
+        # Graph ingestion is intentionally not performed by a report generator.
+        # The pipeline persists the versioned score first and owns the later,
+        # idempotent graph-ingestion step.
 
         # Step 5: Module 5 — Trend Scoring
         topic = classification.get("topic", domain)
@@ -85,7 +79,6 @@ class NoveltyReportGeneratorService:
             "most_similar_projects": novelty_data["similar_projects"],
             "explanation_lines": novelty_data["explanation_bullets"],
             "scoring_metadata": novelty_data["scoring_metadata"],
-            "graph_stats": graph_stats
         }
 
         log.info("Generated Explainable Novelty Report for Project %s (Score: %.1f)",

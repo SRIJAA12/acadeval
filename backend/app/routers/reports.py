@@ -44,23 +44,30 @@ def _report_to_public(project: Project, report: EvaluationReport) -> PublicEvalu
     wq = None
     if report.writing_quality and isinstance(report.writing_quality, dict):
         raw_wq = report.writing_quality
-        readability = raw_wq.get("readability", raw_wq.get("metrics", {}).get("readability", 0.0))
+        metrics = raw_wq.get("metrics", {})
+        readability = raw_wq.get("readability", metrics.get("flesch_reading_ease"))
         passive_count = raw_wq.get("passiveVoiceCount", raw_wq.get("metrics", {}).get("passive_voice_count", 0))
         tone_flags = raw_wq.get("toneFlags") or raw_wq.get("flags") or []
         wq = WritingQuality(
-            readability=float(readability),
+            readability=float(readability) if readability is not None else None,
+            clarityScore=raw_wq.get("quality_score"),
             passiveVoiceCount=int(passive_count),
+            wordCount=int(metrics.get("word_count", 0) or 0),
             toneFlags=[str(f) for f in tone_flags],
+            methodVersion=raw_wq.get("method_version"),
         )
 
     cit = None
     if report.citations and isinstance(report.citations, dict):
         raw_cit = report.citations
-        ieee = raw_cit.get("ieeeCompliancePercent", raw_cit.get("summary", {}).get("ieee_compliance_percent", 0.0))
-        missing = raw_cit.get("missingReferences") or raw_cit.get("flags") or []
+        summary = raw_cit.get("summary", {})
         cit = CitationInfo(
-            ieeeCompliancePercent=float(ieee),
-            missingReferences=[str(m) for m in missing],
+            verifiedPercent=float(summary.get("percent_verified", 0.0) or 0.0),
+            recentPercent=float(summary.get("percent_recent", 0.0) or 0.0),
+            referenceCount=int(summary.get("reference_count", 0) or 0),
+            issues=[str(item) for item in raw_cit.get("flags", [])],
+            status=str(raw_cit.get("status", "no_data")),
+            methodVersion=raw_cit.get("method_version"),
         )
 
     return PublicEvaluationReport(
@@ -88,6 +95,8 @@ def _report_to_public(project: Project, report: EvaluationReport) -> PublicEvalu
         improvementRoadmap=roadmap,
         badges=report.badges or [],
         percentileRanks=report.percentile_ranks or {},
+        assessmentEvidence=report.assessment_evidence,
+        evaluationMethodVersion=report.assessment_method_version,
     )
 
 

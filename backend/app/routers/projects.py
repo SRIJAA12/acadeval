@@ -70,7 +70,6 @@ def _fallback_background_pipeline(project_id: uuid.UUID):
     from app.services.document_parser import document_parser_service
     from app.services.classifier import classifier_service
     from app.services.extractor import extractor_service
-    from app.services.graph_builder import ingest_project_to_relational_graph
     import logging
 
     log = logging.getLogger(__name__)
@@ -138,23 +137,12 @@ def _fallback_background_pipeline(project_id: uuid.UUID):
 
         db.commit()
 
-        # Module 3+4: graph ingestion
-        try:
-            ingest_project_to_relational_graph(
-                db=db,
-                project_id=str(project.id),
-                title=project.title,
-                domain=project.domain or "General CSE",
-                sub_domain=entities.get("sub_domain", "General"),
-                extracted_entities=entities,
-            )
-        except Exception as exc:
-            log.warning("Graph ingestion skipped: %s", exc)
-
-        # Run the same real scoring/finalisation tasks used by Celery. Any
-        # dependency failure remains visible; no placeholder score is emitted.
-        from app.tasks.pipeline import task_score_and_report, task_finalise
+        # Preserve the same no-leakage order as the Celery chain: score against
+        # historical projects first, then make this candidate historical data.
+        # Any dependency failure remains visible; no placeholder is emitted.
+        from app.tasks.pipeline import task_score_and_report, task_ingest_graph, task_finalise
         task_score_and_report.run(str(project.id))
+        task_ingest_graph.run(str(project.id))
         task_finalise.run(str(project.id))
         log.info("Fallback pipeline complete for %s", project_id)
     except Exception as exc:

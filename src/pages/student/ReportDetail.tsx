@@ -12,7 +12,7 @@ import EntityExtractionPanel from '../../components/EntityExtractionPanel';
 import type { PublicEvaluationReport } from '../../types';
 import {
   AlertTriangle, CheckCircle, XCircle, Download, BookOpen,
-  TrendingUp, ChevronDown, ChevronUp, Info, Award, Lightbulb,
+  TrendingUp, ChevronDown, ChevronUp, Info, Lightbulb,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -22,7 +22,7 @@ const DIMENSION_KEYS = [
   { key: 'completeness', label: 'Completeness' },
   { key: 'technicalDepth', label: 'Technical Depth' },
   { key: 'clarity', label: 'Clarity' },
-  { key: 'similarityRisk', label: 'Similarity Risk' },
+  { key: 'similarityRisk', label: 'Similarity Risk (lower is better)' },
   { key: 'publicationPotential', label: 'Publication Potential' },
 ];
 
@@ -39,8 +39,10 @@ const ScoreBar: React.FC<{ label: string; score: number | null; dimKey: string; 
     );
   }
 
-  const color = score >= 80 ? 'bg-teal-500' : score >= 60 ? 'bg-gold-500' : 'bg-red-500';
-  const textColor = score >= 80 ? 'text-teal-700' : score >= 60 ? 'text-gold-700' : 'text-red-700';
+  const isRisk = dimKey === 'similarityRisk';
+  const favorable = isRisk ? 100 - score : score;
+  const color = favorable >= 80 ? 'bg-teal-500' : favorable >= 60 ? 'bg-gold-500' : 'bg-red-500';
+  const textColor = favorable >= 80 ? 'text-teal-700' : favorable >= 60 ? 'text-gold-700' : 'text-red-700';
 
   return (
     <div className="flex items-center gap-4 group">
@@ -289,8 +291,8 @@ const ReportDetail: React.FC = () => {
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
               <p className="text-xs text-slate-500">Readability Score</p>
               <p className={clsx('text-2xl font-bold font-display mt-1',
-                r.writingQuality.readability >= 70 ? 'text-teal-600' : 'text-gold-500'
-              )}>{r.writingQuality.readability}</p>
+                (r.writingQuality.readability ?? 0) >= 60 ? 'text-teal-600' : 'text-gold-500'
+              )}>{r.writingQuality.readability ?? 'N/A'}</p>
               <p className="text-xs text-slate-400">Flesch Reading Ease</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
@@ -301,36 +303,17 @@ const ReportDetail: React.FC = () => {
               <p className="text-xs text-slate-400">instances found</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-              <p className="text-xs text-slate-500 mb-2">Tone Flags</p>
+              <p className="text-xs text-slate-500">Evidence Analysed</p>
+              <p className="text-2xl font-bold font-display mt-1 text-navy-800">{r.writingQuality.wordCount}</p>
+              <p className="text-xs text-slate-400">words</p>
+            </div>
+          </div>
+          {r.writingQuality.toneFlags.length > 0 && (
+            <div className="mt-4 bg-gold-50 rounded-xl border border-gold-100 p-3">
+              <p className="text-xs text-gold-800 font-medium mb-2">Writing issues</p>
               {r.writingQuality.toneFlags.map((f, i) => (
                 <div key={i} className="flex items-start gap-1.5 text-xs text-gold-700 mb-1">
                   <AlertTriangle size={11} className="flex-shrink-0 mt-0.5 text-gold-500" /> {f}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Citations */}
-      {r.citations && (
-        <div className="card">
-          <h2 className="text-base font-semibold text-navy-900 mb-4">Citation Validator</h2>
-          <div className="flex items-center gap-4 mb-4">
-            <div className="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
-              <div
-                className={clsx('h-full rounded-full', r.citations.ieeeCompliancePercent >= 80 ? 'bg-teal-500' : 'bg-gold-500')}
-                style={{ width: `${r.citations.ieeeCompliancePercent}%` }}
-              />
-            </div>
-            <span className="font-bold text-sm text-slate-700">{r.citations.ieeeCompliancePercent}% IEEE compliant</span>
-          </div>
-          {r.citations.missingReferences.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs text-slate-500 font-medium">References needing attention:</p>
-              {r.citations.missingReferences.map((ref, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-                  <XCircle size={13} /> {ref}
                 </div>
               ))}
             </div>
@@ -338,10 +321,78 @@ const ReportDetail: React.FC = () => {
         </div>
       )}
 
+      {/* Citations */}
+      {r.citations && (
+        <div className="card">
+          <h2 className="text-base font-semibold text-navy-900 mb-4">Citation Validator</h2>
+          {r.citations.status === 'not_applicable' ? (
+            <p className="text-sm text-slate-500">Citation analysis is available for full-document submissions.</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                  <p className="text-xs text-slate-500">Parsed references</p>
+                  <p className="text-xl font-bold text-navy-800">{r.citations.referenceCount}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                  <p className="text-xs text-slate-500">Externally verified</p>
+                  <p className="text-xl font-bold text-navy-800">{r.citations.verifiedPercent}%</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                  <p className="text-xs text-slate-500">Published in last 5 years</p>
+                  <p className="text-xl font-bold text-navy-800">{r.citations.recentPercent}%</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">This checks reference verifiability and recency; it does not claim IEEE style compliance.</p>
+              {r.citations.issues.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-500 font-medium">References needing attention:</p>
+                  {r.citations.issues.map((issue, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                      <XCircle size={13} /> {issue}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Versioned assessment evidence */}
+      {r.assessmentEvidence && (
+        <div className="card">
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-base font-semibold text-navy-900">Assessment Evidence</h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Scores are derived from detected submission evidence; missing evidence is shown as a gap.
+              </p>
+            </div>
+            <span className="badge badge-slate">{r.assessmentEvidence.evidence_quality.replaceAll('_', ' ')}</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {Object.entries(r.assessmentEvidence.feasibility.criteria).map(([name, criterion]) => (
+              <div key={name} className="bg-slate-50 rounded-xl border border-slate-100 p-3">
+                <div className="flex justify-between gap-3">
+                  <p className="text-sm font-medium text-slate-700 capitalize">{name.replaceAll('_', ' ')}</p>
+                  <span className="text-sm font-bold text-navy-800">{criterion.score}/100</span>
+                </div>
+                {criterion.evidence[0] && <p className="text-xs text-teal-700 mt-2">{criterion.evidence[0]}</p>}
+                {criterion.gaps[0] && <p className="text-xs text-gold-700 mt-2">Gap: {criterion.gaps[0]}</p>}
+              </div>
+            ))}
+          </div>
+          {r.evaluationMethodVersion && (
+            <p className="text-[11px] text-slate-400 mt-4">Method: {r.evaluationMethodVersion}</p>
+          )}
+        </div>
+      )}
+
       {/* Improvement Roadmap */}
       <div className="card">
         <h2 className="text-base font-semibold text-navy-900 mb-6 flex items-center gap-2">
-          <Lightbulb size={18} className="text-gold-500" /> AI-Generated Improvement Roadmap
+          <Lightbulb size={18} className="text-gold-500" /> Evidence-Based Improvement Roadmap
         </h2>
         <div>
           {r.improvementRoadmap.map((week, i) => (
