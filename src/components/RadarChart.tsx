@@ -24,7 +24,13 @@ interface RadarChartProps {
 const LABELS = ['Novelty', 'Feasibility', 'Completeness', 'Tech Depth', 'Clarity', 'Sim. Risk', 'Pub. Potential'];
 
 const extractValues = (s: DimensionScores) => [
-  s.novelty, s.feasibility, s.completeness ?? 0, s.technicalDepth, s.clarity, s.similarityRisk, s.publicationPotential
+  s.novelty ?? 0,
+  s.feasibility ?? 0,
+  s.completeness ?? 0,
+  s.technicalDepth ?? 0,
+  s.clarity ?? 0,
+  s.similarityRisk ?? 0,
+  s.publicationPotential ?? 0,
 ];
 
 const RadarChart: React.FC<RadarChartProps> = ({

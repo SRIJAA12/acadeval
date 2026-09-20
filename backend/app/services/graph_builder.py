@@ -48,11 +48,13 @@ def upsert_node(db: Session, node_type: str, name: str) -> int:
 
 def insert_edge(db: Session, from_node: int, to_node: int, relationship: str, confidence: float = 1.0) -> None:
     """
-    Inserts a directed edge between from_node and to_node.
+    Idempotently inserts a directed edge between from_node and to_node.
     """
     stmt = text("""
         INSERT INTO graph_edges (from_node, to_node, relationship, confidence)
         VALUES (:from_node, :to_node, :relationship, :confidence)
+        ON CONFLICT (from_node, to_node, relationship)
+        DO UPDATE SET confidence = EXCLUDED.confidence
     """)
     db.execute(stmt, {
         "from_node": from_node,

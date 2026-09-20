@@ -11,6 +11,7 @@ and — where the pipeline produces a novelty score — syncs it back onto the
 project's `EvaluationReport` so it isn't a second, disconnected system.
 """
 
+import logging
 import math
 import uuid
 
@@ -30,6 +31,7 @@ from app.services.trend_scorer import trend_scorer_service
 from app.services.report_generator import report_generator_service
 
 router = APIRouter(prefix="/v1/acadeval", tags=["AcadEval+ Novelty Engine"])
+log = logging.getLogger(__name__)
 
 NOVELTY_BAND_TO_VERDICT = {
     "Highly Novel": "Novel",
@@ -222,16 +224,22 @@ def get_trend_score(current_user: CurrentUser, topic: str = Query(...)):
 
 
 @router.get("/report/{project_id}", summary="Module 6: Explainable Novelty Report")
-def get_novelty_report(project_id: uuid.UUID, current_user: CurrentUser, db: DB, abstract: str = Query(...)):
-    """Module 6: Runs the full pipeline and returns the Explainable Novelty Report JSON."""
+def get_novelty_report(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DB,
+    abstract: str | None = Query(None, deprecated=True),
+):
+    """Return the persisted report produced by the async pipeline (read-only)."""
     project = _get_project_or_404(project_id, db)
     _require_project_access(project, current_user)
 
-    report = _run_pipeline(project, abstract, db)
-    _sync_evaluation_report_novelty(
-        db, project, report["overall_novelty_score"], report["overall_novelty_band"]
-    )
-    return report
+    if not project.evaluation or not project.evaluation.novelty_report:
+        raise HTTPException(
+            status_code=409,
+            detail="Novelty report is not ready. Poll the project pipeline status and retry when ready=true.",
+        )
+    return project.evaluation.novelty_report
 
 
 @router.post("/faculty-review", summary="Module 7: Faculty Review Ground Truth Submission")

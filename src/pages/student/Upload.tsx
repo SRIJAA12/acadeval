@@ -17,8 +17,8 @@ const abstractSchema = z.object({
   domain: z.string().min(1, 'Please select a domain'),
   teamMembers: z.string().min(1, 'Please enter team member names'),
   abstract: z.string()
-    .min(150, 'Abstract must be at least 150 words')
-    .max(3000, 'Abstract cannot exceed 500 words approx.'),
+    .refine(value => value.trim().split(/\s+/).filter(Boolean).length >= 150, 'Abstract must be at least 150 words')
+    .refine(value => value.trim().split(/\s+/).filter(Boolean).length <= 500, 'Abstract cannot exceed 500 words'),
   relatedSubmissionId: z.string().optional(),
 });
 
@@ -35,6 +35,7 @@ const MODES: { id: UploadMode; icon: React.ReactNode; label: string; description
 const Upload: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [mode, setMode] = useState<UploadMode>('document');
   const [projectTitle, setProjectTitle] = useState('');
   const [projectDomain, setProjectDomain] = useState('AI/ML');
@@ -279,7 +280,7 @@ const Upload: React.FC = () => {
             </div>
             <div>
               <label className="label">Team Members *</label>
-              <input {...register('teamMembers')} className="input" placeholder="e.g. Priya Sharma, Arjun Patel" />
+              <input {...register('teamMembers')} className="input" placeholder="e.g. Member one, Member two" />
             </div>
           </div>
 

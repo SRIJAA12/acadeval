@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { LoadingState } from '../../components/States';
-import type { VivaQuestion, VivaAnswerResult } from '../../types';
+import type { VivaQuestion, VivaAnswerResult, VivaReport } from '../../types';
+import { getVivaReport, startVivaSession, submitVivaAnswer } from '../../api/endpoints';
 import {
   BookOpen, ChevronRight, CheckCircle, Star, Brain,
   RotateCcw, Trophy, Loader2, Target, AlertTriangle, Lightbulb, Activity
 } from 'lucide-react';
 import clsx from 'clsx';
-import apiClient from '../../api/client';
 
 const DIFFICULTY_COLORS: Record<string, string> = {
   Easy: 'badge-teal',
@@ -45,17 +45,14 @@ const VivaSimulation: React.FC = () => {
   const [isStarted, setIsStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [report, setReport] = useState<any>(null);
+  const [report, setReport] = useState<VivaReport | null>(null);
   const [kcs, setKcs] = useState<number>(0.0);
 
   // 1. Start Adaptive Viva Session
   const handleStart = async () => {
     setIsLoading(true);
     try {
-      const { data } = await apiClient.post('/viva/session/start', {
-        projectId: projectId,
-        startDifficulty: 'Easy'
-      });
+      const data = await startVivaSession(projectId);
       setSessionId(data.sessionId);
       setCurrentQuestion(data.firstQuestion);
       setIsStarted(true);
@@ -72,11 +69,7 @@ const VivaSimulation: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const { data } = await apiClient.post<VivaAnswerResult>('/viva/answer', {
-        sessionId: sessionId,
-        questionId: currentQuestion.questionId,
-        answer: answer.trim()
-      });
+      const data = await submitVivaAnswer(sessionId, currentQuestion.questionId, answer.trim());
 
       setLastResult(data);
       setAnswersHistory(prev => [...prev, data]);
@@ -99,7 +92,7 @@ const VivaSimulation: React.FC = () => {
   // 3. Fetch Final Research-Grade Report
   const fetchFinalReport = async (sId: string) => {
     try {
-      const { data } = await apiClient.get(`/viva/session/${sId}/report`);
+      const data = await getVivaReport(sId);
       setReport(data);
     } catch (err) {
       console.error('Failed to fetch final report', err);
@@ -179,7 +172,7 @@ const VivaSimulation: React.FC = () => {
               <h3 className="font-bold text-navy-900">Knowledge Gap Analysis</h3>
             </div>
             <div className="space-y-3">
-              {report.knowledgeGaps.map((gap: any, i: number) => (
+              {report.knowledgeGaps.map((gap, i) => (
                 <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
                   <div>
                     <p className="font-semibold text-slate-800 text-sm">{gap.concept}</p>

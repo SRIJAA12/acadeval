@@ -51,7 +51,7 @@ const AppealModal: React.FC<AppealModalProps> = ({
 
   const mutation = useMutation({
     mutationFn: ({ justification }: AppealFormData) =>
-      submitAppeal(projectId, dimension, justification),
+      submitAppeal(projectId, dimension, currentScore, justification),
     onSuccess: () => {
       setSubmitted(true);
       onSuccess?.();

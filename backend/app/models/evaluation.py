@@ -44,6 +44,7 @@ class EvaluationReport(Base):
     missing_sections: Mapped[list] = mapped_column(JSONB, default=list)
     writing_quality: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     citations: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    novelty_report: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     strengths: Mapped[list] = mapped_column(JSONB, default=list)
     weaknesses: Mapped[list] = mapped_column(JSONB, default=list)
     improvement_roadmap: Mapped[list] = mapped_column(JSONB, default=list)
@@ -137,4 +138,3 @@ class FacultyEvaluation(Base):
 
     project: Mapped["Project"] = relationship("Project")
     evaluator: Mapped["User"] = relationship("User")
-

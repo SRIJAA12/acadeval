@@ -46,7 +46,7 @@ const ProjectReportView: React.FC = () => {
     enabled: !!projectId && !!user,
   });
 
-  const r = data as InternalEvaluationReport | undefined;
+  const r = data as InternalEvaluationReport;
 
   // Auto-fill abstract from student submission
   useEffect(() => {
@@ -259,7 +259,7 @@ const ProjectReportView: React.FC = () => {
                               </span>
                             )}
                             <button
-                              onClick={() => isEditing ? setOverrideState(null) : setOverrideState({ dim: key, value: rawScore, comment: '' })}
+                              onClick={() => isEditing ? setOverrideState(null) : setOverrideState({ dim: key, value: rawScore ?? 0, comment: '' })}
                               className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-slate-100"
                             >
                               {isEditing ? <X size={13} className="text-red-500" /> : <Edit2 size={13} className="text-slate-400" />}
@@ -414,11 +414,11 @@ const ProjectReportView: React.FC = () => {
         <div className="card">
           <div className="flex items-center gap-2 mb-5">
             <Sparkles size={18} className="text-gold-500" />
-            <h2 className="font-semibold text-navy-900">AI Explainability (Internal — LIME/SHAP)</h2>
+            <h2 className="font-semibold text-navy-900">Score Evidence (Internal)</h2>
           </div>
           <div className="bg-gold-50 rounded-xl p-3 border border-gold-100 mb-5">
             <p className="text-xs text-gold-700">
-              🔒 <strong>Internal Only</strong> — This view shows sentence-level feature attribution scores from the AI pipeline. It is never shown to students.
+              🔒 <strong>Internal Only</strong> — This view displays evidence annotations only when an evaluation engine has produced them. It is never shown to students.
             </p>
           </div>
           <ExplainabilityViewer annotations={r.explainabilityAnnotations || []} />

@@ -99,20 +99,25 @@ def task_parse_and_classify(self, project_id: str) -> str:
             project.title = parsed_title
 
         effective_abstract = (
-            parsed_abstract or extracted_text[:2000] or project.title
+            project.abstract or parsed_abstract or extracted_text[:2000] or project.title
         ).strip()
 
         # ── Module 1: Classify ────────────────────────────────────────────────
+        sub_domain = ""
         try:
             cls_res = classifier_service.classify_project(project.title, effective_abstract)
             if cls_res.get("domain"):
                 project.domain = cls_res["domain"]
+            sub_domain = cls_res.get("sub_domain", "")
         except Exception as exc:
             log.warning("Module 1 classification skipped: %s", exc)
 
-        # Persist effective abstract back onto project for later tasks
-        project.extracted_entities = project.extracted_entities or {}
-        project.extracted_entities["_effective_abstract"] = effective_abstract
+        project.abstract = effective_abstract
+        project.parsed_text = extracted_text.strip() or None
+        project.extracted_entities = {
+            "_effective_abstract": effective_abstract,
+            "_sub_domain": sub_domain,
+        }
         db.commit()
 
         log.info("parse_and_classify done for %s", project_id)
@@ -148,11 +153,13 @@ def task_extract_entities(self, project_id: str) -> str:
             return project_id
 
         cached = project.extracted_entities or {}
-        abstract = cached.get("_effective_abstract", project.title)
+        abstract = project.abstract or cached.get("_effective_abstract", project.title)
 
         entities = extractor_service.extract_from_full_proposal(
             title=project.title, abstract=abstract
         )
+        if cached.get("_sub_domain"):
+            entities["sub_domain"] = cached["_sub_domain"]
         # Merge with cache (keep _effective_abstract for downstream tasks)
         entities["_effective_abstract"] = abstract
         project.extracted_entities = entities
@@ -243,27 +250,14 @@ def task_score_and_report(self, project_id: str) -> str:
         domain = project.domain or "General CSE"
         sub_domain = entities.get("sub_domain", "General")
 
-        # Module 5 — Novelty signals
-        try:
-            novelty = novelty_engine_service.compute_novelty_signals(
-                project_id=str(project.id),
-                extracted_entities=entities,
-                domain=domain,
-                sub_domain=sub_domain,
-            )
-        except Exception as exc:
-            log.warning("Novelty engine skipped (%s); using defaults", exc)
-            novelty = {
-                "composite_novelty_score": 72.0,
-                "novelty_band": "Moderately Novel",
-                "explanation_bullets": [],
-                "similar_projects": [],
-                "signal_1_graph_distance": {},
-                "signal_2_feature_rarity": {},
-                "signal_3_relationship_rarity": {},
-                "signal_4_graph_density": {},
-                "signal_5_new_connection_discovery": {},
-            }
+        # Module 5 — Novelty signals. Failure must be visible to Celery/API;
+        # a fabricated score would invalidate both the product and the paper.
+        novelty = novelty_engine_service.compute_novelty_signals(
+            project_id=str(project.id),
+            extracted_entities=entities,
+            domain=domain,
+            sub_domain=sub_domain,
+        )
 
         # Module 5 — Trend scoring
         try:
@@ -320,10 +314,32 @@ def task_score_and_report(self, project_id: str) -> str:
 
         eval_report.novelty_score = score
         eval_report.novelty_verdict = BAND_TO_VERDICT.get(band, "Somewhat Novel")
-        if not eval_report.overall_score:
-            eval_report.overall_score = round(min(score / 10, 10.0), 1)
+        # Novelty is one dimension, not a substitute for the overall rubric.
+        # Keep the overall result pending until the remaining engines run.
         if not eval_report.grade:
-            eval_report.grade = "A" if score >= 75 else ("B" if score >= 55 else "C")
+            eval_report.grade = "N/A"
+
+        eval_report.novelty_report = {
+            "project_id": str(project.id),
+            "title": project.title,
+            "domain": domain,
+            "sub_domain": sub_domain,
+            "overall_novelty_band": band,
+            "overall_novelty_score": score,
+            "signals_breakdown": {
+                "graph_distance": novelty["signal_1_graph_distance"],
+                "feature_rarity": novelty["signal_2_feature_rarity"],
+                "relationship_rarity": novelty["signal_3_relationship_rarity"],
+                "graph_density": novelty["signal_4_graph_density"],
+                "new_connection_discovery": novelty["signal_5_new_connection_discovery"],
+            },
+            "extracted_entities": {
+                key: value for key, value in entities.items() if not key.startswith("_")
+            },
+            "trend_context": trend,
+            "most_similar_projects": novelty["similar_projects"],
+            "explanation_lines": novelty["explanation_bullets"],
+        }
 
         eval_report.strengths = eval_report.strengths or [
             f"Strong technical architecture in {domain}",

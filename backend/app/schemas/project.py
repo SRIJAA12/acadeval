@@ -31,6 +31,7 @@ class UploadResponse(BaseModel):
 class BatchUploadResponse(BaseModel):
     batchId: str
     totalFiles: int
+    projectIds: list[str]
 
 
 class BatchJobStatusResponse(BaseModel):

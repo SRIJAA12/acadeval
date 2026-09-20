@@ -138,7 +138,7 @@ class ProjectGraphService:
         with self.session() as session:
             session.execute_write(self._ingest_tx, project_id, title, domain, sub_domain, extracted_entities)
             if len(entity_pairs) > 1:
-                session.execute_write(self._co_occurrence_tx, entity_pairs)
+                session.execute_write(self._co_occurrence_tx, project_id, entity_pairs)
 
         nodes_written = 3 + len(entity_pairs)  # Project + Domain + Subdomain + entities
         edges_written = 2 + len(entity_pairs) + (len(entity_pairs) * (len(entity_pairs) - 1)) // 2
@@ -185,7 +185,7 @@ class ProjectGraphService:
         tx.run("\n".join(query_parts), **params)
 
     @staticmethod
-    def _co_occurrence_tx(tx, entity_pairs: list[tuple[str, str]]):
+    def _co_occurrence_tx(tx, project_id: str, entity_pairs: list[tuple[str, str]]):
         pair_params = [
             {"a_label": entity_pairs[i][0], "a_name": entity_pairs[i][1],
              "b_label": entity_pairs[j][0], "b_name": entity_pairs[j][1]}
@@ -198,10 +198,19 @@ class ProjectGraphService:
             MATCH (a) WHERE pair.a_label IN labels(a) AND a.name = pair.a_name
             MATCH (b) WHERE pair.b_label IN labels(b) AND b.name = pair.b_name
             MERGE (a)-[r:CO_OCCURS]-(b)
-            ON CREATE SET r.weight = 1
-            ON MATCH SET r.weight = r.weight + 1
+            ON CREATE SET r.weight = 1, r.project_ids = [$project_id]
+            ON MATCH SET
+                r.weight = CASE
+                    WHEN $project_id IN coalesce(r.project_ids, []) THEN r.weight
+                    ELSE coalesce(r.weight, 0) + 1
+                END,
+                r.project_ids = CASE
+                    WHEN $project_id IN coalesce(r.project_ids, []) THEN r.project_ids
+                    ELSE coalesce(r.project_ids, []) + $project_id
+                END
             """,
             pairs=pair_params,
+            project_id=project_id,
         )
 
 

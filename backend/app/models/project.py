@@ -37,6 +37,8 @@ class Project(Base):
     domain: Mapped[str] = mapped_column(String(100), nullable=False)
     submission_type: Mapped[SubmissionType] = mapped_column(Enum(SubmissionType), nullable=False)
     github_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    team_members: Mapped[str | None] = mapped_column(Text, nullable=True)
+    batch_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     related_submission_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
     )

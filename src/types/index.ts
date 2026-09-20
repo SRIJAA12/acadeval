@@ -53,13 +53,13 @@ export interface ProjectSummary {
 // ─── Dimension Scores ────────────────────────────────────────────────────────
 
 export interface DimensionScores {
-  novelty: number;
-  feasibility: number;
+  novelty: number | null;
+  feasibility: number | null;
   completeness: number | null; // null for abstract-only
-  technicalDepth: number;
-  clarity: number;
-  similarityRisk: number;
-  publicationPotential: number;
+  technicalDepth: number | null;
+  clarity: number | null;
+  similarityRisk: number | null;
+  publicationPotential: number | null;
 }
 
 // ─── Public Report (Student-safe) ────────────────────────────────────────────
@@ -141,15 +141,73 @@ export interface VivaQuestion {
   questionId: string;
   text: string;
   category: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
+  difficulty: 'Easy' | 'Medium' | 'Hard' | 'Research';
+  targetConcept: string;
+  referenceAnswer?: string;
+  expectedKeywords?: string[];
+}
+
+export interface VivaAnswerEvaluation {
+  correctness: number;
+  completeness: number;
+  technicalDepth: number;
+  confidence: number;
+  overallScore: number;
 }
 
 export interface VivaAnswerResult {
   questionId: string;
   score: number; // 0-5
-  maxScore: 5;
+  maxScore: number;
+  evaluation: VivaAnswerEvaluation;
   feedback: string;
-  keyPoints: string[];
+  strongPoints: string[];
+  weakPoints: string[];
+  conceptCovered: string;
+  nextQuestion: VivaQuestion | null;
+  sessionComplete: boolean;
+  kcsAfterAnswer: number;
+}
+
+export interface StartVivaResponse {
+  sessionId: string;
+  projectId: string;
+  projectTitle: string;
+  totalConcepts: number;
+  firstQuestion: VivaQuestion;
+  message: string;
+}
+
+export interface VivaConceptGap {
+  concept: string;
+  category: string;
+  difficulty: VivaQuestion['difficulty'];
+  questionsAsked: number;
+  averageScore: number;
+  gapSeverity: 'Critical' | 'Moderate' | 'Minor';
+}
+
+export interface VivaReport {
+  sessionId: string;
+  projectId: string;
+  projectTitle: string;
+  overallScore: number;
+  kcs: number;
+  difficultyReached: VivaQuestion['difficulty'];
+  totalQuestionsAnswered: number;
+  totalConceptsInProject: number;
+  conceptsCovered: number;
+  averageCorrectness: number;
+  averageCompleteness: number;
+  averageDepth: number;
+  averageConfidence: number;
+  categoryScores: Record<string, number>;
+  difficultyProgression: string[];
+  knowledgeGaps: VivaConceptGap[];
+  strongAreas: string[];
+  learningRecommendations: string[];
+  grade: 'Distinction' | 'Merit' | 'Pass' | 'Needs Improvement';
+  summaryStatement: string;
 }
 
 export interface VivaSession {

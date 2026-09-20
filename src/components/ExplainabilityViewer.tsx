@@ -26,6 +26,14 @@ const getWeightLabel = (weight: number): { label: string; color: string } => {
 const ExplainabilityViewer: React.FC<ExplainabilityViewerProps> = ({ annotations }) => {
   const [activeAnnotation, setActiveAnnotation] = useState<ExplainabilityAnnotation | null>(null);
 
+  if (annotations.length === 0) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+        No evidence annotations have been generated for this report yet.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Legend */}

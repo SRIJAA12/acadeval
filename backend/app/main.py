@@ -24,10 +24,10 @@ app = FastAPI(
 # ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # ── Static uploads ────────────────────────────────────────────────────────────
@@ -57,10 +57,9 @@ app.include_router(integrations.router,  prefix=API_PREFIX)  # Module 13 — SS 
 def on_startup():
     import logging
     log = logging.getLogger(__name__)
-    try:
-        Base.metadata.create_all(bind=engine)
-    except Exception as e:
-        log.warning("Table creation skipped/encountered existing tables: %s", e)
+    # Database availability is mandatory. Failing startup is safer than
+    # silently switching stores or serving a partially functional API.
+    Base.metadata.create_all(bind=engine)
     try:
         graph_service.ensure_constraints()
     except Exception as e:
