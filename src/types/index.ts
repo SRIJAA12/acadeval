@@ -145,6 +145,10 @@ export interface GitHubAnalysis {
   detectedStack?: string[];
   fileStructure?: string[];
   readmeSnippet?: string;
+  license?: string;
+  languages?: string[];
+  hasTests?: boolean;
+  recentCommitCount?: number;
 }
 
 // ─── Internal Report (Faculty/HOD only — NEVER fetched on student routes) ────

@@ -38,8 +38,30 @@ export const getAllProjects = async (): Promise<ProjectSummary[]> => {
   return data;
 };
 
+export interface PipelineStepDetail {
+  step: string;
+  step_number: number;
+  total_steps: number;
+  label: string;
+}
+
+export interface PipelineStatusResponse {
+  project_id: string;
+  db_status: string;
+  celery_state: string | null;
+  celery_task_id: string | null;
+  ready: boolean;
+  error: string | null;
+  pipeline_step_detail: PipelineStepDetail | null;
+}
+
 export const getProjectStatus = async (projectId: string): Promise<{ status: string }> => {
   const { data } = await apiClient.get(`/projects/${projectId}/status`);
+  return data;
+};
+
+export const getPipelineStatus = async (projectId: string): Promise<PipelineStatusResponse> => {
+  const { data } = await apiClient.get<PipelineStatusResponse>(`/projects/${projectId}/pipeline-status`);
   return data;
 };
 

@@ -237,6 +237,25 @@ Respond with a single JSON object only:
             log.warning("LLM section segmentation fallback failed (%s)", e)
             return None
 
+    def _transcribe_video(self, path: Path) -> str:
+        """
+        Transcribes audio from a video file using faster-whisper (CPU, 'base' model).
+        Returns transcribed text or empty string on failure.
+        """
+        try:
+            from faster_whisper import WhisperModel
+            # Load base model on CPU with int8 compute for speed and memory efficiency
+            model = WhisperModel("base", device="cpu", compute_type="int8")
+            segments, _ = model.transcribe(str(path), beam_size=2)
+            transcript_parts = [segment.text.strip() for segment in segments if segment.text.strip()]
+            return " ".join(transcript_parts)
+        except ImportError:
+            log.info("faster-whisper is not installed; skipping audio transcription.")
+            return ""
+        except Exception as e:
+            log.warning("Audio transcription with faster-whisper failed: %s", e)
+            return ""
+
     def parse_video_file(self, path: str | Path) -> dict:
         """
         Extracts metadata / transcript information from video files (.mp4, .webm, .avi, .mkv).
@@ -247,12 +266,19 @@ Respond with a single JSON object only:
 
         # Extract file size and structural properties
         file_size_mb = round(p.stat().st_size / (1024 * 1024), 2) if p.exists() else 0
-        raw_text = f"Uploaded Video Demonstration ({filename}, Format: {ext.upper()}, Size: {file_size_mb} MB)."
+        metadata_line = f"Uploaded Video Demonstration ({filename}, Format: {ext.upper()}, Size: {file_size_mb} MB)."
+
+        transcription = self._transcribe_video(p)
+        if transcription:
+            raw_text = f"{metadata_line}\n\n--- Video Audio Transcript ---\n{transcription}"
+        else:
+            raw_text = metadata_line
 
         return {
             "raw_text": raw_text,
             "heading_spans": [],
             "page_count": 1,
+            "transcription": transcription,
         }
 
     def fetch_github_features(self, github_url: str) -> dict:

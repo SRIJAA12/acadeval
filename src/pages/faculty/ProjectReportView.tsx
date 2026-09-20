@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getEvaluationReport, overrideScore, addFacultyNote, publishReview, getNoveltyReport, submitFacultyNoveltyReview, getProjectEntities } from '../../api/endpoints';
+import { getEvaluationReport, overrideScore, addFacultyNote, publishReview, getNoveltyReport, submitFacultyNoveltyReview, getProjectEntities, reprocessProject } from '../../api/endpoints';
 import { useAuth } from '../../auth/AuthContext';
 import { LoadingState, ErrorState } from '../../components/States';
 import RadarChart from '../../components/RadarChart';
@@ -37,6 +37,7 @@ const ProjectReportView: React.FC = () => {
   const [newNote, setNewNote] = useState('');
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
+  const [reprocessSuccess, setReprocessSuccess] = useState(false);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['internalReport', projectId],
@@ -45,6 +46,17 @@ const ProjectReportView: React.FC = () => {
   });
 
   const r = data as InternalEvaluationReport;
+
+  const reprocessMutation = useMutation({
+    mutationFn: () => reprocessProject(projectId!),
+    onSuccess: () => {
+      setReprocessSuccess(true);
+      setTimeout(() => setReprocessSuccess(false), 5000);
+      queryClient.invalidateQueries({ queryKey: ['internalReport', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['noveltyReport', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['project-entities', projectId] });
+    },
+  });
 
   const overrideMutation = useMutation({
     mutationFn: () => overrideScore(projectId!, overrideState!.dim, overrideState!.value, overrideState!.comment),
@@ -146,9 +158,24 @@ const ProjectReportView: React.FC = () => {
                 </button>
               )
             )}
+            <button
+              onClick={() => reprocessMutation.mutate()}
+              disabled={reprocessMutation.isPending}
+              className="btn-outline flex items-center gap-1.5 text-purple-700 border-purple-200 hover:bg-purple-50"
+            >
+              <RefreshCw size={15} className={clsx(reprocessMutation.isPending && "animate-spin")} />
+              {reprocessMutation.isPending ? "Reprocessing..." : "Reprocess Project"}
+            </button>
             <button onClick={() => window.print()} className="btn-outline">
               Download PDF Report
             </button>
+          </div>
+        )}
+
+        {reprocessSuccess && (
+          <div className="mt-4 bg-purple-50 border border-purple-200 rounded-xl p-3 flex items-center gap-2 text-sm text-purple-700">
+            <CheckCircle size={16} className="text-purple-600" />
+            Project re-queued for AI evaluation pipeline. Scores will refresh shortly.
           </div>
         )}
       </div>

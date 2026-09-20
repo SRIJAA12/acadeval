@@ -220,3 +220,33 @@ def get_internal_report(project_id: str, current_user: CurrentFacultyOrHOD, db: 
     project = _get_project_or_404(project_id, db)
     report = _get_or_create_report(project, db)
     return _report_to_internal(project, report)
+
+
+@router.get("/reports/{project_id}/download")
+def download_project_report_pdf(project_id: str, current_user: CurrentUser, db: DB):
+    """Download evaluation report as a formatted PDF."""
+    from fastapi.responses import Response
+    from app.services.report_pdf_template import generate_report_pdf
+
+    project = _get_project_or_404(project_id, db)
+    if current_user.role == UserRole.student and project.student_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    report = _get_or_create_report(project, db)
+    public_rep = _report_to_public(project, report)
+
+    pdf_bytes = generate_report_pdf(
+        project_data={
+            "title": project.title,
+            "domain": project.domain,
+            "submissionType": project.submission_type.value,
+        },
+        report_data=public_rep.model_dump(),
+    )
+
+    filename = f"AcadEval_Report_{project_id[:8]}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

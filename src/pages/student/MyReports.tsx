@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getMyProjects, deleteProject } from '../../api/endpoints';
+import { getMyProjects, deleteProject, reprocessProject, getPipelineStatus } from '../../api/endpoints';
 import { LoadingState, ErrorState, EmptyState } from '../../components/States';
 import Badge from '../../components/Badge';
-import { FileText, Upload, ChevronRight, Clock, Cpu, CheckCircle, Trash2, Loader2 } from 'lucide-react';
+import { FileText, Upload, ChevronRight, Clock, Cpu, CheckCircle, Trash2, Loader2, RefreshCw } from 'lucide-react';
 import type { ProjectSummary } from '../../types';
 import clsx from 'clsx';
 
@@ -20,10 +20,23 @@ const ProjectCard: React.FC<{
   project: ProjectSummary;
   onClick: () => void;
   onDelete: (e: React.MouseEvent) => void;
+  onReprocess: (e: React.MouseEvent) => void;
   isDeleting: boolean;
-}> = ({ project, onClick, onDelete, isDeleting }) => {
+  isReprocessing: boolean;
+}> = ({ project, onClick, onDelete, onReprocess, isDeleting, isReprocessing }) => {
   const stepIndex = statusSteps.indexOf(project.pipelineStatus);
   const isReviewed = project.pipelineStatus === 'reviewed';
+  const isProcessing = project.pipelineStatus === 'ai_processing' || project.pipelineStatus === 'uploaded';
+
+  // Poll live pipeline status if in processing
+  const { data: pipelineData } = useQuery({
+    queryKey: ['pipelineStatus', project.projectId],
+    queryFn: () => getPipelineStatus(project.projectId),
+    enabled: isProcessing,
+    refetchInterval: isProcessing ? 3000 : false,
+  });
+
+  const stepDetail = pipelineData?.pipeline_step_detail;
 
   return (
     <div className="card-hover cursor-pointer relative group" onClick={onClick}>
@@ -55,15 +68,25 @@ const ProjectCard: React.FC<{
             </div>
           )}
 
-          {/* Delete Button */}
-          <button
-            onClick={onDelete}
-            disabled={isDeleting}
-            title="Delete Project"
-            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            {isDeleting ? <Loader2 size={16} className="animate-spin text-red-600" /> : <Trash2 size={16} />}
-          </button>
+          {/* Action buttons */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onReprocess}
+              disabled={isReprocessing}
+              title="Re-run AI Evaluation"
+              className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+            >
+              <RefreshCw size={15} className={clsx(isReprocessing && "animate-spin text-purple-600")} />
+            </button>
+            <button
+              onClick={onDelete}
+              disabled={isDeleting}
+              title="Delete Project"
+              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            >
+              {isDeleting ? <Loader2 size={16} className="animate-spin text-red-600" /> : <Trash2 size={16} />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -98,6 +121,17 @@ const ProjectCard: React.FC<{
         </div>
       </div>
 
+      {/* Step level progress detail banner */}
+      {stepDetail && isProcessing && (
+        <div className="mb-3 bg-purple-50 border border-purple-100 rounded-xl p-2.5 flex items-center justify-between text-xs text-purple-800">
+          <div className="flex items-center gap-2">
+            <Loader2 size={13} className="animate-spin text-purple-600 flex-shrink-0" />
+            <span className="font-medium">{stepDetail.label}</span>
+          </div>
+          <span className="text-purple-600 font-bold">{stepDetail.step_number}/{stepDetail.total_steps}</span>
+        </div>
+      )}
+
       {/* Status message */}
       {!isReviewed && project.pipelineStatus === 'awaiting_review' && project.overallScore !== null && (
         <div className="bg-gold-50 border border-gold-100 rounded-xl p-3 flex items-start gap-2">
@@ -123,6 +157,7 @@ const MyReports: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [reprocessingId, setReprocessingId] = useState<string | null>(null);
 
   const { data: projects, isLoading, isError, refetch } = useQuery({
     queryKey: ['myProjects'],
@@ -140,11 +175,27 @@ const MyReports: React.FC = () => {
     onSettled: () => setDeletingId(null),
   });
 
+  const reprocessMutation = useMutation({
+    mutationFn: (id: string) => reprocessProject(id),
+    onMutate: (id) => setReprocessingId(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['myProjects'] });
+      queryClient.invalidateQueries({ queryKey: ['allProjects'] });
+    },
+    onError: () => alert('Failed to trigger reprocessing.'),
+    onSettled: () => setReprocessingId(null),
+  });
+
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (confirm('Are you sure you want to delete this submitted project? This action cannot be undone.')) {
       deleteMutation.mutate(id);
     }
+  };
+
+  const handleReprocess = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    reprocessMutation.mutate(id);
   };
 
   if (isLoading) return <LoadingState message="Loading your submissions..." />;
@@ -181,7 +232,9 @@ const MyReports: React.FC = () => {
               project={project}
               onClick={() => navigate(`/student/report/${project.projectId}`)}
               onDelete={(e) => handleDelete(e, project.projectId)}
+              onReprocess={(e) => handleReprocess(e, project.projectId)}
               isDeleting={deletingId === project.projectId}
+              isReprocessing={reprocessingId === project.projectId}
             />
           ))}
         </div>

@@ -32,6 +32,7 @@ import AppealsInbox from './pages/faculty/AppealsInbox';
 import HistoricalBenchmark from './pages/faculty/HistoricalBenchmark';
 import PendingReviewQueue from './pages/faculty/PendingReviewQueue';
 import { GraphExplorerView } from './pages/faculty/GraphExplorerView';
+import PublicationWorkflow from './pages/faculty/PublicationWorkflow';
 
 // HOD pages
 import DeptOverview from './pages/hod/DeptOverview';
@@ -136,6 +137,7 @@ const AppRoutes: React.FC = () => {
                 <Route path="benchmarks" element={<HistoricalBenchmark />} />
                 <Route path="entity-review" element={<PendingReviewQueue />} />
                 <Route path="graph-explorer" element={<GraphExplorerView />} />
+                <Route path="publications" element={<PublicationWorkflow />} />
                 <Route path="" element={<Navigate to="dashboard" replace />} />
               </Routes>
             </FacultyLayout>

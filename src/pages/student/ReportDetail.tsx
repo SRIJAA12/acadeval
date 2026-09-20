@@ -123,6 +123,27 @@ const ReportDetail: React.FC = () => {
 
   const r = report as PublicEvaluationReport;
 
+  const handleDownloadPdf = async () => {
+    try {
+      const token = localStorage.getItem('acadeval_token');
+      const response = await fetch(`/api/v1/reports/${r.projectId}/download`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `AcadEval_Report_${r.projectId.slice(0, 8)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      window.print();
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Preliminary Banner */}
@@ -182,7 +203,7 @@ const ReportDetail: React.FC = () => {
           <button onClick={() => navigate(`/student/viva?projectId=${r.projectId}`)} className="btn-navy">
             <BookOpen size={16} /> Viva Simulation
           </button>
-          <button onClick={() => window.print()} className="btn-outline">
+          <button onClick={handleDownloadPdf} className="btn-outline">
             <Download size={16} /> Download PDF
           </button>
         </div>
@@ -293,9 +314,29 @@ const ReportDetail: React.FC = () => {
               </div>
 
               {r.githubAnalysis.primaryLanguage && (
-                <div>
-                  <p className="text-xs text-slate-400 font-medium">Primary Language</p>
-                  <span className="badge badge-blue mt-1">{r.githubAnalysis.primaryLanguage}</span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div>
+                    <p className="text-xs text-slate-400 font-medium">Primary Language</p>
+                    <span className="badge badge-blue mt-1">{r.githubAnalysis.primaryLanguage}</span>
+                  </div>
+                  {r.githubAnalysis.license && (
+                    <div>
+                      <p className="text-xs text-slate-400 font-medium">License</p>
+                      <span className="badge badge-slate mt-1">{r.githubAnalysis.license}</span>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs text-slate-400 font-medium">Test Suite</p>
+                    <span className={clsx("badge mt-1", r.githubAnalysis.hasTests ? "badge-teal" : "badge-slate")}>
+                      {r.githubAnalysis.hasTests ? "✓ Detected" : "None Detected"}
+                    </span>
+                  </div>
+                  {r.githubAnalysis.recentCommitCount !== undefined && r.githubAnalysis.recentCommitCount > 0 && (
+                    <div>
+                      <p className="text-xs text-slate-400 font-medium">Activity (90d)</p>
+                      <span className="badge badge-blue mt-1">{r.githubAnalysis.recentCommitCount} commits</span>
+                    </div>
+                  )}
                 </div>
               )}
 

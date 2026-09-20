@@ -82,6 +82,7 @@ def _fallback_background_pipeline(project_id: uuid.UUID):
             return
 
         project.pipeline_status = PipelineStatus.ai_processing
+        project.pipeline_step_detail = {"step": "parsing", "step_number": 1, "total_steps": 5, "label": "Extracting text and file contents..."}
         db.commit()
 
         # Document parsing
@@ -118,6 +119,9 @@ def _fallback_background_pipeline(project_id: uuid.UUID):
         project.parsed_text = extracted_text.strip() or None
 
         # Module 1: classify
+        project.pipeline_step_detail = {"step": "extracting", "step_number": 2, "total_steps": 5, "label": "Extracting domain and project entities..."}
+        db.commit()
+
         sub_domain = "General"
         try:
             cls = classifier_service.classify_project(project.title, effective_abstract)
@@ -137,18 +141,32 @@ def _fallback_background_pipeline(project_id: uuid.UUID):
             log.warning("Entity extraction skipped: %s", exc)
             entities = {}
 
-        db.commit()
-
         # Preserve the same no-leakage order as the Celery chain: score against
         # historical projects first, then make this candidate historical data.
-        # Any dependency failure remains visible; no placeholder is emitted.
         from app.tasks.pipeline import task_score_and_report, task_ingest_graph, task_finalise
+        project.pipeline_step_detail = {"step": "novelty", "step_number": 3, "total_steps": 5, "label": "Evaluating 5-signal graph novelty & trend..."}
+        db.commit()
+
         task_score_and_report.run(str(project.id))
+
+        project.pipeline_step_detail = {"step": "ingesting", "step_number": 4, "total_steps": 5, "label": "Ingesting candidate into project graph..."}
+        db.commit()
+
         task_ingest_graph.run(str(project.id))
         task_finalise.run(str(project.id))
+
+        project.pipeline_step_detail = {"step": "ready", "step_number": 5, "total_steps": 5, "label": "Evaluation complete. Ready for review."}
+        db.commit()
         log.info("Fallback pipeline complete for %s", project_id)
     except Exception as exc:
         log.exception("Fallback pipeline failed for %s: %s", project_id, exc)
+        try:
+            project = db.query(Project).filter(Project.id == project_id).first()
+            if project:
+                project.pipeline_step_detail = {"step": "failed", "step_number": 0, "total_steps": 5, "label": f"Processing failed: {str(exc)[:200]}"}
+                db.commit()
+        except Exception:
+            pass
     finally:
         db.close()
 
@@ -251,6 +269,7 @@ def get_pipeline_status(project_id: str, current_user: CurrentUser, db: DB):
         "celery_task_id": celery_task_id,
         "ready": ready,
         "error": error_msg,
+        "pipeline_step_detail": project.pipeline_step_detail,
     }
 
 
@@ -269,6 +288,10 @@ def analyze_github_repo(payload: GitHubAnalyzeRequest, current_user: CurrentUser
         detectedStack=data.get("detected_stack", []),
         fileStructure=data.get("file_structure", []),
         readmeSnippet=(data.get("readme_text", "")[:500] + "...") if data.get("readme_text") else "",
+        license=data.get("license", ""),
+        languages=data.get("languages", []),
+        hasTests=data.get("has_tests", False),
+        recentCommitCount=data.get("recent_commits", 0),
     )
 
 

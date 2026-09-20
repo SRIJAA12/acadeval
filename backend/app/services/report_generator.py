@@ -106,7 +106,11 @@ class NoveltyReportGeneratorService:
                 "topics": github_data.get("topics", []) if github_data else [],
                 "detected_stack": github_data.get("detected_stack", []) if github_data else [],
                 "file_structure": github_data.get("file_structure", []) if github_data else [],
-                "readme_snippet": (github_data.get("readme_text", "")[:500] + "...") if github_data and github_data.get("readme_text") else ""
+                "readme_snippet": (github_data.get("readme_text", "")[:500] + "...") if github_data and github_data.get("readme_text") else "",
+                "license": github_data.get("license", "") if github_data else "",
+                "languages": github_data.get("languages", []) if github_data else [],
+                "has_tests": github_data.get("has_tests", False) if github_data else False,
+                "recent_commits": github_data.get("recent_commits", 0) if github_data else 0,
             } if github_url else None
         }
 

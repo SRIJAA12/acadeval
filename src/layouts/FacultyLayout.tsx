@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import {
   LayoutDashboard, Users, Inbox, ClipboardList, Upload,
   BarChart2, Settings, LogOut, GraduationCap, ChevronRight,
-  Bell, Scale, History, MessageSquare, FlaskConical, Network,
+  Bell, Scale, History, MessageSquare, FlaskConical, Network, Award,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -12,6 +12,7 @@ const navItems = [
   { to: '/faculty/dashboard', icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
   { to: '/faculty/submissions', icon: <Users size={18} />, label: 'All Submissions' },
   { to: '/faculty/queue', icon: <Inbox size={18} />, label: 'Review Queue' },
+  { to: '/faculty/publications', icon: <Award size={18} />, label: 'Publications' },
   { to: '/faculty/batch', icon: <Upload size={18} />, label: 'Batch Upload' },
   { to: '/faculty/comparison', icon: <BarChart2 size={18} />, label: 'Comparison Table' },
   { to: '/faculty/rubric', icon: <Scale size={18} />, label: 'Rubric Builder' },

@@ -76,6 +76,9 @@ class Project(Base):
     graph_ingested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     graph_ingestion_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
+    # Stage 5 — Step-level progress & error details for frontend live progress
+    pipeline_step_detail: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
     # Relationships
     student: Mapped["User"] = relationship(
         "User", back_populates="projects", foreign_keys=[student_id]

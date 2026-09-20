@@ -60,4 +60,8 @@ class GitHubAnalyzeResponse(BaseModel):
     detectedStack: list[str] = []
     fileStructure: list[str] = []
     readmeSnippet: str = ""
+    license: str = ""
+    languages: list[str] = []
+    hasTests: bool = False
+    recentCommitCount: int = 0
 

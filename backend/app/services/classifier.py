@@ -118,35 +118,70 @@ class DomainClassifierService:
                     top1["domain"] = tie_break.get("domain", top1["domain"])
                     top1["sub_domain"] = tie_break.get("sub_domain", top1["sub_domain"])
 
+            matched_keywords = self._extract_matched_keywords(
+                full_text, top1["domain"], top1["sub_domain"], top1["topic"]
+            )
+
             return {
                 "domain": top1["domain"],
                 "sub_domain": top1["sub_domain"],
                 "topic": top1["topic"],
                 "confidence_score": top1["score"],
                 "is_ambiguous": is_ambiguous,
+                "matched_keywords": matched_keywords,
                 "top_candidates": candidates
             }
 
         # Fallback to phrase & keyword match if SentenceTransformer is not loaded
         if phrase_classify_domain:
             res = phrase_classify_domain(full_text)
+            matched_keywords = self._extract_matched_keywords(
+                full_text, res["domain"], res["sub_domain"], res["top_topics"][0] if res.get("top_topics") else ""
+            )
             return {
                 "domain": res["domain"],
                 "sub_domain": res["sub_domain"],
                 "topic": res["top_topics"][0] if res["top_topics"] else "",
-                "confidence_score": float(res["score"]) / 10.0,
+                "confidence_score": round(min(1.0, float(res["score"]) / 10.0), 2),
                 "is_ambiguous": False,
+                "matched_keywords": matched_keywords,
                 "top_candidates": []
             }
 
+        matched_keywords = self._extract_matched_keywords(full_text, "Artificial Intelligence", "Machine Learning", "General Machine Learning")
         return {
             "domain": "Artificial Intelligence",
             "sub_domain": "Machine Learning",
             "topic": "General Machine Learning",
             "confidence_score": 0.5,
             "is_ambiguous": False,
+            "matched_keywords": matched_keywords,
             "top_candidates": []
         }
+
+    def _extract_matched_keywords(self, full_text: str, domain: str, sub_domain: str, topic: str) -> list[str]:
+        """Extracts keyword evidence present in both proposal text and the taxonomy."""
+        text_lower = full_text.lower()
+        matched: list[str] = []
+        if self.taxonomy_df is not None and not self.taxonomy_df.empty:
+            matches = self.taxonomy_df[
+                (self.taxonomy_df["Domain"] == domain) &
+                (self.taxonomy_df["Sub_Domain"] == sub_domain)
+            ]
+            if not matches.empty:
+                row = matches.iloc[0]
+                kw_str = f"{row.get('Common_Keywords', '')} {row.get('Technologies', '')} {row.get('Algorithms', '')}"
+                candidate_kws = [k.strip() for k in re.split(r"[,;|\n]+", kw_str) if len(k.strip()) > 2]
+                for kw in candidate_kws:
+                    if kw.lower() in text_lower and kw not in matched:
+                        matched.append(kw)
+
+        if not matched:
+            for word in f"{domain} {sub_domain} {topic}".split():
+                clean_w = re.sub(r"[^\w]", "", word)
+                if len(clean_w) > 3 and clean_w.lower() in text_lower and clean_w not in matched:
+                    matched.append(clean_w)
+        return matched[:10]
 
     def _llm_tie_breaker(self, project_text: str, candidate_a: dict, candidate_b: dict) -> dict | None:
         """

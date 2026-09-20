@@ -73,6 +73,31 @@ def resolve_appeal(
     if payload.action == "approve":
         appeal.status = AppealStatus.resolved
         appeal.resolved_score = payload.resolvedScore
+        if appeal.project and appeal.project.evaluation and payload.resolvedScore is not None:
+            report = appeal.project.evaluation
+            dim_map = {
+                "novelty": "novelty_score",
+                "feasibility": "feasibility_score",
+                "completeness": "completeness_score",
+                "technicalDepth": "technical_depth_score",
+                "clarity": "clarity_score",
+                "similarityRisk": "similarity_risk_score",
+                "publicationPotential": "publication_potential_score",
+            }
+            col = dim_map.get(appeal.dimension)
+            if col:
+                setattr(report, col, payload.resolvedScore)
+                from app.services.assessment_engine import grade_for, overall_score
+                report.overall_score = overall_score({
+                    "novelty": report.novelty_score,
+                    "feasibility": report.feasibility_score,
+                    "completeness": report.completeness_score,
+                    "technical_depth": report.technical_depth_score,
+                    "clarity": report.clarity_score,
+                    "similarity_risk": report.similarity_risk_score,
+                    "publication_potential": report.publication_potential_score,
+                }) or 0.0
+                report.grade = grade_for(report.overall_score)
     elif payload.action == "reject":
         appeal.status = AppealStatus.rejected
     else:
