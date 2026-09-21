@@ -27,13 +27,13 @@ def _report_to_public(project: Project, report: EvaluationReport) -> PublicEvalu
     from app.schemas.report import SimilarityInfo, WritingQuality, CitationInfo, ImprovementWeek
     is_abstract = project.submission_type.value == "abstract"
     scores = DimensionScores(
-        novelty=report.novelty_score or 75.0,
-        feasibility=report.feasibility_score or 80.0,
-        completeness=None if is_abstract else (report.completeness_score or 70.0),
-        technicalDepth=report.technical_depth_score or 82.0,
-        clarity=report.clarity_score or 80.0,
-        similarityRisk=report.similarity_risk_score or 15.0,
-        publicationPotential=report.publication_potential_score or 85.0,
+        novelty=report.novelty_score,
+        feasibility=report.feasibility_score,
+        completeness=None if is_abstract else report.completeness_score,
+        technicalDepth=report.technical_depth_score,
+        clarity=report.clarity_score,
+        similarityRisk=report.similarity_risk_score,
+        publicationPotential=report.publication_potential_score,
     )
     roadmap = [
         ImprovementWeek(week=w.get("week", idx + 1), focus=w.get("focus", "Task"), actions=w.get("actions", []))
@@ -44,23 +44,30 @@ def _report_to_public(project: Project, report: EvaluationReport) -> PublicEvalu
     wq = None
     if report.writing_quality and isinstance(report.writing_quality, dict):
         raw_wq = report.writing_quality
-        readability = raw_wq.get("readability") or raw_wq.get("metrics", {}).get("readability") or 75.0
-        passive_count = raw_wq.get("passiveVoiceCount") or raw_wq.get("metrics", {}).get("passive_voice_count") or 5
+        metrics = raw_wq.get("metrics", {})
+        readability = raw_wq.get("readability", metrics.get("flesch_reading_ease"))
+        passive_count = raw_wq.get("passiveVoiceCount", raw_wq.get("metrics", {}).get("passive_voice_count", 0))
         tone_flags = raw_wq.get("toneFlags") or raw_wq.get("flags") or []
         wq = WritingQuality(
-            readability=float(readability),
+            readability=float(readability) if readability is not None else None,
+            clarityScore=raw_wq.get("quality_score"),
             passiveVoiceCount=int(passive_count),
+            wordCount=int(metrics.get("word_count", 0) or 0),
             toneFlags=[str(f) for f in tone_flags],
+            methodVersion=raw_wq.get("method_version"),
         )
 
     cit = None
     if report.citations and isinstance(report.citations, dict):
         raw_cit = report.citations
-        ieee = raw_cit.get("ieeeCompliancePercent") or raw_cit.get("summary", {}).get("ieee_compliance_percent") or 85.0
-        missing = raw_cit.get("missingReferences") or raw_cit.get("flags") or []
+        summary = raw_cit.get("summary", {})
         cit = CitationInfo(
-            ieeeCompliancePercent=float(ieee),
-            missingReferences=[str(m) for m in missing],
+            verifiedPercent=float(summary.get("percent_verified", 0.0) or 0.0),
+            recentPercent=float(summary.get("percent_recent", 0.0) or 0.0),
+            referenceCount=int(summary.get("reference_count", 0) or 0),
+            issues=[str(item) for item in raw_cit.get("flags", [])],
+            status=str(raw_cit.get("status", "no_data")),
+            methodVersion=raw_cit.get("method_version"),
         )
 
     return PublicEvaluationReport(
@@ -70,8 +77,8 @@ def _report_to_public(project: Project, report: EvaluationReport) -> PublicEvalu
         submissionType=project.submission_type,
         pipelineStatus=project.pipeline_status,
         isPreliminary=bool(project.is_preliminary),
-        overallScore=report.overall_score or 75.0,
-        grade=report.grade or "A",
+        overallScore=report.overall_score if report.overall_score is not None else 0.0,
+        grade=report.grade or "N/A",
         dimensionScores=scores,
         missingSections=report.missing_sections or [],
         similarity=SimilarityInfo(
@@ -79,15 +86,17 @@ def _report_to_public(project: Project, report: EvaluationReport) -> PublicEvalu
             externalScore=report.similarity_external or 0.0,
             isDuplicate=bool(report.is_duplicate),
         ),
-        feasibilityRating=report.feasibility_rating or "High",
-        noveltyVerdict=report.novelty_verdict or "Novel",
+        feasibilityRating=report.feasibility_rating or "Pending",
+        noveltyVerdict=report.novelty_verdict or "Pending",
         writingQuality=wq,
         citations=cit,
-        strengths=report.strengths or ["Strong technical structure"],
-        weaknesses=report.weaknesses or ["Add baseline comparison"],
+        strengths=report.strengths or [],
+        weaknesses=report.weaknesses or [],
         improvementRoadmap=roadmap,
         badges=report.badges or [],
         percentileRanks=report.percentile_ranks or {},
+        assessmentEvidence=report.assessment_evidence,
+        evaluationMethodVersion=report.assessment_method_version,
     )
 
 
@@ -149,31 +158,31 @@ def _get_project_or_404(project_id: str, db: Session) -> Project:
 
 
 def _get_or_create_report(project: Project, db: Session) -> EvaluationReport:
-    """Return existing report or create a stub (Phase 1 — AI not yet wired)."""
+    """Return the report or an unsaved pending view; GET requests stay read-only."""
     if project.evaluation:
         return project.evaluation
 
-    stub = EvaluationReport(
+    return EvaluationReport(
         project_id=project.id,
-        overall_score=0,
-        grade="",
-        novelty_score=0,
-        feasibility_score=0,
-        completeness_score=None if project.submission_type.value == "abstract" else 0,
-        technical_depth_score=0,
-        clarity_score=0,
-        similarity_risk_score=0,
-        publication_potential_score=0,
-        strengths=["AI evaluation pending"],
-        weaknesses=["AI evaluation pending"],
-        improvement_roadmap=[
-            {"week": 1, "focus": "Submit full document", "actions": ["Complete all sections", "Upload to the system"]}
-        ],
+        overall_score=0.0,
+        grade="N/A",
+        novelty_score=None,
+        feasibility_score=None,
+        completeness_score=None,
+        technical_depth_score=None,
+        clarity_score=None,
+        similarity_risk_score=None,
+        publication_potential_score=None,
+        feasibility_rating="Pending",
+        novelty_verdict="Pending",
+        strengths=[],
+        weaknesses=[],
+        improvement_roadmap=[],
+        badges=[],
+        percentile_ranks={},
+        flagging_reasons=[],
+        explainability_annotations=[],
     )
-    db.add(stub)
-    db.commit()
-    db.refresh(stub)
-    return stub
 
 
 @router.get("/projects/my/reports", response_model=List[PublicEvaluationReport])

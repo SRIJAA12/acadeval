@@ -5,20 +5,23 @@ Projects router — Module 11 edition
 
 import logging
 import uuid
-from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status
-from sqlalchemy.orm import Session
 
 from app.dependencies import DB, CurrentUser, CurrentStudent, CurrentFaculty, CurrentFacultyOrHOD
 from app.models.project import Project, ProjectFile, PipelineStatus, SubmissionType
-from app.models.user import User, UserRole
 from app.schemas.project import (
     ProjectSummary, ProjectStatusResponse, UploadResponse,
     BatchUploadResponse, BatchJobStatusResponse,
 )
-from app.utils.files import save_upload_file, get_file_type
+from app.utils.files import (
+    DOCUMENT_EXTENSIONS,
+    VIDEO_EXTENSIONS,
+    get_file_type,
+    save_upload_file,
+    validate_upload_file,
+)
 
 log = logging.getLogger(__name__)
 
@@ -67,8 +70,6 @@ def _fallback_background_pipeline(project_id: uuid.UUID):
     from app.services.document_parser import document_parser_service
     from app.services.classifier import classifier_service
     from app.services.extractor import extractor_service
-    from app.services.graph_builder import ingest_project_to_relational_graph
-    from app.models.evaluation import EvaluationReport
     import logging
 
     log = logging.getLogger(__name__)
@@ -108,13 +109,19 @@ def _fallback_background_pipeline(project_id: uuid.UUID):
         if parsed_title and (not project.title or "Uploaded Project" in project.title):
             project.title = parsed_title
 
-        effective_abstract = (parsed_abstract or extracted_text[:2000] or project.title).strip()
+        effective_abstract = (
+            project.abstract or parsed_abstract or extracted_text[:2000] or project.title
+        ).strip()
+        project.abstract = effective_abstract
+        project.parsed_text = extracted_text.strip() or None
 
         # Module 1: classify
+        sub_domain = "General"
         try:
             cls = classifier_service.classify_project(project.title, effective_abstract)
             if cls.get("domain"):
                 project.domain = cls["domain"]
+            sub_domain = cls.get("sub_domain") or sub_domain
         except Exception as exc:
             log.warning("Classification skipped: %s", exc)
 
@@ -122,6 +129,7 @@ def _fallback_background_pipeline(project_id: uuid.UUID):
         try:
             full_proposal_text = f"{project.title}\n{effective_abstract}\n{extracted_text}"
             entities = extractor_service.extract_entities(full_proposal_text)
+            entities["sub_domain"] = sub_domain
             project.extracted_entities = entities
         except Exception as exc:
             log.warning("Entity extraction skipped: %s", exc)
@@ -129,53 +137,16 @@ def _fallback_background_pipeline(project_id: uuid.UUID):
 
         db.commit()
 
-        # Module 3+4: graph ingestion
-        try:
-            ingest_project_to_relational_graph(
-                db=db,
-                project_id=str(project.id),
-                title=project.title,
-                domain=project.domain or "General CSE",
-                sub_domain=entities.get("sub_domain", "General"),
-                extracted_entities=entities,
-            )
-        except Exception as exc:
-            log.warning("Graph ingestion skipped: %s", exc)
-
-        # Create/update EvaluationReport
-        eval_report = db.query(EvaluationReport).filter(
-            EvaluationReport.project_id == project.id
-        ).first()
-        if not eval_report:
-            eval_report = EvaluationReport(project_id=project.id)
-            db.add(eval_report)
-
-        eval_report.overall_score   = eval_report.overall_score or 8.4
-        eval_report.grade           = eval_report.grade or "A"
-        eval_report.novelty_score   = eval_report.novelty_score or 72.0
-        eval_report.feasibility_score       = eval_report.feasibility_score or 8.2
-        eval_report.completeness_score      = eval_report.completeness_score or 8.0
-        eval_report.technical_depth_score   = eval_report.technical_depth_score or 8.7
-        eval_report.clarity_score           = eval_report.clarity_score or 8.3
-        eval_report.similarity_risk_score   = eval_report.similarity_risk_score or 12.0
-        eval_report.publication_potential_score = eval_report.publication_potential_score or 8.8
-        eval_report.strengths = eval_report.strengths or [
-            f"Strong technical architecture in {project.domain}",
-            "Comprehensive methodology with extracted entities",
-        ]
-        eval_report.weaknesses = eval_report.weaknesses or [
-            "Consider adding more extensive baseline performance benchmarks",
-        ]
-        eval_report.improvement_roadmap = eval_report.improvement_roadmap or [
-            {"week": 1, "focus": "Literature & Baseline Benchmarks", "actions": ["Compare against SOTA baselines"]},
-            {"week": 2, "focus": "Ablation Studies", "actions": ["Conduct feature importance analysis"]},
-            {"week": 3, "focus": "Final Report & Deployment", "actions": ["Finalise documentation and code repo"]},
-        ]
-        eval_report.badges = eval_report.badges or ["High Novelty", "Strong Technical Depth"]
-
-        project.pipeline_status = PipelineStatus.awaiting_review
-        db.commit()
+        # Preserve the same no-leakage order as the Celery chain: score against
+        # historical projects first, then make this candidate historical data.
+        # Any dependency failure remains visible; no placeholder is emitted.
+        from app.tasks.pipeline import task_score_and_report, task_ingest_graph, task_finalise
+        task_score_and_report.run(str(project.id))
+        task_ingest_graph.run(str(project.id))
+        task_finalise.run(str(project.id))
         log.info("Fallback pipeline complete for %s", project_id)
+    except Exception as exc:
+        log.exception("Fallback pipeline failed for %s: %s", project_id, exc)
     finally:
         db.close()
 
@@ -302,6 +273,36 @@ async def upload_project(
     runs asynchronously in a Celery worker and the frontend polls
     GET /projects/{project_id}/pipeline-status until ready=true.
     """
+    try:
+        submission_type = SubmissionType(mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="mode must be document, video, or abstract") from exc
+
+    if submission_type == SubmissionType.abstract:
+        word_count = len((abstract or "").split())
+        if word_count < 150 or word_count > 500:
+            raise HTTPException(status_code=422, detail="Abstract submissions must contain 150–500 words")
+        if files:
+            raise HTTPException(status_code=422, detail="Abstract submissions must not include files")
+    elif submission_type == SubmissionType.document:
+        if not files:
+            raise HTTPException(status_code=422, detail="Document submissions require at least one file")
+        for upload_file in files:
+            validate_upload_file(upload_file, DOCUMENT_EXTENSIONS)
+    else:
+        if not files:
+            raise HTTPException(status_code=422, detail="Video submissions require an MP4 or MOV file")
+        extensions = [validate_upload_file(upload_file, VIDEO_EXTENSIONS | {"pptx"}) for upload_file in files]
+        if not any(extension in VIDEO_EXTENSIONS for extension in extensions):
+            raise HTTPException(status_code=422, detail="Video submissions require an MP4 or MOV file")
+
+    related_submission_id = None
+    if relatedSubmissionId:
+        try:
+            related_submission_id = uuid.UUID(relatedSubmissionId)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="relatedSubmissionId must be a valid UUID") from exc
+
     effective_title = title
     if not effective_title and files:
         effective_title = files[0].filename or "Uploaded Project"
@@ -312,9 +313,11 @@ async def upload_project(
         student_id=current_user.id,
         title=effective_title,
         domain=domain,
-        submission_type=SubmissionType(mode),
+        submission_type=submission_type,
         github_url=githubUrl,
-        related_submission_id=uuid.UUID(relatedSubmissionId) if relatedSubmissionId else None,
+        team_members=teamMembers,
+        abstract=abstract,
+        related_submission_id=related_submission_id,
         pipeline_status=PipelineStatus.uploaded,
         assigned_guide_id=None,
     )
@@ -370,9 +373,12 @@ async def batch_upload(
     enqueued as a separate Celery pipeline chain.
     Returns a batchId and the list of created project IDs.
     """
-    from app.models.user import User
-    import logging
     log = logging.getLogger(__name__)
+
+    if not 1 <= len(files) <= 60:
+        raise HTTPException(status_code=422, detail="Batch upload accepts between 1 and 60 files")
+    for upload_file in files:
+        validate_upload_file(upload_file, DOCUMENT_EXTENSIONS)
 
     batch_id = str(uuid.uuid4())
     project_ids: list[str] = []
@@ -389,6 +395,7 @@ async def batch_upload(
             domain="Unclassified",
             submission_type=SubmissionType.document,
             pipeline_status=PipelineStatus.uploaded,
+            batch_id=batch_id,
         )
         db.add(project)
         db.flush()
@@ -410,23 +417,59 @@ async def batch_upload(
         if job_id and hasattr(project, "celery_task_id"):
             project.celery_task_id = job_id
             db.commit()
+        elif not job_id:
+            import threading
+            threading.Thread(
+                target=_fallback_background_pipeline,
+                args=(project.id,),
+                daemon=True,
+            ).start()
 
         log.info("Batch %s — enqueued project %s (job %s)", batch_id, pid, job_id)
 
-    return BatchUploadResponse(batchId=batch_id, totalFiles=len(project_ids))
+    return BatchUploadResponse(batchId=batch_id, totalFiles=len(project_ids), projectIds=project_ids)
 
 
 @router.get("/projects/batch/{batch_id}/status", response_model=BatchJobStatusResponse)
-def get_batch_status(batch_id: str, current_user: CurrentFacultyOrHOD):
-    """
-    Batch status is now a no-op stub — each project in the batch can be polled
-    individually via GET /projects/{project_id}/pipeline-status.
-    """
+def get_batch_status(batch_id: str, current_user: CurrentFacultyOrHOD, db: DB):
+    """Return live, persistent progress for every project created in a batch."""
+    projects = (
+        db.query(Project)
+        .filter(Project.batch_id == batch_id)
+        .order_by(Project.submitted_on)
+        .all()
+    )
+    if not projects:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    processed = sum(
+        project.pipeline_status in (PipelineStatus.awaiting_review, PipelineStatus.reviewed)
+        for project in projects
+    )
+    failed = 0
+    for project in projects:
+        if not project.celery_task_id:
+            continue
+        try:
+            from celery.result import AsyncResult
+            from app.worker import celery_app
+            if AsyncResult(project.celery_task_id, app=celery_app).failed():
+                failed += 1
+        except Exception:
+            continue
+
+    total = len(projects)
+    terminal = processed + failed
+    batch_status = "completed" if terminal == total and failed == 0 else ("failed" if terminal == total else "processing")
+    completed_at = max(project.updated_at for project in projects).isoformat() if terminal == total else None
+
     return BatchJobStatusResponse(
         batchId=batch_id,
-        totalFiles=0,
-        processed=0,
-        failed=0,
-        status="see_individual_projects",
-        startedAt=datetime.now(timezone.utc).isoformat(),
+        totalFiles=total,
+        processed=processed,
+        failed=failed,
+        status=batch_status,
+        startedAt=min(project.submitted_on for project in projects).isoformat(),
+        completedAt=completed_at,
+        projects=[_to_summary(project) for project in projects],
     )

@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
-  Sparkles, Network, TrendingUp, AlertCircle, CheckCircle, Layers,
-  Cpu, Database, Grid, Info, ChevronDown, ChevronUp, Share2, HelpCircle, ArrowRight
+  Sparkles, Network, TrendingUp, CheckCircle, Layers,
+  Cpu, Database, Grid, Info, ChevronDown, ChevronUp, Share2, HelpCircle
 } from 'lucide-react';
 import { ProjectGraphViewer, type GraphNodeData, type GraphLinkData } from './ProjectGraphViewer';
 import { getGraphVisualization } from '../api/endpoints';
@@ -40,6 +40,18 @@ export interface SimilarProject {
   similarity_score: number;
 }
 
+export interface ScoringMetadata {
+  method_version: string;
+  combiner: string;
+  corpus_snapshot_id: string;
+  corpus_project_count: number;
+  snapshot_captured_at: string;
+  top_k: number;
+  evidence_quality: 'empty' | 'limited' | 'adequate';
+  candidate_preexisting_in_graph: boolean;
+  candidate_excluded_from_snapshot: boolean;
+}
+
 export interface NoveltyReportData {
   project_id: string;
   title: string;
@@ -52,6 +64,7 @@ export interface NoveltyReportData {
   trend_context: TrendContext;
   most_similar_projects: SimilarProject[];
   explanation_lines: string[];
+  scoring_metadata?: ScoringMetadata;
 }
 
 interface Props {
@@ -75,11 +88,11 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
   const [overrideReason, setOverrideReason] = useState<string>('');
   const [submitted, setSubmitted] = useState<boolean>(false);
   const [showDocExplain, setShowDocExplain] = useState<boolean>(true);
-  const [showSchemaDetails, setShowSchemaDetails] = useState<boolean>(false);
 
   const getBandColor = (band: string) => {
-    if (band.includes('Highly') || band.includes('Novel')) return 'bg-emerald-950 text-emerald-300 border-emerald-800';
+    if (band.includes('Insufficient')) return 'bg-slate-950 text-slate-300 border-slate-700';
     if (band.includes('Moderately')) return 'bg-amber-950 text-amber-300 border-amber-800';
+    if (band.includes('Highly')) return 'bg-emerald-950 text-emerald-300 border-emerald-800';
     return 'bg-blue-950 text-blue-300 border-blue-800';
   };
 
@@ -239,7 +252,7 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
     });
 
     return { nodes: nodeList, links: linkList };
-  }, [report, fullGraph]);
+  }, [report, fullGraph, realEntities]);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto p-2">
@@ -293,28 +306,43 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
         />
       </div>
 
-      {/* SECTION 1.5: Detailed Addition & Novelty Comparison Report */}
+      {/* Versioned historical evidence */}
       <div className="bg-indigo-950/60 p-6 rounded-2xl border border-indigo-800 shadow-xl space-y-4">
         <h3 className="text-base font-bold text-indigo-200 flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-gold-400" /> What Makes This Project Different & Novel?
+          <Database className="w-5 h-5 text-gold-400" /> Historical Evidence Used
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           <div className="p-4 bg-slate-900/90 rounded-xl border border-emerald-800/80 space-y-2">
             <h4 className="font-bold text-emerald-400 text-xs uppercase tracking-wider flex items-center gap-1.5">
-              <CheckCircle className="w-4 h-4 text-emerald-400" /> New Features & Additions Introduced
+              <CheckCircle className="w-4 h-4 text-emerald-400" /> Frozen Corpus Snapshot
             </h4>
-            <ul className="space-y-1.5 text-slate-200">
-              <li className="flex items-start gap-2"><span className="text-emerald-400 font-bold">&bull;</span><span><strong>Audio-Speech Processing:</strong> Integrated Whisper ASR for voice-to-text transcript analysis.</span></li>
-              <li className="flex items-start gap-2"><span className="text-emerald-400 font-bold">&bull;</span><span><strong>Cross-Modal Verification:</strong> Combined spaCy EntityRuler with BERT cosine similarity for robust zero-shot term matching.</span></li>
-              <li className="flex items-start gap-2"><span className="text-emerald-400 font-bold">&bull;</span><span><strong>Explainable Attribution:</strong> Integrated LIME and SHAP feature weighting for faculty auditability.</span></li>
-            </ul>
+            <p className="text-slate-200">
+              <strong>{report.scoring_metadata?.corpus_project_count ?? 0}</strong> historical projects · evidence quality{' '}
+              <strong className="capitalize">{report.scoring_metadata?.evidence_quality ?? 'unknown'}</strong>
+            </p>
+            <p className="font-mono text-[10px] text-slate-400 break-all">
+              Snapshot: {report.scoring_metadata?.corpus_snapshot_id ?? 'Legacy report without snapshot metadata'}
+            </p>
+            <p className="text-slate-400">
+              Candidate excluded: {report.scoring_metadata?.candidate_excluded_from_snapshot ? 'Yes' : 'Unknown'}
+            </p>
           </div>
           <div className="p-4 bg-slate-900/90 rounded-xl border border-amber-800/80 space-y-2">
             <h4 className="font-bold text-amber-400 text-xs uppercase tracking-wider flex items-center gap-1.5">
-              <Layers className="w-4 h-4 text-amber-400" /> Existing Corpus Overlap & Baseline Comparison
+              <Layers className="w-4 h-4 text-amber-400" /> Nearest Historical Match
             </h4>
-            <p className="text-slate-300 leading-relaxed">
-              Shares core NLP classifier patterns with baseline academic evaluation systems (<span className="font-mono text-amber-200">BERT, FastAPI, PostgreSQL</span>). However, its <strong>FastRP Graph Embedding distance is 85.0%</strong>, proving significant structural novelty over standard keyword tools.
+            {report.most_similar_projects?.[0] ? (
+              <>
+                <p className="text-slate-200 font-semibold">{report.most_similar_projects[0].title}</p>
+                <p className="text-slate-400">
+                  Entity-set similarity: <strong className="text-amber-200">{(report.most_similar_projects[0].similarity_score * 100).toFixed(1)}%</strong>
+                </p>
+              </>
+            ) : (
+              <p className="text-slate-400">No historical comparison is available yet.</p>
+            )}
+            <p className="font-mono text-[10px] text-slate-500">
+              {report.scoring_metadata?.method_version ?? 'legacy-method'} · {report.scoring_metadata?.combiner ?? 'unknown-combiner'}
             </p>
           </div>
         </div>
@@ -328,11 +356,11 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
 
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           {[
-            { label: 'Graph Distance', score: report.signals_breakdown.graph_distance, icon: Network, color: 'bg-indigo-500', desc: 'FastRP embedding distance from corpus' },
+            { label: 'Graph Distance', score: report.signals_breakdown.graph_distance, icon: Network, color: 'bg-indigo-500', desc: 'Distance from the nearest historical entity set' },
             { label: 'Feature Rarity', score: report.signals_breakdown.feature_rarity, icon: Cpu, color: 'bg-emerald-500', desc: 'Uniqueness of algorithms & tech' },
             { label: 'Rel. Rarity', score: report.signals_breakdown.relationship_rarity, icon: Layers, color: 'bg-amber-500', desc: 'Uniqueness of entity pairs' },
             { label: 'Graph Density', score: report.signals_breakdown.graph_density, icon: Grid, color: 'bg-cyan-500', desc: 'Domain neighborhood sparsity' },
-            { label: 'Discovery', score: report.signals_breakdown.new_connection_discovery, icon: Sparkles, color: 'bg-purple-500', desc: 'Adamic-Adar cross-domain link' },
+            { label: 'Discovery', score: report.signals_breakdown.new_connection_discovery, icon: Sparkles, color: 'bg-purple-500', desc: 'Unseen pairings among known features' },
           ].map((signal, idx) => (
             <div key={idx} className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
               <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">

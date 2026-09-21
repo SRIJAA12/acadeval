@@ -70,13 +70,20 @@ def override_score(
     # Apply override
     setattr(report, col, payload.newValue)
 
-    # Recompute overall (simple average of non-null scores)
-    score_cols = list(dim_map.values())
-    non_null = [getattr(report, c) for c in score_cols if getattr(report, c) is not None]
-    if non_null:
-        report.overall_score = round(sum(non_null) / len(non_null), 1)
-        os = report.overall_score
-        report.grade = "A+" if os >= 90 else "A" if os >= 80 else "B" if os >= 70 else "C"
+    # Recompute with the same versioned rubric used by the pipeline. Similarity
+    # is a risk (lower is better), not a positive dimension.
+    from app.services.assessment_engine import grade_for, overall_score
+
+    report.overall_score = overall_score({
+        "novelty": report.novelty_score,
+        "feasibility": report.feasibility_score,
+        "completeness": report.completeness_score,
+        "technical_depth": report.technical_depth_score,
+        "clarity": report.clarity_score,
+        "similarity_risk": report.similarity_risk_score,
+        "publication_potential": report.publication_potential_score,
+    }) or 0.0
+    report.grade = grade_for(report.overall_score)
 
     db.commit()
     return {"message": "Score updated", "newOverall": report.overall_score}
@@ -167,7 +174,7 @@ def publish_review(
                 <p>Dear <strong>{student.name}</strong>,</p>
                 <p>Prof. <strong>{current_user.name}</strong> has published the final review for your project <strong>"{project.title}"</strong>.</p>
                 <div style="background:#f8fafc; border-left:4px solid #2a5298; padding:12px; margin:15px 0;">
-                    <p style="margin:0;"><strong>Final Score:</strong> {score_val} / 10.0</p>
+                    <p style="margin:0;"><strong>Final Score:</strong> {score_val} / 100</p>
                     <p style="margin:5px 0 0 0;"><strong>Grade:</strong> {grade_val}</p>
                 </div>
                 <p>Log in to view the faculty feedback and notes.</p>

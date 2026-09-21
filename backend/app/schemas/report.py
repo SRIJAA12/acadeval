@@ -20,14 +20,21 @@ class SimilarityInfo(BaseModel):
 
 
 class WritingQuality(BaseModel):
-    readability: float
+    readability: Optional[float]
+    clarityScore: Optional[float]
     passiveVoiceCount: int
+    wordCount: int
     toneFlags: list[str]
+    methodVersion: Optional[str]
 
 
 class CitationInfo(BaseModel):
-    ieeeCompliancePercent: float
-    missingReferences: list[str]
+    verifiedPercent: float
+    recentPercent: float
+    referenceCount: int
+    issues: list[str]
+    status: str
+    methodVersion: Optional[str]
 
 
 class ImprovementWeek(BaseModel):
@@ -58,6 +65,8 @@ class PublicEvaluationReport(BaseModel):
     improvementRoadmap: list[ImprovementWeek]
     badges: list[str]
     percentileRanks: dict[str, float]
+    assessmentEvidence: Optional[dict[str, Any]]
+    evaluationMethodVersion: Optional[str]
 
     model_config = {"from_attributes": True}
 

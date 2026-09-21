@@ -8,9 +8,7 @@ schema defined in Section 7.6 of the AcadEval+ specification.
 import logging
 
 from app.services.classifier import classifier_service
-from app.services.explainability import explainability_service
 from app.services.extractor import extractor_service
-from app.services.graph_db import graph_service
 from app.services.novelty_engine import novelty_engine_service
 from app.services.trend_scorer import trend_scorer_service
 
@@ -44,16 +42,8 @@ class NoveltyReportGeneratorService:
             full_text = f"{title}\n{abstract}"
             entities = extractor_service.extract_entities(full_text)
 
-        # Step 3: Module 3 — Graph Ingestion
-        graph_stats = graph_service.build_project_graph(
-            project_id=project_id,
-            title=title,
-            domain=domain,
-            sub_domain=sub_domain,
-            extracted_entities=entities
-        )
-
-        # Step 4: Module 4 — Novelty Engine
+        # Step 3: Module 4 — score the temporary candidate against the frozen
+        # historical graph before it is eligible to join that graph.
         novelty_data = novelty_engine_service.compute_novelty_signals(
             project_id=project_id,
             extracted_entities=entities,
@@ -61,8 +51,9 @@ class NoveltyReportGeneratorService:
             sub_domain=sub_domain
         )
 
-        # Step 4b: Module 9 — Explainability Layer
-        explainability = explainability_service.generate_explanations(novelty_data)
+        # Graph ingestion is intentionally not performed by a report generator.
+        # The pipeline persists the versioned score first and owns the later,
+        # idempotent graph-ingestion step.
 
         # Step 5: Module 5 — Trend Scoring
         topic = classification.get("topic", domain)
@@ -87,8 +78,7 @@ class NoveltyReportGeneratorService:
             "trend_context": trend_data,
             "most_similar_projects": novelty_data["similar_projects"],
             "explanation_lines": novelty_data["explanation_bullets"],
-            "graph_stats": graph_stats,
-            "explainability": explainability,
+            "scoring_metadata": novelty_data["scoring_metadata"],
         }
 
         log.info("Generated Explainable Novelty Report for Project %s (Score: %.1f)",

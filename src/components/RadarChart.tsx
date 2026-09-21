@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -21,10 +21,16 @@ interface RadarChartProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-const LABELS = ['Novelty', 'Feasibility', 'Completeness', 'Tech Depth', 'Clarity', 'Sim. Risk', 'Pub. Potential'];
+const LABELS = ['Novelty', 'Feasibility', 'Completeness', 'Tech Depth', 'Clarity', 'Originality', 'Pub. Potential'];
 
 const extractValues = (s: DimensionScores) => [
-  s.novelty, s.feasibility, s.completeness ?? 0, s.technicalDepth, s.clarity, s.similarityRisk, s.publicationPotential
+  s.novelty ?? 0,
+  s.feasibility ?? 0,
+  s.completeness ?? 0,
+  s.technicalDepth ?? 0,
+  s.clarity ?? 0,
+  s.similarityRisk === null ? 0 : 100 - s.similarityRisk,
+  s.publicationPotential ?? 0,
 ];
 
 const RadarChart: React.FC<RadarChartProps> = ({

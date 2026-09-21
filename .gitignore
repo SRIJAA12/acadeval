@@ -11,6 +11,20 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+
+# Python caches and local runtime state
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.db
+*.sqlite3
+celerybeat-schedule*
 
 # Editor directories and files
 .vscode/*

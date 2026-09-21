@@ -29,6 +29,7 @@ from app.services.viva_engine import (
     encode_answer_records,
     AnswerRecord,
     DIFFICULTY_ORDER,
+    KCS_COMPLETION_THRESHOLD,
 )
 
 router = APIRouter(prefix="/viva", tags=["Intelligent Viva Engine"])

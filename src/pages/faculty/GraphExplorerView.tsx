@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
-  Share2, RefreshCw, Cpu, Database, Network, ShieldCheck, Activity, AlertCircle, Layers
+  Share2, RefreshCw, Cpu, Network, ShieldCheck, Activity, AlertCircle
 } from 'lucide-react';
 import { ProjectGraphViewer } from '../../components/ProjectGraphViewer';
-import { getGraphSummary, getGraphVisualization, rebuildKnowledgeGraph } from '../../api/endpoints';
+import { getAllProjects, getGraphSummary, getGraphVisualization, rebuildKnowledgeGraph } from '../../api/endpoints';
 
 export const GraphExplorerView: React.FC = () => {
   const [summary, setSummary] = useState<any>(null);
@@ -22,7 +22,7 @@ export const GraphExplorerView: React.FC = () => {
       const [sumRes, vizRes, projListRes] = await Promise.all([
         getGraphSummary(true),
         getGraphVisualization(400),
-        import('../../api/endpoints').then(m => m.getAllProjects()),
+        getAllProjects(),
       ]);
       setSummary(sumRes?.metrics || null);
       setAllProjectsList(projListRes || []);
@@ -147,6 +147,15 @@ export const GraphExplorerView: React.FC = () => {
             className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-xl border border-slate-700 transition flex items-center gap-2 disabled:opacity-50 mt-4"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+
+          <button
+            onClick={handleRebuild}
+            disabled={rebuilding || loading}
+            className="px-3.5 py-2 bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-medium rounded-xl border border-indigo-600 transition flex items-center gap-2 disabled:opacity-50 mt-4"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${rebuilding ? 'animate-spin' : ''}`} />
+            {rebuilding ? 'Rebuilding…' : 'Rebuild scored graph'}
           </button>
         </div>
       </div>

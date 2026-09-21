@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEvaluationReport, overrideScore, addFacultyNote, publishReview, getNoveltyReport, submitFacultyNoveltyReview, getProjectEntities } from '../../api/endpoints';
@@ -12,8 +12,8 @@ import { NoveltyReportView, type NoveltyReportData } from '../../components/Nove
 import EntityExtractionPanel from '../../components/EntityExtractionPanel';
 import type { InternalEvaluationReport } from '../../types';
 import {
-  Edit2, Save, X, Flag, StickyNote, Send, CheckCircle, Eye, EyeOff,
-  User, Clock, ChevronDown, ChevronUp, Sparkles, Network, RefreshCw,
+  Edit2, Save, X, Flag, StickyNote, Send, CheckCircle, Eye,
+  User, Clock, Sparkles, Network, RefreshCw,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -37,8 +37,6 @@ const ProjectReportView: React.FC = () => {
   const [newNote, setNewNote] = useState('');
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
-  const [noveltyAbstract, setNoveltyAbstract] = useState('');
-  const [showManualEdit, setShowManualEdit] = useState(false);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['internalReport', projectId],
@@ -47,14 +45,6 @@ const ProjectReportView: React.FC = () => {
   });
 
   const r = data as InternalEvaluationReport;
-
-  // Auto-fill abstract from student submission
-  useEffect(() => {
-    if (r && !noveltyAbstract) {
-      const autoText = `${r.title}. ${r.domain} project evaluation and implementation.`;
-      setNoveltyAbstract(autoText);
-    }
-  }, [r]);
 
   const overrideMutation = useMutation({
     mutationFn: () => overrideScore(projectId!, overrideState!.dim, overrideState!.value, overrideState!.comment),
@@ -71,23 +61,17 @@ const ProjectReportView: React.FC = () => {
     onSuccess: () => { setShowPublishConfirm(false); setPublishSuccess(true); },
   });
 
-  const noveltyMutation = useMutation<NoveltyReportData, Error, string | void>({
-    mutationFn: (abstractOverride?: string | void) =>
-      getNoveltyReport(projectId!, abstractOverride || noveltyAbstract || `${r?.title}. Domain: ${r?.domain}.`),
+  const noveltyQuery = useQuery<NoveltyReportData, Error>({
+    queryKey: ['noveltyReport', projectId],
+    queryFn: () => getNoveltyReport(projectId!),
+    enabled: activeTab === 'novelty' && !!projectId,
+    retry: false,
   });
 
-  // Auto-run novelty assessment as soon as novelty tab is opened
-  useEffect(() => {
-    if (activeTab === 'novelty' && !noveltyMutation.data && !noveltyMutation.isPending && r) {
-      const textToUse = noveltyAbstract || `${r.title}. Domain: ${r.domain}.`;
-      noveltyMutation.mutate(textToUse);
-    }
-  }, [activeTab, r]);
-
   const facultyNoveltyReviewMutation = useMutation({
-  mutationFn: ({ facultyScore, reason }: { facultyScore: number; reason: string }) =>
-    submitFacultyNoveltyReview(projectId!, facultyScore, reason),
-});
+    mutationFn: ({ facultyScore, reason }: { facultyScore: number; reason: string }) =>
+      submitFacultyNoveltyReview(projectId!, facultyScore, noveltyQuery.data!.overall_novelty_score, reason),
+  });
 
   const { data: entityData, isLoading: entitiesLoading, refetch: refetchEntities } = useQuery({
     queryKey: ['project-entities', projectId],
@@ -207,14 +191,8 @@ const ProjectReportView: React.FC = () => {
                   const rawScore = r.dimensionScores[key as keyof typeof r.dimensionScores];
                   const isEditing = overrideState?.dim === key;
                   const isSimilarityRisk = key === 'similarityRisk';
-                  // Normalise to 0-100 for the progress bar
-                  const normScore = rawScore !== null
-                    ? (rawScore <= 10 && !isSimilarityRisk ? rawScore * 10 : rawScore)
-                    : null;
-                  // Display value: for similarity risk show as %
-                  const displayScore = rawScore !== null
-                    ? (rawScore <= 10 && !isSimilarityRisk ? Math.round(rawScore * 10 * 10) / 10 : rawScore)
-                    : null;
+                  const normScore = rawScore;
+                  const displayScore = rawScore;
 
                   let barColor = '';
                   if (normScore !== null) {
@@ -259,7 +237,7 @@ const ProjectReportView: React.FC = () => {
                               </span>
                             )}
                             <button
-                              onClick={() => isEditing ? setOverrideState(null) : setOverrideState({ dim: key, value: rawScore, comment: '' })}
+                              onClick={() => isEditing ? setOverrideState(null) : setOverrideState({ dim: key, value: rawScore ?? 0, comment: '' })}
                               className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-slate-100"
                             >
                               {isEditing ? <X size={13} className="text-red-500" /> : <Edit2 size={13} className="text-slate-400" />}
@@ -334,73 +312,41 @@ const ProjectReportView: React.FC = () => {
       {/* Tab: Graph Novelty (AcadEval+) */}
       {activeTab === 'novelty' && (
         <div className="space-y-4">
-          {(!noveltyMutation.data || noveltyMutation.isPending) && !noveltyMutation.isError && (
-            <LoadingState message="Extracting project entities & computing Graph-Based Novelty assessment..." />
+          {noveltyQuery.isLoading && (
+            <LoadingState message="Loading persisted graph novelty evidence..." />
           )}
 
-          {noveltyMutation.isError && !noveltyMutation.isPending && (
+          {noveltyQuery.isError && (
             <div className="card bg-red-50 border-red-200 space-y-3">
               <h2 className="font-semibold text-red-900 flex items-center gap-2">
                 <Network size={18} className="text-red-600" /> Novelty Assessment Error
               </h2>
               <p className="text-sm text-red-700">
-                Could not compute graph novelty score automatically. Ensure the backend and graph services are running.
+                The persisted novelty evidence is not ready. Check the project pipeline status and graph service.
               </p>
               <div className="flex items-center gap-3 pt-2">
                 <button
-                  onClick={() => noveltyMutation.mutate(noveltyAbstract)}
+                  onClick={() => noveltyQuery.refetch()}
                   className="btn-primary"
                 >
-                  <RefreshCw size={14} /> Retry Automatic Assessment
-                </button>
-                <button
-                  onClick={() => setShowManualEdit(!showManualEdit)}
-                  className="btn-secondary text-xs"
-                >
-                  {showManualEdit ? 'Hide Manual Edit' : 'Manually Edit Abstract'}
+                  <RefreshCw size={14} /> Retry Report Fetch
                 </button>
               </div>
             </div>
           )}
 
-          {/* Optional manual edit accordion */}
-          {showManualEdit && (
-            <div className="card bg-slate-50 border-slate-200 space-y-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">Customise Abstract Input</h3>
-              <textarea
-                value={noveltyAbstract}
-                onChange={e => setNoveltyAbstract(e.target.value)}
-                rows={3}
-                className="input resize-none text-xs"
-                placeholder="Edit proposal abstract for graph re-scoring..."
-              />
-              <button
-                onClick={() => noveltyMutation.mutate(noveltyAbstract)}
-                disabled={noveltyMutation.isPending}
-                className="btn-primary text-xs"
-              >
-                <Network size={14} /> Re-run Assessment
-              </button>
-            </div>
-          )}
-
-          {noveltyMutation.data && !noveltyMutation.isPending && (
+          {noveltyQuery.data && (
             <div className="space-y-3">
               <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 px-4 py-2.5 rounded-xl text-xs text-indigo-900">
                 <span className="font-medium flex items-center gap-2">
                   <CheckCircle size={15} className="text-indigo-600" />
                   Automatically extracted from student proposal: <strong>{r?.title}</strong>
                 </span>
-                <button
-                  onClick={() => setShowManualEdit(!showManualEdit)}
-                  className="text-indigo-700 font-semibold hover:underline"
-                >
-                  {showManualEdit ? 'Close Editor' : 'Edit Text & Re-score'}
-                </button>
+                <span className="text-indigo-700">Read-only versioned evidence</span>
               </div>
 
               <NoveltyReportView
-                report={noveltyMutation.data}
+                report={noveltyQuery.data}
                 realEntities={entityData?.extracted_entities ?? null}
                 onFacultyScoreSubmit={(facultyScore, reason) => facultyNoveltyReviewMutation.mutate({ facultyScore, reason })}
               />
@@ -414,14 +360,14 @@ const ProjectReportView: React.FC = () => {
         <div className="card">
           <div className="flex items-center gap-2 mb-5">
             <Sparkles size={18} className="text-gold-500" />
-            <h2 className="font-semibold text-navy-900">AI Explainability</h2>
+            <h2 className="font-semibold text-navy-900">Score Evidence (Internal)</h2>
           </div>
           <div className="bg-gold-50 rounded-xl p-3 border border-gold-100 mb-5">
             <p className="text-xs text-gold-700">
-  <strong>Internal Only</strong> — This view explains how each novelty signal contributed to the final composite novelty score. It is never shown to students.
-</p>
+              🔒 <strong>Internal Only</strong> — This view displays evidence annotations only when an evaluation engine has produced them. It is never shown to students.
+            </p>
           </div>
-          <ExplainabilityViewer explainability={r.explainability} />
+          <ExplainabilityViewer annotations={r.explainabilityAnnotations || []} />
         </div>
       )}
 

@@ -1,28 +1,129 @@
-# AcadEval — Monorepo
+# AcadEval+
 
-AI-powered academic project evaluation platform for engineering colleges.
+AcadEval+ is a graph-based academic project assessment prototype. A submission is parsed, classified, converted into structured entities, compared with the historical project graph, and presented to faculty as an explainable novelty report. Faculty remain the final decision-makers and their ratings form the validation dataset.
 
-## Structure
+## Stage 1–3 status
 
+The application now uses the real FastAPI/PostgreSQL/Neo4j flow. Browser-side mock
+responses and fabricated evaluation records have been removed.
+
+Implemented foundation:
+
+- React/Vite frontend with a successful production TypeScript build
+- FastAPI authentication, projects, reports, appeals, rubrics, viva, and graph routes
+- PostgreSQL persistence and Alembic migrations
+- Redis/Celery asynchronous processing and Celery Beat
+- Neo4j with APOC and Graph Data Science plugins
+- GROBID service for citation parsing
+- Persistent batch-upload tracking
+- Read-only persisted novelty report retrieval
+- Upload type, MIME, size, mode, and abstract word-count validation
+- Candidate scoring before graph insertion (no self-comparison leakage)
+- One-transaction historical graph snapshots with persisted corpus versions
+- Nearest-neighbour duplicate sensitivity and five deterministic novelty signals
+- Idempotent project graph replacement using immutable project identifiers
+- Versioned, deterministic feasibility scoring across data, implementation,
+  evaluation, resources, schedule/scope, and dependency-risk evidence
+- Full-submission completeness checks with abstract-only dimensions kept N/A
+- Technical-depth scoring for specificity, method, architecture, evaluation,
+  and reproducibility evidence
+- Measured writing clarity, passive voice, sentence length, and readability
+- Full-text citation parsing with verifiability/recency reporting (without
+  falsely claiming citation-style compliance)
+- Evidence-based overall and publication-potential scores with similarity
+  treated as a penalty, plus persisted evidence, gaps, and method versions
+- Removal of browser-side fabricated projects, scores, users, and reports
+
+Scores are generated only from evidence present in the submission. Abstract-only
+reports do not fabricate completeness or citation scores. Faculty remain the
+final reviewers and every dimension can be overridden with an audit comment.
+
+## One-command development stack
+
+Requirements: Docker Desktop with Docker Compose v2.
+
+```bash
+cp .env.example .env
+docker compose up --build
 ```
-acadeval/
-├── backend/     ← FastAPI backend (Python 3.11)
-└── src/         ← React frontend (Vite + TypeScript)
-```
 
-## Quick Start
+On Windows PowerShell you can run:
 
-**Terminal 1 — Backend:**
 ```powershell
+Copy-Item .env.example .env
+.\start.ps1
+```
+
+Before starting, set `POSTGRES_PASSWORD`, `DATABASE_URL`, `JWT_SECRET`, and
+`NEO4J_PASSWORD` in `.env`. Use a random `JWT_SECRET` of at least 32 characters.
+To create the first HOD account, set `BOOTSTRAP_ADMIN_NAME`,
+`BOOTSTRAP_ADMIN_EMAIL`, and a unique `BOOTSTRAP_ADMIN_PASSWORD` of at least
+12 characters. Leave the email blank to skip bootstrapping. External API and
+SMTP credentials are optional.
+
+The optional bootstrap account is created idempotently. No sample projects,
+labels, scores, or browser-side evaluation records are generated.
+
+Services:
+
+- Frontend: http://localhost:5173
+- API: http://localhost:8000
+- API documentation: http://localhost:8000/docs
+- Neo4j Browser: http://localhost:7474
+- GROBID: http://localhost:8070
+
+Stop the stack with:
+
+```bash
+docker compose down
+```
+
+Add `-v` only when you intentionally want to delete all local PostgreSQL, Redis, Neo4j, and uploaded-file volumes.
+
+## Build the historical novelty corpus
+
+Novelty requires historical evidence. After the services are healthy, load the
+repository corpus into Neo4j through the same extraction and graph schema used
+for live submissions:
+
+```bash
+docker compose exec api python scripts/backfill_corpus_graph.py
+```
+
+The loader records the SHA-256 version of the source CSV on every corpus
+project. Re-running it is idempotent. A new upload is scored against a frozen
+read-transaction snapshot, the score and snapshot ID are persisted, and only
+then is the candidate inserted into the historical graph.
+
+## Local frontend verification
+
+```bash
+npm ci
+npm run build
+npm run lint
+```
+
+## Database migrations
+
+The API container runs `alembic upgrade head` before starting FastAPI. For a manually managed backend:
+
+```bash
 cd backend
-venv\Scripts\activate
+alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 
-**Terminal 2 — Frontend:**
-```powershell
-npm run dev
+## Repository layout
+
+```text
+acadeval/
+├── backend/          FastAPI, Celery, Alembic, scoring and graph services
+├── datasets/         Taxonomy, feature KB, corpus and benchmark inputs
+├── src/              React frontend
+├── docker-compose.yml
+└── .env.example      Safe configuration template
 ```
 
-- Frontend → http://localhost:5173
-- API docs  → http://localhost:8000/docs
+## Security note
+
+Never commit `.env`. If a real key was previously committed, removing the file from the current branch is not sufficient: revoke or rotate the credential and remove it from Git history before publishing the repository.

@@ -1,0 +1,7 @@
+.env
+venv
+uploads
+__pycache__
+**/__pycache__
+*.py[cod]
+celerybeat-schedule*

@@ -1,10 +1,7 @@
 acadeval/                          ← monorepo root (git root)
 │
 ├── backend/                       ← FastAPI backend (Python)
-│   ├── .env                       ← secrets (git-ignored)
-│   ├── .env.example               ← template to copy
-│   ├── .gitignore                 ← backend-specific ignores
-│   ├── docker-compose.yml         ← Postgres + Redis + API + Worker
+│   ├── .dockerignore
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   ├── alembic.ini
@@ -53,10 +50,11 @@ acadeval/                          ← monorepo root (git root)
 │   ├── alembic/
 │   │   ├── env.py
 │   │   └── versions/
-│   │       └── 001_initial_schema.py   ← Full DB migration (11 tables)
+│   │       ├── 001_initial_schema.py
+│   │       └── 006_stage1_project_fields.py
 │   │
 │   ├── scripts/
-│   │   └── seed.py                ← 5 users + 4 projects + evaluations
+│   │   └── seed.py                ← development users only; no fake evaluations
 │   │
 │   ├── uploads/                   ← File storage (git-ignored)
 │   └── venv/                      ← Python venv (git-ignored, recreate locally)
@@ -71,7 +69,9 @@ acadeval/                          ← monorepo root (git root)
 │
 ├── public/
 ├── index.html
-├── .env                           ← VITE_API_BASE_URL + VITE_USE_MOCK
+├── .env.example                   ← safe configuration template
+├── docker-compose.yml             ← canonical full development stack
+├── Dockerfile.frontend
 ├── .gitignore                     ← Combined frontend + backend ignores
 ├── package.json
 ├── tailwind.config.js

@@ -27,6 +27,14 @@ const ExplainabilityViewer: React.FC<ExplainabilityViewerProps> = ({
 
   const signals = explainability.signals || [];
 
+  if (annotations.length === 0) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+        No evidence annotations have been generated for this report yet.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div className="rounded-xl border border-slate-200 bg-white p-5">

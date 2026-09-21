@@ -37,6 +37,8 @@ class Project(Base):
     domain: Mapped[str] = mapped_column(String(100), nullable=False)
     submission_type: Mapped[SubmissionType] = mapped_column(Enum(SubmissionType), nullable=False)
     github_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    team_members: Mapped[str | None] = mapped_column(Text, nullable=True)
+    batch_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     related_submission_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
     )
@@ -69,6 +71,10 @@ class Project(Base):
 
     # Module 11 — Celery task chain root id; used by /pipeline-status to poll AsyncResult
     celery_task_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    # Stage 2 — candidate is inserted only after a versioned novelty score is persisted.
+    graph_ingested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    graph_ingestion_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # Relationships
     student: Mapped["User"] = relationship(

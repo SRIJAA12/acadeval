@@ -53,13 +53,13 @@ export interface ProjectSummary {
 // ─── Dimension Scores ────────────────────────────────────────────────────────
 
 export interface DimensionScores {
-  novelty: number;
-  feasibility: number;
+  novelty: number | null;
+  feasibility: number | null;
   completeness: number | null; // null for abstract-only
-  technicalDepth: number;
-  clarity: number;
-  similarityRisk: number;
-  publicationPotential: number;
+  technicalDepth: number | null;
+  clarity: number | null;
+  similarityRisk: number | null;
+  publicationPotential: number | null;
 }
 
 // ─── Public Report (Student-safe) ────────────────────────────────────────────
@@ -83,13 +83,20 @@ export interface PublicEvaluationReport {
   feasibilityRating: FeasibilityRating;
   noveltyVerdict: NoveltyVerdict;
   writingQuality: {
-    readability: number;
+    readability: number | null;
+    clarityScore: number | null;
     passiveVoiceCount: number;
+    wordCount: number;
     toneFlags: string[];
+    methodVersion: string | null;
   } | null;
   citations: {
-    ieeeCompliancePercent: number;
-    missingReferences: string[];
+    verifiedPercent: number;
+    recentPercent: number;
+    referenceCount: number;
+    issues: string[];
+    status: string;
+    methodVersion: string | null;
   } | null;
   strengths: string[];
   weaknesses: string[];
@@ -100,6 +107,30 @@ export interface PublicEvaluationReport {
   }[];
   badges: string[];
   percentileRanks: Record<string, number>;
+  assessmentEvidence: {
+    evidence_quality: string;
+    feasibility: AssessmentDimensionEvidence;
+    completeness: {
+      score: number | null;
+      present_sections: string[];
+      missing_sections: string[];
+      reason?: string;
+    };
+    technical_depth: AssessmentDimensionEvidence;
+    gaps: string[];
+  } | null;
+  evaluationMethodVersion: string | null;
+}
+
+export interface AssessmentCriterionEvidence {
+  score: number;
+  evidence: string[];
+  gaps: string[];
+}
+
+export interface AssessmentDimensionEvidence {
+  score: number;
+  criteria: Record<string, AssessmentCriterionEvidence>;
 }
 
 // ─── Internal Report (Faculty/HOD only — NEVER fetched on student routes) ────
@@ -154,15 +185,73 @@ export interface VivaQuestion {
   questionId: string;
   text: string;
   category: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
+  difficulty: 'Easy' | 'Medium' | 'Hard' | 'Research';
+  targetConcept: string;
+  referenceAnswer?: string;
+  expectedKeywords?: string[];
+}
+
+export interface VivaAnswerEvaluation {
+  correctness: number;
+  completeness: number;
+  technicalDepth: number;
+  confidence: number;
+  overallScore: number;
 }
 
 export interface VivaAnswerResult {
   questionId: string;
   score: number; // 0-5
-  maxScore: 5;
+  maxScore: number;
+  evaluation: VivaAnswerEvaluation;
   feedback: string;
-  keyPoints: string[];
+  strongPoints: string[];
+  weakPoints: string[];
+  conceptCovered: string;
+  nextQuestion: VivaQuestion | null;
+  sessionComplete: boolean;
+  kcsAfterAnswer: number;
+}
+
+export interface StartVivaResponse {
+  sessionId: string;
+  projectId: string;
+  projectTitle: string;
+  totalConcepts: number;
+  firstQuestion: VivaQuestion;
+  message: string;
+}
+
+export interface VivaConceptGap {
+  concept: string;
+  category: string;
+  difficulty: VivaQuestion['difficulty'];
+  questionsAsked: number;
+  averageScore: number;
+  gapSeverity: 'Critical' | 'Moderate' | 'Minor';
+}
+
+export interface VivaReport {
+  sessionId: string;
+  projectId: string;
+  projectTitle: string;
+  overallScore: number;
+  kcs: number;
+  difficultyReached: VivaQuestion['difficulty'];
+  totalQuestionsAnswered: number;
+  totalConceptsInProject: number;
+  conceptsCovered: number;
+  averageCorrectness: number;
+  averageCompleteness: number;
+  averageDepth: number;
+  averageConfidence: number;
+  categoryScores: Record<string, number>;
+  difficultyProgression: string[];
+  knowledgeGaps: VivaConceptGap[];
+  strongAreas: string[];
+  learningRecommendations: string[];
+  grade: 'Distinction' | 'Merit' | 'Pass' | 'Needs Improvement';
+  summaryStatement: string;
 }
 
 export interface VivaSession {

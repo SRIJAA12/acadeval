@@ -24,10 +24,6 @@ transformers==4.47.1
 sentence-transformers==3.3.1
 scikit-learn==1.6.0
 rank-bm25==0.2.2
-textstat==0.7.4
-textblob==0.18.0
-lime==0.2.0.1
-shap==0.46.0
 gitpython==3.1.43
 
 # Whisper (Phase 2)

@@ -1,176 +1,120 @@
-"""
-Module 7 — Writing Quality Analysis Service
-============================================
-Evaluates the clarity, readability, sentiment/subjectivity, and formal tone
-of capstone project proposals using `textstat` and `TextBlob`.
+"""Deterministic writing-quality analysis with inspectable measurements."""
 
-Benchmarks (AcadEval_WritingQualityBenchmark):
-  - Flesch Reading Ease:
-      ≥ 60.0 : Clear & Accessible
-      40.0 - 59.9 : Moderately Academic / Adequate
-      < 40.0 : Overly Complex / Difficult Readability
-  - Gunning Fog Index:
-      10.0 - 15.0 : Optimal Academic Range
-      > 16.0 : Excessively Complex Sentences
-      < 9.0 : Too Informal / Lacks Technical Depth
-  - Subjectivity:
-      < 0.35 : Objective & Formal
-      0.35 - 0.50 : Moderate Subjectivity
-      > 0.50 : Excessively Opinion-heavy / Informal Tone
+from __future__ import annotations
 
-Outputs structured metrics and quality bands attached to Module 9 explainable report.
-"""
-
-import logging
 import re
-from typing import Dict, Any, List
-
-import textstat
-from textblob import TextBlob
-
-log = logging.getLogger(__name__)
+from typing import Any
 
 
-# ── AcadEval_WritingQualityBenchmark Cut-offs ──────────────────────────────────
-BENCHMARK = {
-    "flesch_reading_ease": {
-        "clear": (60.0, 100.0),
-        "adequate": (40.0, 59.9),
-        "needs_editing": (0.0, 39.9),
-    },
-    "gunning_fog": {
-        "optimal": (10.0, 15.0),
-        "too_complex": (15.1, 30.0),
-        "too_informal": (0.0, 9.9),
-    },
-    "subjectivity": {
-        "objective": (0.0, 0.35),
-        "moderate": (0.35, 0.50),
-        "informal": (0.50, 1.0),
-    }
-}
+WRITING_METHOD_VERSION = "writing-rules-v2.0"
+WORD_RE = re.compile(r"\b[A-Za-z][A-Za-z'-]*\b")
+PASSIVE_RE = re.compile(
+    r"\b(?:am|is|are|was|were|be|been|being)\s+(?:\w+ly\s+)?\w+(?:ed|en)\b",
+    re.IGNORECASE,
+)
+
+
+def _syllables(word: str) -> int:
+    value = re.sub(r"[^a-z]", "", word.casefold())
+    if not value:
+        return 0
+    groups = re.findall(r"[aeiouy]+", value)
+    count = len(groups)
+    if value.endswith("e") and not value.endswith(("le", "ye")) and count > 1:
+        count -= 1
+    return max(1, count)
+
+
+def _clamp(value: float) -> float:
+    return round(max(0.0, min(100.0, value)), 1)
 
 
 class WritingQualityService:
-    """Module 7 Writing Quality Analysis Engine."""
+    def analyze_text(self, text: str) -> dict[str, Any]:
+        clean_text = (text or "").strip()
+        words = WORD_RE.findall(clean_text)
+        if len(words) < 30:
+            return self._empty_response("Text sample is too short for a reliable writing analysis.")
 
-    def analyze_text(self, text: str) -> Dict[str, Any]:
-        """
-        Analyzes proposal text using textstat and TextBlob.
-        Returns readability scores, sentiment/subjectivity metrics, tone evaluation,
-        and benchmark-derived recommendations.
-        """
-        clean_text = text.strip()
-        if not clean_text or len(clean_text) < 30:
-            return self._empty_response("Text sample too short for writing quality analysis.")
+        sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+|\n+", clean_text) if part.strip()]
+        sentence_count = max(1, len(sentences))
+        syllable_count = sum(_syllables(word) for word in words)
+        complex_words = sum(_syllables(word) >= 3 for word in words)
+        passive_count = len(PASSIVE_RE.findall(clean_text))
+        long_sentences = sum(len(WORD_RE.findall(sentence)) > 30 for sentence in sentences)
 
-        # 1. Compute Readability Metrics via textstat
-        try:
-            flesch_score = float(textstat.flesch_reading_ease(clean_text))
-            gunning_fog = float(textstat.gunning_fog(clean_text))
-            smog_index = float(textstat.smog_index(clean_text))
-            reading_time_sec = float(textstat.reading_time(clean_text))
-        except Exception as exc:
-            log.warning("textstat computation failed (%s) — using fallback calculation", exc)
-            flesch_score, gunning_fog, smog_index, reading_time_sec = 45.0, 14.0, 12.0, 30.0
+        words_per_sentence = len(words) / sentence_count
+        syllables_per_word = syllable_count / len(words)
+        flesch = 206.835 - 1.015 * words_per_sentence - 84.6 * syllables_per_word
+        fog = 0.4 * (words_per_sentence + 100.0 * complex_words / len(words))
+        passive_percent = passive_count / sentence_count * 100.0
+        long_sentence_percent = long_sentences / sentence_count * 100.0
 
-        # 2. Compute Sentiment & Subjectivity via TextBlob
-        try:
-            blob = TextBlob(clean_text)
-            polarity = float(blob.sentiment.polarity)
-            subjectivity = float(blob.sentiment.subjectivity)
-        except Exception as exc:
-            log.warning("TextBlob analysis failed (%s)", exc)
-            polarity, subjectivity = 0.0, 0.25
+        readability_component = _clamp(100.0 - abs(55.0 - flesch) * 1.25)
+        sentence_component = _clamp(100.0 - max(0.0, words_per_sentence - 22.0) * 4.0)
+        active_voice_component = _clamp(100.0 - passive_percent * 2.5)
+        structure_component = _clamp(100.0 - long_sentence_percent * 1.5)
+        quality_score = _clamp(
+            readability_component * 0.35
+            + sentence_component * 0.25
+            + active_voice_component * 0.20
+            + structure_component * 0.20
+        )
 
-        # Basic spelling error estimate (first 300 words for efficiency)
-        words = clean_text.split()[:300]
-        sample_text = " ".join(words)
-        spelling_errors = 0
-        try:
-            sample_blob = TextBlob(sample_text)
-            # Find words that change significantly upon spellcheck
-            corrected = str(sample_blob.correct())
-            orig_tokens = re.findall(r"\b[a-zA-Z]{4,}\b", sample_text)
-            corr_tokens = re.findall(r"\b[a-zA-Z]{4,}\b", corrected)
-            if len(orig_tokens) == len(corr_tokens):
-                spelling_errors = sum(1 for o, c in zip(orig_tokens, corr_tokens) if o.lower() != c.lower())
-        except Exception:
-            spelling_errors = 0
+        flags: list[str] = []
+        if flesch < 30:
+            flags.append("Very dense prose: simplify long sentences and define technical terms.")
+        elif flesch > 80:
+            flags.append("Very simple prose: add precise technical explanation where needed.")
+        if passive_percent > 25:
+            flags.append("Frequent passive voice may hide who performs each action.")
+        if long_sentence_percent > 30:
+            flags.append("Many sentences exceed 30 words and should be split.")
 
-        # 3. Apply Benchmark Cut-off Bands
-        flesch_band = self._categorize(flesch_score, BENCHMARK["flesch_reading_ease"], default="adequate")
-        fog_band = self._categorize(gunning_fog, BENCHMARK["gunning_fog"], default="optimal")
-        subj_band = self._categorize(subjectivity, BENCHMARK["subjectivity"], default="objective")
-
-        # Composite Writing Quality Rating
-        if flesch_score >= 45.0 and gunning_fog <= 15.5 and subjectivity <= 0.40:
-            quality_rating = "Clear & Well-Structured"
-        elif flesch_score >= 35.0 and subjectivity <= 0.50:
-            quality_rating = "Adequate (Minor Editing Recommended)"
+        if quality_score >= 75:
+            rating = "Clear"
+        elif quality_score >= 55:
+            rating = "Adequate"
         else:
-            quality_rating = "Needs Editing (Complex or Informal)"
-
-        # 4. Generate Specific Explanations & Flags
-        flags: List[str] = []
-        if flesch_score < 40.0:
-            flags.append("Low Readability: Sentences are overly complex or dense.")
-        if gunning_fog > 16.0:
-            flags.append("High Fog Index: Contains multi-syllabic words and verbose sentence structures.")
-        if subjectivity > 0.45:
-            flags.append("Informal/Subjective Tone: Contains opinion-heavy phrasing rather than objective technical language.")
-        if spelling_errors > 8:
-            flags.append("Spelling/Typo Alert: Multiple potential spelling errors detected.")
+            rating = "Needs editing"
 
         return {
-            "overall_rating": quality_rating,
+            "method_version": WRITING_METHOD_VERSION,
+            "quality_score": quality_score,
+            "overall_rating": rating,
             "metrics": {
-                "flesch_reading_ease": round(flesch_score, 1),
-                "gunning_fog": round(gunning_fog, 1),
-                "smog_index": round(smog_index, 1),
-                "polarity": round(polarity, 2),
-                "subjectivity": round(subjectivity, 2),
-                "estimated_reading_time_sec": round(reading_time_sec, 1),
-                "estimated_spelling_errors": spelling_errors,
-            },
-            "bands": {
-                "readability": flesch_band,
-                "complexity": fog_band,
-                "tone": subj_band,
+                "word_count": len(words),
+                "sentence_count": sentence_count,
+                "words_per_sentence": round(words_per_sentence, 1),
+                "flesch_reading_ease": round(flesch, 1),
+                "gunning_fog": round(fog, 1),
+                "passive_voice_count": passive_count,
+                "passive_sentence_percent": round(passive_percent, 1),
+                "long_sentence_percent": round(long_sentence_percent, 1),
             },
             "flags": flags,
             "status": "success",
         }
 
     @staticmethod
-    def _categorize(val: float, cutoffs: Dict[str, tuple], default: str) -> str:
-        for label, (low, high) in cutoffs.items():
-            if low <= val <= high:
-                return label
-        return default
-
-    @staticmethod
-    def _empty_response(reason: str) -> Dict[str, Any]:
+    def _empty_response(reason: str) -> dict[str, Any]:
         return {
+            "method_version": WRITING_METHOD_VERSION,
+            "quality_score": None,
             "overall_rating": "N/A",
             "metrics": {
-                "flesch_reading_ease": 0.0,
-                "gunning_fog": 0.0,
-                "smog_index": 0.0,
-                "polarity": 0.0,
-                "subjectivity": 0.0,
-                "estimated_reading_time_sec": 0.0,
-                "estimated_spelling_errors": 0,
-            },
-            "bands": {
-                "readability": "unknown",
-                "complexity": "unknown",
-                "tone": "unknown",
+                "word_count": 0,
+                "sentence_count": 0,
+                "words_per_sentence": 0.0,
+                "flesch_reading_ease": None,
+                "gunning_fog": None,
+                "passive_voice_count": 0,
+                "passive_sentence_percent": 0.0,
+                "long_sentence_percent": 0.0,
             },
             "flags": [reason],
             "status": "no_data",
         }
 
 
-# Singleton instance
 writing_quality_service = WritingQualityService()

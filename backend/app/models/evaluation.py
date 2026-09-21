@@ -44,6 +44,16 @@ class EvaluationReport(Base):
     missing_sections: Mapped[list] = mapped_column(JSONB, default=list)
     writing_quality: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     citations: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    novelty_report: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    novelty_method_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    novelty_corpus_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    novelty_corpus_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    novelty_input_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    novelty_scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    assessment_evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    assessment_method_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    assessment_input_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    assessment_scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     strengths: Mapped[list] = mapped_column(JSONB, default=list)
     weaknesses: Mapped[list] = mapped_column(JSONB, default=list)
     improvement_roadmap: Mapped[list] = mapped_column(JSONB, default=list)
@@ -137,4 +147,3 @@ class FacultyEvaluation(Base):
 
     project: Mapped["Project"] = relationship("Project")
     evaluator: Mapped["User"] = relationship("User")
-

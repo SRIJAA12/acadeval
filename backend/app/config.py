@@ -22,14 +22,14 @@ class Settings(BaseSettings):
     # Module 14 — Email & Notification Service (Gmail SMTP)
     SMTP_SERVER: str = "smtp.gmail.com"
     SMTP_PORT: int = 465
-    SMTP_USER: str = "acadeval221@gmail.com"
-    SMTP_PASSWORD: str = "kymh spjy dyih dqqs"
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
     SMTP_FROM_NAME: str = "AcadEval+ Platform"
 
     NEO4J_URI: str = "bolt://localhost:7687"
     NEO4J_USER: str = "neo4j"
     NEO4J_USERNAME: str = ""
-    NEO4J_PASSWORD: str = "acadeval_password"
+    NEO4J_PASSWORD: str = ""
     NEO4J_DATABASE: str = ""
 
     @property
@@ -44,6 +44,15 @@ class Settings(BaseSettings):
 
     APP_ENV: str = "development"
     FRONTEND_ORIGIN: str = "http://localhost:5173"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """Return explicit browser origins accepted by the credentialed API."""
+        return [
+            origin.strip().rstrip("/")
+            for origin in self.FRONTEND_ORIGIN.split(",")
+            if origin.strip()
+        ]
 
 
 settings = Settings()

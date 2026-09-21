@@ -36,18 +36,6 @@ const Login: React.FC = () => {
     }
   }, [isAuthenticated, user, navigate]);
 
-  // Pre-fill demo credentials based on role
-  useEffect(() => {
-    const demoEmails: Record<UserRole, string> = {
-      student: 'priya@college.edu',
-      guide: 'meera@college.edu',
-      reviewer: 'suresh@college.edu',
-      hod: 'hod@college.edu',
-    };
-    setEmail(demoEmails[selectedRole]);
-    setPassword('demo123');
-  }, [selectedRole]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -91,10 +79,10 @@ const Login: React.FC = () => {
 
           <div className="mt-10 grid grid-cols-2 gap-4">
             {[
-              { label: '16 Evaluation Modules', sub: 'From similarity to viva simulation' },
-              { label: '7 Rubric Dimensions', sub: 'Standardized across all departments' },
-              { label: 'Explainable AI', sub: 'LIME/SHAP sentence highlighting' },
-              { label: 'Batch Processing', sub: '60 projects evaluated in minutes' },
+              { label: 'Graph Novelty', sub: 'Five explainable structural signals' },
+              { label: 'Faculty Validation', sub: 'Human review remains the final decision' },
+              { label: 'Entity Extraction', sub: 'Algorithms, datasets, tools, and relations' },
+              { label: 'Async Processing', sub: 'Persistent project and batch progress' },
             ].map(item => (
               <div key={item.label} className="bg-white/5 rounded-2xl p-4 border border-white/10">
                 <p className="text-white font-semibold text-sm">{item.label}</p>

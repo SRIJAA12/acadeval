@@ -28,6 +28,7 @@ log = logging.getLogger(__name__)
 
 # TEI XML namespace for GROBID parser
 TEI_NS = {"tei": "http://www.tei-c.org/ns/1.0"}
+CITATION_METHOD_VERSION = "citation-verification-v2.0"
 
 
 class ReferenceParserService:
@@ -247,15 +248,18 @@ class CitationAnalysisService:
             flags.append("Outdated Bibliography: Less than 30% of references are from the last 5 years.")
 
         return {
+            "method_version": CITATION_METHOD_VERSION,
             "summary": summary_scores,
             "flags": flags,
             "references": verified_details,
             "status": "success",
+            "scope_note": "Verifiability and recency are measured; citation style compliance is not inferred.",
         }
 
     @staticmethod
     def _empty_response(reason: str) -> Dict[str, Any]:
         return {
+            "method_version": CITATION_METHOD_VERSION,
             "summary": {
                 "reference_count": 0,
                 "percent_verified": 0.0,
@@ -267,6 +271,7 @@ class CitationAnalysisService:
             "flags": [reason],
             "references": [],
             "status": "no_data",
+            "scope_note": "No citation-style score is produced without structured references.",
         }
 
 
