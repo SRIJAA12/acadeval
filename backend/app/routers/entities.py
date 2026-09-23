@@ -173,7 +173,12 @@ def get_project_entities(project_id: str, current_user: CurrentUser, db: DB):
     if current_user.role == UserRole.student and project.student_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied.")
 
+    from app.services.entity_normalizer import canonicalize_extracted_entities
+
     extracted = project.extracted_entities
+    if extracted:
+        extracted = canonicalize_extracted_entities(extracted)
+
     # Trigger re-extraction if: never run (None) OR all lists are empty (prior extraction bug)
     entity_lists_empty = extracted is not None and all(
         len(v) == 0 for v in extracted.values() if isinstance(v, list)

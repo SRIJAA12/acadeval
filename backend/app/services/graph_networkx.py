@@ -174,13 +174,17 @@ def export_d3_graph(
         for nid in selected_nodes
     ]
 
-    # Format edges between selected nodes
+    # Format edges between selected nodes (CO_OCCURS excluded — N² explosion risk)
     links_payload = []
     seen_edges = set()
 
     for u, v, data in G.edges(data=True):
         if u in selected_nodes and v in selected_nodes:
             rel = data.get("relationship", "CONNECTED")
+            # Skip CO_OCCURS — they are stored for Neo4j analytics but create
+            # ~N² edges that overwhelm any D3 / canvas force visualizer.
+            if rel == "CO_OCCURS":
+                continue
             edge_key = (u, v, rel)
             if edge_key not in seen_edges:
                 seen_edges.add(edge_key)
@@ -243,3 +247,275 @@ def get_node_neighborhood(G: nx.MultiDiGraph, query: str, radius: int = 1) -> di
         "neighborhood_nodes": len(subgraph_nodes),
         "graph": sub_d3,
     }
+
+
+def export_project_d3_graph(db: Session, project_id: str) -> dict:
+    """
+    Exports a project-scoped D3 graph containing:
+    - Target Project node
+    - Connected Domain/Subdomain nodes
+    - Connected Entity nodes (Algorithm, Technology, Library, Framework, etc.)
+    - Intra-project CO_OCCURS edges between these entities
+    """
+    import json
+    from app.models.project import Project
+
+    pid_str = str(project_id)
+
+    # 1. Find Project node in graph_nodes
+    proj_row = db.execute(
+        text("SELECT id, node_type, name FROM graph_nodes WHERE node_type = 'Project' AND source_key = :pid"),
+        {"pid": pid_str}
+    ).fetchone()
+
+    if not proj_row:
+        # Fallback: check if project exists in DB and ingest on the fly if extracted_entities present
+        proj = db.query(Project).filter(Project.id == project_id).first()
+        if not proj:
+            return {"error": f"Project {project_id} not found", "nodes": [], "links": []}
+        if proj.extracted_entities:
+            from app.services.graph_builder import ingest_project_to_relational_graph
+            entities = proj.extracted_entities or {}
+            domain = entities.get("domain", proj.domain or "General CSE")
+            sub_domain = entities.get("sub_domain", "Machine Learning")
+            ingest_project_to_relational_graph(
+                db, pid_str, proj.title or "", domain, sub_domain, entities
+            )
+            proj_row = db.execute(
+                text("SELECT id, node_type, name FROM graph_nodes WHERE node_type = 'Project' AND source_key = :pid"),
+                {"pid": pid_str}
+            ).fetchone()
+
+    if not proj_row:
+        return {
+            "status": "ok",
+            "project_id": pid_str,
+            "title": "Unprocessed Project",
+            "nodes": [],
+            "links": [],
+            "nodes_count": 0,
+            "links_count": 0,
+        }
+
+    proj_id_int, _, proj_name = proj_row
+
+    # 2. Find direct edges from project node
+    direct_edges = db.execute(
+        text("SELECT from_node, to_node, relationship, confidence FROM graph_edges WHERE from_node = :pnode"),
+        {"pnode": proj_id_int}
+    ).fetchall()
+
+    neighbor_ids = {proj_id_int}
+    for edge in direct_edges:
+        neighbor_ids.add(edge[1])
+
+    # Also find any SUBDOMAIN_OF edge between the neighbors
+    subdomain_edges = []
+    if len(neighbor_ids) > 1:
+        subdomain_edges = db.execute(
+            text("""
+                SELECT from_node, to_node, relationship, confidence
+                FROM graph_edges
+                WHERE relationship = 'SUBDOMAIN_OF'
+                  AND from_node = ANY(:nids) AND to_node = ANY(:nids)
+            """),
+            {"nids": list(neighbor_ids)}
+        ).fetchall()
+
+    # 3. CO_OCCURS edges are a full N² Cartesian product between entity nodes
+    # (e.g. 343 entities × 342 = ~58k edges) — they are intentionally EXCLUDED
+    # from the project-scoped D3 graph to keep it renderable. The structural
+    # edges (Project→Entity, HAS_DOMAIN, HAS_SUBDOMAIN, SUBDOMAIN_OF) are
+    # sufficient to display the project knowledge graph meaningfully.
+    co_occurs_edges: list = []
+
+    all_edge_tuples = []
+    seen_edges = set()
+    for row in direct_edges + subdomain_edges + co_occurs_edges:
+        u, v, rel, conf = row[0], row[1], row[2], float(row[3] or 1.0)
+        edge_key = (u, v, rel)
+        if edge_key not in seen_edges:
+            seen_edges.add(edge_key)
+            all_edge_tuples.append((u, v, rel, conf))
+            neighbor_ids.add(u)
+            neighbor_ids.add(v)
+
+    # 4. Fetch node metadata
+    node_rows = db.execute(
+        text("SELECT id, node_type, name FROM graph_nodes WHERE id = ANY(:nids)"),
+        {"nids": list(neighbor_ids)}
+    ).fetchall()
+
+    degree_map: dict[int, int] = {}
+    for u, v, _, _ in all_edge_tuples:
+        degree_map[u] = degree_map.get(u, 0) + 1
+        degree_map[v] = degree_map.get(v, 0) + 1
+
+    nodes = [
+        {
+            "id": nid,
+            "name": nname,
+            "type": ntype,
+            "degree": degree_map.get(nid, 0),
+            "is_target": (nid == proj_id_int),
+            "group": "target",
+        }
+        for nid, ntype, nname in node_rows
+    ]
+
+    links = [
+        {
+            "source": u,
+            "target": v,
+            "relationship": rel,
+            "confidence": conf,
+        }
+        for u, v, rel, conf in all_edge_tuples
+    ]
+
+    return {
+        "status": "ok",
+        "project_id": pid_str,
+        "title": proj_name,
+        "nodes": nodes,
+        "links": links,
+        "nodes_count": len(nodes),
+        "links_count": len(links),
+    }
+
+
+def export_comparison_d3_graph(
+    db: Session,
+    project_id: str,
+    similar_project_ids: Optional[list[str]] = None,
+    distance_threshold: float = 0.5,
+) -> dict:
+    """
+    Exports a comparison D3 graph containing:
+    - Target project nodes & relationships (group='target')
+    - Similar project nodes & relationships (group='comparison')
+    - Shared entity nodes (group='shared', is_shared=True)
+    - Returns related_project_available=False if no similar projects meet threshold.
+    """
+    from app.models.evaluation import EvaluationReport
+
+    pid_str = str(project_id)
+    target_graph = export_project_d3_graph(db, pid_str)
+
+    # Fetch similar projects if not explicitly provided
+    sim_projects = []
+    if similar_project_ids is not None:
+        sim_projects = [{"project_id": spid, "similarity_score": 1.0} for spid in similar_project_ids]
+    else:
+        eval_rep = db.query(EvaluationReport).filter(EvaluationReport.project_id == project_id).first()
+        if eval_rep and eval_rep.novelty_report:
+            sim_projects = eval_rep.novelty_report.get("most_similar_projects", [])
+
+    # Filter similar projects: must have valid ID, not equal to target, and pass threshold
+    valid_sims = []
+    for sp in sim_projects:
+        sp_id = str(sp.get("project_id", "")).strip()
+        if not sp_id or sp_id == pid_str:
+            continue
+        sim_score = float(sp.get("similarity_score", 0.0))
+        # A project is related if jaccard distance (1 - sim_score) <= distance_threshold
+        # or if sim_score >= (1.0 - distance_threshold)
+        if sim_score >= (1.0 - distance_threshold) or (1.0 - sim_score) <= distance_threshold:
+            valid_sims.append(sp)
+
+    if not valid_sims:
+        return {
+            "status": "ok",
+            "project_id": pid_str,
+            "target_title": target_graph.get("title", "Target Project"),
+            "related_project_available": False,
+            "message": "Related project is not available (distance threshold not met).",
+            "similar_projects": [],
+            "nodes": target_graph.get("nodes", []),
+            "links": target_graph.get("links", []),
+            "nodes_count": len(target_graph.get("nodes", [])),
+            "links_count": len(target_graph.get("links", [])),
+        }
+
+    # Merge target graph with top similar project graph (take top 1 or 2)
+    top_sim = valid_sims[0]
+    top_sim_id = str(top_sim.get("project_id", ""))
+    sim_graph = export_project_d3_graph(db, top_sim_id)
+
+    target_nodes_by_id = {n["id"]: n for n in target_graph.get("nodes", [])}
+    sim_nodes_by_id = {n["id"]: n for n in sim_graph.get("nodes", [])}
+
+    # Identify shared nodes (by ID or normalized entity name for non-Project types)
+    target_names_map = {
+        (n["type"], n["name"].strip().lower()): n["id"]
+        for n in target_graph.get("nodes", [])
+        if n.get("type") != "Project"
+    }
+
+    shared_node_ids = set()
+    for nid, snode in sim_nodes_by_id.items():
+        if nid in target_nodes_by_id and snode.get("type") != "Project":
+            shared_node_ids.add(nid)
+        else:
+            key = (snode.get("type"), snode.get("name", "").strip().lower())
+            if key in target_names_map:
+                shared_node_ids.add(target_names_map[key])
+                shared_node_ids.add(nid)
+
+    merged_nodes = []
+    seen_node_ids = set()
+
+    for n in target_graph.get("nodes", []):
+        nid = n["id"]
+        seen_node_ids.add(nid)
+        is_shared = nid in shared_node_ids
+        merged_nodes.append({
+            **n,
+            "group": "shared" if is_shared else "target",
+            "is_shared": is_shared,
+            "project": "target",
+        })
+
+    for n in sim_graph.get("nodes", []):
+        nid = n["id"]
+        if nid not in seen_node_ids:
+            seen_node_ids.add(nid)
+            is_shared = nid in shared_node_ids
+            merged_nodes.append({
+                **n,
+                "group": "shared" if is_shared else "comparison",
+                "is_shared": is_shared,
+                "project": "comparison",
+            })
+
+    # Merge links
+    seen_links = set()
+    merged_links = []
+
+    for l in target_graph.get("links", []):
+        key = (l["source"], l["target"], l["relationship"])
+        if key not in seen_links:
+            seen_links.add(key)
+            merged_links.append({**l, "group": "target"})
+
+    for l in sim_graph.get("links", []):
+        key = (l["source"], l["target"], l["relationship"])
+        if key not in seen_links:
+            seen_links.add(key)
+            merged_links.append({**l, "group": "comparison"})
+
+    return {
+        "status": "ok",
+        "project_id": pid_str,
+        "target_title": target_graph.get("title", "Target Project"),
+        "comparison_title": sim_graph.get("title", top_sim.get("title", "Comparison Project")),
+        "related_project_available": True,
+        "similarity_score": top_sim.get("similarity_score", 0.0),
+        "message": f"Comparing with {sim_graph.get('title', 'related project')}.",
+        "similar_projects": valid_sims,
+        "nodes": merged_nodes,
+        "links": merged_links,
+        "nodes_count": len(merged_nodes),
+        "links_count": len(merged_links),
+    }
+

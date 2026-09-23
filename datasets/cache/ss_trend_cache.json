@@ -28,5 +28,509 @@
     "data_source": "semantic_scholar",
     "cached_at": "2026-07-26T10:16:43.787053+00:00",
     "_topic_label": "AI-assisted Requirements Analysis"
+  },
+  "e04d1bcee667afb8": {
+    "topic": "machine learning",
+    "growth_rate_pct": -71.4,
+    "paper_count_3yr": 240,
+    "citation_velocity": 2462.0,
+    "trend_status": "Steady",
+    "top_papers": [
+      {
+        "title": "TRIPOD+AI statement: updated guidance for reporting clinical prediction models that use regression or machine learning methods",
+        "year": 2024,
+        "citations": 3531,
+        "url": "https://doi.org/10.1136/bmj-2023-078378"
+      },
+      {
+        "title": "Evaluation metrics and statistical tests for machine learning",
+        "year": 2024,
+        "citations": 1393,
+        "url": "https://doi.org/10.1038/s41598-024-56706-x"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:43:44.858993+00:00",
+    "_topic_label": "machine learning"
+  },
+  "4ae35cd73aaab213": {
+    "topic": "reinforcement learning",
+    "growth_rate_pct": 14.3,
+    "paper_count_3yr": 960,
+    "citation_velocity": 3349.2,
+    "trend_status": "Steady",
+    "top_papers": [
+      {
+        "title": "DeepSeek-R1 incentivizes reasoning in LLMs through reinforcement learning",
+        "year": 2025,
+        "citations": 5673,
+        "url": "https://doi.org/10.1038/s41586-025-09422-z"
+      },
+      {
+        "title": "DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning",
+        "year": 2025,
+        "citations": 5424,
+        "url": "https://doi.org/10.48550/arXiv.2501.12948"
+      },
+      {
+        "title": "Reflexion: language agents with verbal reinforcement learning",
+        "year": 2023,
+        "citations": 5327,
+        "url": "https://doi.org/10.52202/075280-0377"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:43:47.362063+00:00",
+    "_topic_label": "reinforcement learning"
+  },
+  "be35b6f410af746c": {
+    "topic": "federated learning",
+    "growth_rate_pct": -81.2,
+    "paper_count_3yr": 360,
+    "citation_velocity": 426.0,
+    "trend_status": "Steady",
+    "top_papers": [
+      {
+        "title": "Edge-IIoTset: A New Comprehensive Realistic Cyber Security Dataset of IoT and IIoT Applications for Centralized and Federated Learning",
+        "year": 2022,
+        "citations": 1006,
+        "url": "https://doi.org/10.1109/ACCESS.2022.3165809"
+      },
+      {
+        "title": "Federated Learning for IoT: A Survey of Techniques, Challenges, and Applications",
+        "year": 2025,
+        "citations": 158,
+        "url": "https://doi.org/10.3390/jsan14010009"
+      },
+      {
+        "title": "Federated learning framework based on trimmed mean aggregation rules",
+        "year": 2025,
+        "citations": 114,
+        "url": "https://doi.org/10.2139/ssrn.4181353"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:43:49.106538+00:00",
+    "_topic_label": "federated learning"
+  },
+  "05e56c60b1c8f7b6": {
+    "topic": "graph neural network",
+    "growth_rate_pct": -71.4,
+    "paper_count_3yr": 480,
+    "citation_velocity": 188.0,
+    "trend_status": "Steady",
+    "top_papers": [
+      {
+        "title": "Flexible Job-Shop Scheduling via Graph Neural Network and Deep Reinforcement Learning",
+        "year": 2023,
+        "citations": 413,
+        "url": "https://doi.org/10.1109/TII.2022.3189725"
+      },
+      {
+        "title": "Reconstructed Graph Neural Network With Knowledge Distillation for Lightweight Anomaly Detection",
+        "year": 2024,
+        "citations": 138,
+        "url": "https://doi.org/10.1109/TNNLS.2024.3389714"
+      },
+      {
+        "title": "BigST: Linear Complexity Spatio-Temporal Graph Neural Network for Traffic Forecasting on Large-Scale Road Networks",
+        "year": 2024,
+        "citations": 126,
+        "url": "https://doi.org/10.14778/3641204.3641217"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:43:51.372342+00:00",
+    "_topic_label": "graph neural network"
+  },
+  "7ebedea2c11bd5d9": {
+    "topic": "large language model",
+    "growth_rate_pct": 25.0,
+    "paper_count_3yr": 2400,
+    "citation_velocity": 1704.8,
+    "trend_status": "Hot",
+    "top_papers": [
+      {
+        "title": "Efficient Memory Management for Large Language Model Serving with PagedAttention",
+        "year": 2023,
+        "citations": 8381,
+        "url": "https://doi.org/10.1145/3600006.3613165"
+      },
+      {
+        "title": "A survey on large language model based autonomous agents",
+        "year": 2023,
+        "citations": 3889,
+        "url": "https://doi.org/10.1007/s11704-024-40231-1"
+      },
+      {
+        "title": "The Rise and Potential of Large Language Model Based Agents: A Survey",
+        "year": 2023,
+        "citations": 2073,
+        "url": "https://doi.org/10.48550/arXiv.2309.07864"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:43:55.465797+00:00",
+    "_topic_label": "large language model"
+  },
+  "67c7fd5ff4e7b40a": {
+    "topic": "object detection",
+    "growth_rate_pct": -14.3,
+    "paper_count_3yr": 720,
+    "citation_velocity": 3973.5,
+    "trend_status": "Steady",
+    "top_papers": [
+      {
+        "title": "YOLOv10: Real-Time End-to-End Object Detection",
+        "year": 2024,
+        "citations": 5922,
+        "url": "https://doi.org/10.48550/arXiv.2405.14458"
+      },
+      {
+        "title": "Grounding DINO: Marrying DINO with Grounded Pre-Training for Open-Set Object Detection",
+        "year": 2023,
+        "citations": 5001,
+        "url": "https://doi.org/10.48550/arXiv.2303.05499"
+      },
+      {
+        "title": "DETRs Beat YOLOs on Real-time Object Detection",
+        "year": 2023,
+        "citations": 4434,
+        "url": "https://doi.org/10.1109/CVPR52733.2024.01605"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:43:58.275113+00:00",
+    "_topic_label": "object detection"
+  },
+  "a969375cfab044a3": {
+    "topic": "semantic segmentation",
+    "growth_rate_pct": -70.0,
+    "paper_count_3yr": 360,
+    "citation_velocity": 1641.7,
+    "trend_status": "Steady",
+    "top_papers": [
+      {
+        "title": "Swin UNETR: Swin Transformers for Semantic Segmentation of Brain Tumors in MRI Images",
+        "year": 2022,
+        "citations": 2592,
+        "url": "https://doi.org/10.1007/978-3-031-08999-2_22"
+      },
+      {
+        "title": "SegNeXt: Rethinking Convolutional Attention Design for Semantic Segmentation",
+        "year": 2022,
+        "citations": 1370,
+        "url": "https://doi.org/10.48550/arXiv.2209.08575"
+      },
+      {
+        "title": "Language-driven Semantic Segmentation",
+        "year": 2022,
+        "citations": 963,
+        "url": "https://www.semanticscholar.org/paper/cc9826c222ac1e81b4b374dd9e0df130f298b1e8"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:44:00.115958+00:00",
+    "_topic_label": "semantic segmentation"
+  },
+  "a034a8fd8707ed6d": {
+    "topic": "anomaly detection",
+    "growth_rate_pct": 11.1,
+    "paper_count_3yr": 1200,
+    "citation_velocity": 279.9,
+    "trend_status": "Steady",
+    "top_papers": [
+      {
+        "title": "Anomaly Detection via Reverse Distillation from One-Class Embedding",
+        "year": 2022,
+        "citations": 1041,
+        "url": "https://doi.org/10.1109/CVPR52688.2022.00951"
+      },
+      {
+        "title": "RealNet: A Feature Selection Network with Realistic Synthetic Anomaly for Anomaly Detection",
+        "year": 2024,
+        "citations": 267,
+        "url": "https://doi.org/10.1109/CVPR52733.2024.01580"
+      },
+      {
+        "title": "AdaCLIP: Adapting CLIP with Hybrid Learnable Prompts for Zero-Shot Anomaly Detection",
+        "year": 2024,
+        "citations": 264,
+        "url": "https://doi.org/10.1007/978-3-031-72761-0_4"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:44:03.022572+00:00",
+    "_topic_label": "anomaly detection"
+  },
+  "ce552657c408fa46": {
+    "topic": "time series forecasting",
+    "growth_rate_pct": 100.0,
+    "paper_count_3yr": 1440,
+    "citation_velocity": 1656.2,
+    "trend_status": "Emerging",
+    "top_papers": [
+      {
+        "title": "Are Transformers Effective for Time Series Forecasting?",
+        "year": 2022,
+        "citations": 4652,
+        "url": "https://doi.org/10.48550/arXiv.2205.13504"
+      },
+      {
+        "title": "A Time Series is Worth 64 Words: Long-term Forecasting with Transformers",
+        "year": 2022,
+        "citations": 4644,
+        "url": "https://doi.org/10.48550/arXiv.2211.14730"
+      },
+      {
+        "title": "iTransformer: Inverted Transformers Are Effective for Time Series Forecasting",
+        "year": 2023,
+        "citations": 2405,
+        "url": "https://doi.org/10.48550/arXiv.2310.06625"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:44:05.325646+00:00",
+    "_topic_label": "time series forecasting"
+  },
+  "99e230b759b69c26": {
+    "topic": "edge computing IoT",
+    "growth_rate_pct": 180.0,
+    "paper_count_3yr": 1680,
+    "citation_velocity": 50.1,
+    "trend_status": "Emerging",
+    "top_papers": [
+      {
+        "title": "From Sensors to Data Intelligence: Leveraging IoT, Cloud, and Edge Computing with AI",
+        "year": 2025,
+        "citations": 190,
+        "url": "https://doi.org/10.3390/s25061763"
+      },
+      {
+        "title": "Exploring the integration of edge computing and blockchain IoT: Principles, architectures, security, and applications",
+        "year": 2024,
+        "citations": 100,
+        "url": "https://doi.org/10.1016/j.jnca.2024.103884"
+      },
+      {
+        "title": "INTEGRATION OF IOT WITH CLOUD, FOG, AND EDGE COMPUTING: A REVIEW",
+        "year": 2024,
+        "citations": 88,
+        "url": "https://doi.org/10.20998/2522-9052.2024.2.08"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:44:07.982036+00:00",
+    "_topic_label": "edge computing IoT"
+  },
+  "51420fbd73388783": {
+    "topic": "blockchain security",
+    "growth_rate_pct": 1800.0,
+    "paper_count_3yr": 2280,
+    "citation_velocity": 115.2,
+    "trend_status": "Emerging",
+    "top_papers": [
+      {
+        "title": "A Survey Of Blockchain Security Issues And Challenges",
+        "year": 2022,
+        "citations": 848,
+        "url": "https://www.semanticscholar.org/paper/f7ddf5129b392cc23411c2ca28ece3bc0ad682d6"
+      },
+      {
+        "title": "Blockchain-Enabled Security Solutions for Medical Device Integrity and Provenance in Cloud Environments",
+        "year": 2024,
+        "citations": 285,
+        "url": "https://doi.org/10.38124/ijisrt/ijisrt24apr225"
+      },
+      {
+        "title": "Blockchain Security: A Survey of Techniques and Research Directions",
+        "year": 2022,
+        "citations": 221,
+        "url": "https://doi.org/10.1109/tsc.2020.3038641"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:44:10.475367+00:00",
+    "_topic_label": "blockchain security"
+  },
+  "2b415bd1a30e62b8": {
+    "topic": "bioinformatics genomics",
+    "growth_rate_pct": -11.1,
+    "paper_count_3yr": 960,
+    "citation_velocity": 435.5,
+    "trend_status": "Steady",
+    "top_papers": [
+      {
+        "title": "TBtools-II: A \"One for All, All for One\" Bioinformatics Platform for Biological Big-data Mining.",
+        "year": 2023,
+        "citations": 3226,
+        "url": "https://doi.org/10.1016/j.molp.2023.09.010"
+      },
+      {
+        "title": "The role and application of bioinformatics techniques and tools in drug discovery",
+        "year": 2025,
+        "citations": 70,
+        "url": "https://doi.org/10.3389/fphar.2025.1547131"
+      },
+      {
+        "title": "Foundation models in bioinformatics",
+        "year": 2025,
+        "citations": 57,
+        "url": "https://doi.org/10.1093/nsr/nwaf028"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:44:12.286045+00:00",
+    "_topic_label": "bioinformatics genomics"
+  },
+  "b3cee507174ff1b7": {
+    "topic": "medical image analysis",
+    "growth_rate_pct": 550.0,
+    "paper_count_3yr": 1560,
+    "citation_velocity": 348.4,
+    "trend_status": "Emerging",
+    "top_papers": [
+      {
+        "title": "TransUNet: Rethinking the U-Net architecture design for medical image segmentation through the lens of transformers",
+        "year": 2024,
+        "citations": 1392,
+        "url": "https://doi.org/10.1016/j.media.2024.103280"
+      },
+      {
+        "title": "A visual\u2013language foundation model for pathology image analysis using medical Twitter",
+        "year": 2023,
+        "citations": 897,
+        "url": "https://doi.org/10.1038/s41591-023-02504-3"
+      },
+      {
+        "title": "Segment Anything Model for medical image analysis: an experimental study",
+        "year": 2023,
+        "citations": 868,
+        "url": "https://doi.org/10.1016/j.media.2023.102918"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:44:15.086869+00:00",
+    "_topic_label": "medical image analysis"
+  },
+  "7f8510107a69ba30": {
+    "topic": "drug discovery AI",
+    "growth_rate_pct": 25.0,
+    "paper_count_3yr": 2400,
+    "citation_velocity": 31.1,
+    "trend_status": "Hot",
+    "top_papers": [
+      {
+        "title": "AI-Driven Drug Discovery: A Comprehensive Review",
+        "year": 2025,
+        "citations": 155,
+        "url": "https://doi.org/10.1021/acsomega.5c00549"
+      },
+      {
+        "title": "Graph Neural Networks in Modern AI-aided Drug Discovery",
+        "year": 2025,
+        "citations": 91,
+        "url": "https://doi.org/10.48550/arXiv.2506.06915"
+      },
+      {
+        "title": "Recent advances in AI-based toxicity prediction for drug discovery",
+        "year": 2025,
+        "citations": 62,
+        "url": "https://doi.org/10.3389/fchem.2025.1632046"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:44:18.081278+00:00",
+    "_topic_label": "drug discovery AI"
+  },
+  "3f07c0296b6963d4": {
+    "topic": "augmented reality",
+    "growth_rate_pct": 1700.0,
+    "paper_count_3yr": 2160,
+    "citation_velocity": 253.2,
+    "trend_status": "Emerging",
+    "top_papers": [
+      {
+        "title": "What is XR? Towards a Framework for Augmented and Virtual Reality",
+        "year": 2022,
+        "citations": 751,
+        "url": "https://doi.org/10.1016/j.chb.2022.107289"
+      },
+      {
+        "title": "Analyzing augmented reality (AR) and virtual reality (VR) recent development in education",
+        "year": 2023,
+        "citations": 652,
+        "url": "https://doi.org/10.1016/j.ssaho.2023.100532"
+      },
+      {
+        "title": "Unlocking the Potential: A Comprehensive Evaluation of Augmented Reality and Virtual Reality in Education",
+        "year": 2023,
+        "citations": 386,
+        "url": "https://doi.org/10.3390/electronics12183953"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:44:21.003161+00:00",
+    "_topic_label": "augmented reality"
+  },
+  "a8697365d2147c07": {
+    "topic": "explainable AI",
+    "growth_rate_pct": 466.7,
+    "paper_count_3yr": 2040,
+    "citation_velocity": 200.3,
+    "trend_status": "Emerging",
+    "top_papers": [
+      {
+        "title": "Explainable AI (XAI): Core Ideas, Techniques, and Solutions",
+        "year": 2022,
+        "citations": 1329,
+        "url": "https://doi.org/10.1145/3561048"
+      },
+      {
+        "title": "From Anecdotal Evidence to Quantitative Evaluation Methods: A Systematic Review on Evaluating Explainable AI",
+        "year": 2022,
+        "citations": 767,
+        "url": "https://doi.org/10.1145/3583558"
+      },
+      {
+        "title": "Explainable AI in Clinical Decision Support Systems: A Meta-Analysis of Methods, Applications, and Usability Challenges",
+        "year": 2025,
+        "citations": 239,
+        "url": "https://doi.org/10.3390/healthcare13172154"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T10:44:24.803372+00:00",
+    "_topic_label": "explainable AI"
+  },
+  "249ab03a6f1f0972": {
+    "topic": "General Machine Learning",
+    "growth_rate_pct": 175.0,
+    "paper_count_3yr": 1320,
+    "citation_velocity": 97.7,
+    "trend_status": "Emerging",
+    "top_papers": [
+      {
+        "title": "OpenMM 8: Molecular Dynamics Simulation with Machine Learning Potentials",
+        "year": 2023,
+        "citations": 207,
+        "url": "https://doi.org/10.48550/arXiv.2310.03121"
+      },
+      {
+        "title": "Could Machine Learning Be a General Purpose Technology? A Comparison of Emerging Technologies Using Data from Online Job Postings",
+        "year": 2022,
+        "citations": 184,
+        "url": "https://doi.org/10.2139/ssrn.4039486"
+      },
+      {
+        "title": "Systematic softening in universal machine learning interatomic potentials",
+        "year": 2025,
+        "citations": 181,
+        "url": "https://doi.org/10.1038/s41524-024-01500-6"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-21T15:20:32.322792+00:00",
+    "_topic_label": "General Machine Learning"
   }
 }

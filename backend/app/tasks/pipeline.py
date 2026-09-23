@@ -444,7 +444,8 @@ def task_score_and_report(self, project_id: str) -> str:
             "High" if feasibility_score >= 75 else "Medium" if feasibility_score >= 50 else "Low"
         )
         eval_report.missing_sections = assessment["completeness"]["missing_sections"]
-        eval_report.similarity_internal = dimension_scores["similarity_risk"]
+        eval_report.similarity_internal = dimension_scores.get("similarity_internal", dimension_scores["similarity_risk"])
+        eval_report.similarity_external = dimension_scores.get("similarity_external", 0.0)
         eval_report.is_duplicate = dimension_scores["similarity_risk"] >= 85
         eval_report.assessment_evidence = assessment
         eval_report.assessment_method_version = ASSESSMENT_METHOD_VERSION

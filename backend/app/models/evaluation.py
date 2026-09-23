@@ -20,7 +20,7 @@ class EvaluationReport(Base):
 
     # Overall
     overall_score: Mapped[float] = mapped_column(Float, default=0.0)
-    grade: Mapped[str] = mapped_column(String(5), default="")
+    grade: Mapped[str] = mapped_column(String(50), default="")
 
     # 7 Dimension scores (null for abstract-only where N/A)
     novelty_score: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -367,7 +367,7 @@ const ProjectReportView: React.FC = () => {
               🔒 <strong>Internal Only</strong> — This view displays evidence annotations only when an evaluation engine has produced them. It is never shown to students.
             </p>
           </div>
-          <ExplainabilityViewer annotations={r.explainabilityAnnotations || []} />
+          <ExplainabilityViewer explainability={r.explainability} />
         </div>
       )}
 

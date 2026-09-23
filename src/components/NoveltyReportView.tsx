@@ -4,7 +4,7 @@ import {
   Cpu, Database, Grid, Info, ChevronDown, ChevronUp, Share2, HelpCircle
 } from 'lucide-react';
 import { ProjectGraphViewer, type GraphNodeData, type GraphLinkData } from './ProjectGraphViewer';
-import { getGraphVisualization } from '../api/endpoints';
+import { getProjectGraph } from '../api/endpoints';
 
 export interface SignalBreakdown {
   graph_distance: number;
@@ -104,63 +104,36 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
     }
   };
 
-  // Fetch actual backend Knowledge Graph visualization (same source as Graph Explorer view)
+  // Fetch project-scoped graph directly from the backend using the project_id
+  // This uses the /graph/project/{id} endpoint which returns only this project's nodes+edges
+  // (CO_OCCURS excluded, so ~344 links not 58k)
   const [fullGraph, setFullGraph] = useState<{ nodes: GraphNodeData[]; links: GraphLinkData[] }>({ nodes: [], links: [] });
+  const [graphLoading, setGraphLoading] = useState(false);
 
   useEffect(() => {
-    getGraphVisualization(400)
+    if (!report?.project_id) return;
+    setGraphLoading(true);
+    getProjectGraph(report.project_id)
       .then(res => {
         if (res && res.nodes && res.links) {
           setFullGraph({ nodes: res.nodes, links: res.links });
         }
       })
-      .catch(err => console.warn('Failed to fetch full backend graph for NoveltyReportView:', err));
-  }, []);
+      .catch(err => {
+        console.warn('Failed to fetch project graph, falling back to local build:', err);
+        // If API fails, fullGraph stays empty → fallback local builder runs below
+      })
+      .finally(() => setGraphLoading(false));
+  }, [report?.project_id]);
 
-  // Filter backend graph by current project ID, or fallback to generated local subgraph if backend node not found
+  // If backend graph loaded successfully, use it directly.
+  // Otherwise fall back to local entity-based subgraph builder.
   const { nodes: subNodes, links: subLinks } = useMemo(() => {
     if (!report) return { nodes: [], links: [] };
 
+    // Backend graph available — use it directly
     if (fullGraph.nodes.length > 0) {
-      const shortId = report.project_id ? report.project_id.substring(0, 8) : '';
-      // Use up to 20 chars of title for matching, try multiple lengths
-      const title = report.title || '';
-      const titleWords = title.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-
-      const projNode = fullGraph.nodes.find(n =>
-        n.type === 'Project' && (
-          (shortId && n.name.includes(shortId)) ||
-          (title.length >= 6 && n.name.toLowerCase().includes(title.substring(0, Math.min(20, title.length)).toLowerCase())) ||
-          (titleWords.length > 0 && titleWords.some(w => n.name.toLowerCase().includes(w)))
-        )
-      );
-
-      if (projNode) {
-        const projLinks = fullGraph.links.filter(l => {
-          const sId = typeof l.source === 'object' ? (l.source as any).id : l.source;
-          const tId = typeof l.target === 'object' ? (l.target as any).id : l.target;
-          return sId === projNode.id || tId === projNode.id;
-        });
-
-        const neighborIds = new Set<string | number>([projNode.id]);
-        projLinks.forEach(l => {
-          const sId = typeof l.source === 'object' ? (l.source as any).id : l.source;
-          const tId = typeof l.target === 'object' ? (l.target as any).id : l.target;
-          neighborIds.add(sId);
-          neighborIds.add(tId);
-        });
-
-        const allSubLinks = fullGraph.links.filter(l => {
-          const sId = typeof l.source === 'object' ? (l.source as any).id : l.source;
-          const tId = typeof l.target === 'object' ? (l.target as any).id : l.target;
-          return neighborIds.has(sId) && neighborIds.has(tId);
-        });
-
-        const subNodesList = fullGraph.nodes.filter(n => neighborIds.has(n.id));
-        if (subNodesList.length > 1) {
-          return { nodes: subNodesList, links: allSubLinks };
-        }
-      }
+      return { nodes: fullGraph.nodes, links: fullGraph.links };
     }
 
     // Fallback: local graph generation using real DB entities if available
@@ -227,19 +200,7 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
       });
     });
 
-    // CO_OCCURS links between entities
-    for (let i = 0; i < entityNodeIds.length; i++) {
-      for (let j = i + 1; j < Math.min(entityNodeIds.length, i + 4); j++) {
-        linkList.push({
-          source: entityNodeIds[i],
-          target: entityNodeIds[j],
-          relationship: 'CO_OCCURS',
-          confidence: 0.8,
-        });
-      }
-    }
-
-    // 4. Similar Project Nodes
+    // 4. Similar Project Nodes (no CO_OCCURS — they create N² explosion)
     (report.most_similar_projects || []).slice(0, 3).forEach((simProj) => {
       const simId = nextId++;
       nodeList.push({ id: simId, name: simProj.title, type: 'Project', degree: 4 });
@@ -302,7 +263,7 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
         <ProjectGraphViewer
           nodes={subNodes}
           links={subLinks}
-          isLoading={false}
+          isLoading={graphLoading}
         />
       </div>
 

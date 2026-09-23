@@ -61,7 +61,7 @@ class AssessmentMathTests(unittest.TestCase):
         self.assertGreater(low_risk, high_risk)
 
     def test_grade_scale_has_failing_band(self):
-        self.assertEqual(grade_for(45), "Needs Work")
+        self.assertEqual(grade_for(45), "C / Requires Improvement")
         self.assertEqual(grade_for(None), "N/A")
 
     def test_section_detection_requires_heading_like_lines(self):
@@ -101,7 +101,9 @@ class AssessmentEngineTests(unittest.TestCase):
             github_url="https://github.com/example/project",
         )
         self.assertEqual(report["completeness"]["score"], 100.0)
-        self.assertEqual(report["scores"]["similarity_risk"], 20.0)
+        self.assertEqual(report["scores"]["similarity_risk"], 14.0)
+        self.assertEqual(report["scores"]["similarity_internal"], 20.0)
+        self.assertEqual(report["scores"]["similarity_external"], 0.0)
         self.assertIsNotNone(report["scores"]["overall"])
         self.assertGreater(report["scores"]["feasibility"], 60)
 

@@ -1,4 +1,5 @@
 from typing import List
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import Session
 
@@ -13,19 +14,55 @@ router = APIRouter(tags=["Reports"])
 
 def _empty_dimension_scores(is_abstract: bool) -> DimensionScores:
     return DimensionScores(
-        novelty=0,
-        feasibility=0,
-        completeness=None if is_abstract else 0,
-        technicalDepth=0,
-        clarity=0,
-        similarityRisk=0,
-        publicationPotential=0,
+        novelty=None,
+        feasibility=None,
+        completeness=None,
+        technicalDepth=None,
+        clarity=None,
+        similarityRisk=None,
+        publicationPotential=None,
     )
 
 
 def _report_to_public(project: Project, report: EvaluationReport) -> PublicEvaluationReport:
     from app.schemas.report import SimilarityInfo, WritingQuality, CitationInfo, ImprovementWeek
     is_abstract = project.submission_type.value == "abstract"
+
+    # ── Publication Gate ───────────────────────────────────────────────────────
+    # When is_preliminary=True the report has not been published by faculty.
+    # Return a skeleton with status information only — no scores, no feedback.
+    if project.is_preliminary:
+        return PublicEvaluationReport(
+            projectId=str(project.id),
+            title=project.title,
+            domain=project.domain or "General CSE",
+            submissionType=project.submission_type,
+            pipelineStatus=project.pipeline_status,
+            isPreliminary=True,
+            overallScore=None,
+            grade="Pending",
+            dimensionScores=DimensionScores(
+                novelty=None, feasibility=None, completeness=None,
+                technicalDepth=None, clarity=None, similarityRisk=None,
+                publicationPotential=None,
+            ),
+            missingSections=[],
+            similarity=SimilarityInfo(internalScore=0.0, externalScore=0.0, isDuplicate=False),
+            feasibilityRating="Pending",
+            noveltyVerdict="Pending",
+            writingQuality=None,
+            citations=None,
+            strengths=[],
+            weaknesses=[],
+            improvementRoadmap=[],
+            badges=[],
+            percentileRanks={},
+            assessmentEvidence=None,
+            evaluationMethodVersion=None,
+            publishedAt=None,
+            publishedBy=None,
+        )
+
     scores = DimensionScores(
         novelty=report.novelty_score,
         feasibility=report.feasibility_score,
@@ -70,6 +107,11 @@ def _report_to_public(project: Project, report: EvaluationReport) -> PublicEvalu
             methodVersion=raw_cit.get("method_version"),
         )
 
+    # Determine published_by from guide assignment
+    published_by = None
+    if report.published_at and project.guide:
+        published_by = project.guide.name
+
     return PublicEvaluationReport(
         projectId=str(project.id),
         title=project.title,
@@ -97,14 +139,96 @@ def _report_to_public(project: Project, report: EvaluationReport) -> PublicEvalu
         percentileRanks=report.percentile_ranks or {},
         assessmentEvidence=report.assessment_evidence,
         evaluationMethodVersion=report.assessment_method_version,
+        publishedAt=report.published_at.isoformat() if report.published_at else None,
+        publishedBy=published_by,
     )
 
 
 def _report_to_internal(
     project: Project, report: EvaluationReport
 ) -> InternalEvaluationReport:
-    from app.schemas.report import FacultyNote, ExplainabilityAnnotation, ScoreOverrideEntry
-    public = _report_to_public(project, report)
+    from app.schemas.report import (
+        FacultyNote, ExplainabilityAnnotation, ScoreOverrideEntry,
+        SimilarityInfo, WritingQuality, CitationInfo, ImprovementWeek,
+    )
+
+    is_abstract = project.submission_type.value == "abstract"
+
+    # Internal reports always show full data regardless of is_preliminary.
+    scores = DimensionScores(
+        novelty=report.novelty_score,
+        feasibility=report.feasibility_score,
+        completeness=None if is_abstract else report.completeness_score,
+        technicalDepth=report.technical_depth_score,
+        clarity=report.clarity_score,
+        similarityRisk=report.similarity_risk_score,
+        publicationPotential=report.publication_potential_score,
+    )
+    roadmap = [
+        ImprovementWeek(week=w.get("week", idx + 1), focus=w.get("focus", "Task"), actions=w.get("actions", []))
+        for idx, w in enumerate(report.improvement_roadmap or [])
+        if isinstance(w, dict)
+    ]
+    wq = None
+    if report.writing_quality and isinstance(report.writing_quality, dict):
+        raw_wq = report.writing_quality
+        metrics = raw_wq.get("metrics", {})
+        readability = raw_wq.get("readability", metrics.get("flesch_reading_ease"))
+        passive_count = raw_wq.get("passiveVoiceCount", raw_wq.get("metrics", {}).get("passive_voice_count", 0))
+        tone_flags = raw_wq.get("toneFlags") or raw_wq.get("flags") or []
+        wq = WritingQuality(
+            readability=float(readability) if readability is not None else None,
+            clarityScore=raw_wq.get("quality_score"),
+            passiveVoiceCount=int(passive_count),
+            wordCount=int(metrics.get("word_count", 0) or 0),
+            toneFlags=[str(f) for f in tone_flags],
+            methodVersion=raw_wq.get("method_version"),
+        )
+    cit = None
+    if report.citations and isinstance(report.citations, dict):
+        raw_cit = report.citations
+        summary = raw_cit.get("summary", {})
+        cit = CitationInfo(
+            verifiedPercent=float(summary.get("percent_verified", 0.0) or 0.0),
+            recentPercent=float(summary.get("percent_recent", 0.0) or 0.0),
+            referenceCount=int(summary.get("reference_count", 0) or 0),
+            issues=[str(item) for item in raw_cit.get("flags", [])],
+            status=str(raw_cit.get("status", "no_data")),
+            methodVersion=raw_cit.get("method_version"),
+        )
+
+    published_by = project.guide.name if (report.published_at and getattr(project, "guide", None)) else None
+
+    public_base = PublicEvaluationReport(
+        projectId=str(project.id),
+        title=project.title,
+        domain=project.domain or "General CSE",
+        submissionType=project.submission_type,
+        pipelineStatus=project.pipeline_status,
+        isPreliminary=bool(project.is_preliminary),
+        overallScore=report.overall_score if report.overall_score is not None else 0.0,
+        grade=report.grade or "N/A",
+        dimensionScores=scores,
+        missingSections=report.missing_sections or [],
+        similarity=SimilarityInfo(
+            internalScore=report.similarity_internal or 0.0,
+            externalScore=report.similarity_external or 0.0,
+            isDuplicate=bool(report.is_duplicate),
+        ),
+        feasibilityRating=report.feasibility_rating or "Pending",
+        noveltyVerdict=report.novelty_verdict or "Pending",
+        writingQuality=wq,
+        citations=cit,
+        strengths=report.strengths or [],
+        weaknesses=report.weaknesses or [],
+        improvementRoadmap=roadmap,
+        badges=report.badges or [],
+        percentileRanks=report.percentile_ranks or {},
+        assessmentEvidence=report.assessment_evidence,
+        evaluationMethodVersion=report.assessment_method_version,
+        publishedAt=report.published_at.isoformat() if report.published_at else None,
+        publishedBy=published_by,
+    )
 
     notes = [
         FacultyNote(
@@ -140,7 +264,7 @@ def _report_to_internal(
     ]
 
     return InternalEvaluationReport(
-        **public.model_dump(),
+        **public_base.model_dump(),
         facultyNotes=notes,
         explainabilityAnnotations=annotations,
         flaggingReasons=report.flagging_reasons or [],

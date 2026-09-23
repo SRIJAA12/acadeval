@@ -30,8 +30,16 @@ router = APIRouter(tags=["Projects"])
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _to_summary(project: Project) -> ProjectSummary:
-    score = project.evaluation.overall_score if project.evaluation else None
+def _to_summary(project: Project, viewer_role: str = "faculty") -> ProjectSummary:
+    """Build a ProjectSummary.
+
+    For student viewers, overallScore is hidden until faculty publishes the report
+    (is_preliminary=False). Faculty and HOD always see the live score.
+    """
+    if viewer_role == "student" and project.is_preliminary:
+        score = None
+    else:
+        score = project.evaluation.overall_score if project.evaluation else None
     return ProjectSummary(
         projectId=str(project.id),
         studentName=project.student.name,
@@ -155,14 +163,14 @@ def _fallback_background_pipeline(project_id: uuid.UUID):
 
 @router.get("/projects/my", response_model=List[ProjectSummary])
 def get_my_projects(current_user: CurrentStudent, db: DB):
-    """Student: list own submissions."""
+    """Student: list own submissions. overallScore is hidden until faculty publishes."""
     projects = (
         db.query(Project)
         .filter(Project.student_id == current_user.id)
         .order_by(Project.submitted_on.desc())
         .all()
     )
-    return [_to_summary(p) for p in projects]
+    return [_to_summary(p, viewer_role="student") for p in projects]
 
 
 @router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

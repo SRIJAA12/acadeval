@@ -96,6 +96,41 @@ const CATEGORIES: {
 
 // ── Chip component ────────────────────────────────────────────────────────────
 
+const cleanAndDedupe = (items: string[]): string[] => {
+  const seen = new Set<string>();
+  const res: string[] = [];
+  items.forEach(raw => {
+    if (!raw || typeof raw !== 'string') return;
+    let s = raw.replace(/\s*(?:(?:Mod|Component|Feature\s*(?:Component|Module|ScaleUnit|Unit|Pattern|Variation|Config|Cluster|Type|Instance|Sample))[\s\-_]*\d*|[\-_]\d{2,})\s*$/i, '').trim();
+    s = s.replace(/\s+Feature$/i, '').trim();
+    if (!s) s = raw.trim();
+
+    const lower = s.toLowerCase();
+    if (lower === 'rag' || lower.includes('retrieval-augmented generation') || lower.includes('retrieval augmented generation')) {
+      s = 'Retrieval-Augmented Generation (RAG)';
+    } else if (lower === 'nlp' || lower === 'natural language processing') {
+      s = 'Natural Language Processing (NLP)';
+    } else if (lower.includes('natural language processing toolkit') || lower === 'nltk') {
+      s = 'NLTK';
+    } else if (lower === 'cnn' || lower.includes('convolutional neural network')) {
+      s = 'Convolutional Neural Network (CNN)';
+    } else if (lower === 'rnn' || lower.includes('recurrent neural network')) {
+      s = 'Recurrent Neural Network (RNN)';
+    } else if (lower === 'f1' || lower === 'f1-score' || lower === 'f1 score') {
+      s = 'F1-Score';
+    } else if (lower === 'bert' || lower.includes('bidirectional encoder representations')) {
+      s = 'BERT';
+    }
+
+    const key = s.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      res.push(s);
+    }
+  });
+  return res.sort();
+};
+
 const EntityChip: React.FC<{ label: string; chipClass: string }> = ({ label, chipClass }) => (
   <span
     className={clsx(
@@ -129,7 +164,7 @@ const EntityExtractionPanel: React.FC<EntityExtractionPanelProps> = ({
   const [showRaw, setShowRaw] = useState(false);
 
   const totalEntities = entities
-    ? CATEGORIES.reduce((sum, c) => sum + (entities[c.key]?.length ?? 0), 0)
+    ? CATEGORIES.reduce((sum, c) => sum + cleanAndDedupe(entities[c.key] ?? []).length, 0)
     : 0;
 
   const hasUnmatched = (entities?.unmatched_spans?.length ?? 0) > 0;
@@ -153,9 +188,12 @@ const EntityExtractionPanel: React.FC<EntityExtractionPanelProps> = ({
   return (
     <div className="card overflow-hidden">
       {/* Header */}
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors"
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(!expanded); } }}
+        className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors cursor-pointer select-none"
       >
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm">
@@ -188,6 +226,7 @@ const EntityExtractionPanel: React.FC<EntityExtractionPanelProps> = ({
           )}
           {showReExtract && onReExtract && (
             <button
+              type="button"
               onClick={e => { e.stopPropagation(); onReExtract(); }}
               className="flex items-center gap-1.5 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:border-violet-300 hover:text-violet-700 transition-all duration-150"
             >
@@ -197,7 +236,7 @@ const EntityExtractionPanel: React.FC<EntityExtractionPanelProps> = ({
           )}
           {expanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
         </div>
-      </button>
+      </div>
 
       {/* Body */}
       {expanded && (
@@ -215,7 +254,7 @@ const EntityExtractionPanel: React.FC<EntityExtractionPanelProps> = ({
               {/* Category rows */}
               <div className="pt-3 space-y-3">
                 {CATEGORIES.map(cat => {
-                  const items = entities[cat.key] ?? [];
+                  const items = cleanAndDedupe(entities[cat.key] ?? []);
                   if (items.length === 0) return null;
                   return (
                     <div key={cat.key} className="flex gap-3">

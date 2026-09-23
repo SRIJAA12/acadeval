@@ -371,6 +371,16 @@ export interface HODDeptStats {
   avgScore: number;
   domainDistribution: Record<string, number>;
   trendData: { month: string; avgScore: number }[];
+  recentOverrides?: {
+    id: string;
+    projectId: string;
+    dimension: string;
+    oldValue: number;
+    newValue: number;
+    changedByName: string;
+    comment: string;
+    timestamp: string;
+  }[];
 }
 
 // ─── User Management ─────────────────────────────────────────────────────────

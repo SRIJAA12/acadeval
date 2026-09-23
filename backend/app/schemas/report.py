@@ -51,8 +51,10 @@ class PublicEvaluationReport(BaseModel):
     submissionType: SubmissionType
     pipelineStatus: PipelineStatus
     isPreliminary: bool
-    overallScore: float
+    overallScore: Optional[float]   # None when evaluation is not yet published
     grade: str
+    publishedAt: Optional[str] = None   # ISO timestamp of faculty publication
+    publishedBy: Optional[str] = None   # Faculty name who published
     dimensionScores: DimensionScores
     missingSections: list[str]
     similarity: SimilarityInfo

@@ -28,6 +28,10 @@ interface ProjectGraphViewerProps {
   onNodeClick?: (node: GraphNodeData) => void;
   isLoading?: boolean;
   onRefresh?: () => void;
+  /** Names (lowercased) of shared entities to highlight with a golden glow */
+  highlightNames?: Set<string>;
+  /** Accent color used for edges and selected UI elements */
+  accentColor?: string;
 }
 
 const TYPE_COLORS: Record<string, { bg: string; text: string; border: string; colorHex: string }> = {
@@ -45,7 +49,7 @@ const TYPE_COLORS: Record<string, { bg: string; text: string; border: string; co
 };
 
 const ALL_NODE_TYPES = [
-  "Project", "Domain", "Algorithm", "Technology",
+  "Project", "Domain", "Subdomain", "Algorithm", "Technology",
   "Framework", "Library", "Dataset", "Application", "Hardware", "Metric"
 ];
 
@@ -55,6 +59,8 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
   onNodeClick,
   isLoading = false,
   onRefresh,
+  highlightNames,
+  accentColor = '#6366f1',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -70,6 +76,7 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
   const dragStartRef = useRef({ x: 0, y: 0 });
   const ticksRef = useRef(0);
   const simLoopRef = useRef<number>(0);
+  const userInteractedRef = useRef(false);
 
   // React state (for UI re-renders only)
   const [selectedNode, setSelectedNode] = useState<GraphNodeData | null>(null);
@@ -78,14 +85,23 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const filteredNodes = useMemo(() => nodes.filter(n => activeTypes.has(n.type)), [nodes, activeTypes]);
+  // Normalize all node IDs to strings for robust map & set lookups
+  const normalizedNodes = useMemo(() => nodes.map(n => ({ ...n, id: String(n.id) })), [nodes]);
+  const normalizedLinks = useMemo(() => links.map(l => ({ ...l, source: String(l.source), target: String(l.target) })), [links]);
+
+  const filteredNodes = useMemo(() => normalizedNodes.filter(n => activeTypes.has(n.type)), [normalizedNodes, activeTypes]);
   const filteredNodeIds = useMemo(() => new Set(filteredNodes.map(n => n.id)), [filteredNodes]);
-  const filteredLinks = useMemo(() => links.filter(l => filteredNodeIds.has(l.source) && filteredNodeIds.has(l.target)), [links, filteredNodeIds]);
+  const filteredLinks = useMemo(() => normalizedLinks.filter(l => filteredNodeIds.has(l.source) && filteredNodeIds.has(l.target)), [normalizedLinks, filteredNodeIds]);
 
   const filteredLinksRef = useRef(filteredLinks);
   useEffect(() => { filteredLinksRef.current = filteredLinks; }, [filteredLinks]);
 
-  const simulationNodesRef = useRef<Map<string | number, GraphNodeData>>(new Map());
+  const simulationNodesRef = useRef<Map<string, GraphNodeData>>(new Map());
+  // Store highlightNames and accentColor in refs for stale-closure-safe access in renderCanvas
+  const highlightNamesRef = useRef<Set<string> | undefined>(highlightNames);
+  const accentColorRef = useRef<string>(accentColor);
+  useEffect(() => { highlightNamesRef.current = highlightNames; }, [highlightNames]);
+  useEffect(() => { accentColorRef.current = accentColor; }, [accentColor]);
 
   // Resize canvas with devicePixelRatio support for crispness
   const resizeCanvas = useCallback(() => {
@@ -101,11 +117,25 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
     canvas.style.height = h + "px";
   }, []);
 
-  // Core render � reads ONLY from refs, never from captured state
+  // Core render — reads ONLY from refs, never from captured state
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    // Guard: canvas must have real dimensions. If 0, the container hasn't been
+    // laid out yet — size it immediately before drawing.
+    if (canvas.width === 0 || canvas.height === 0) {
+      const container = containerRef.current;
+      if (!container) return;
+      const dpr2 = window.devicePixelRatio || 1;
+      const w2 = container.clientWidth || 900;
+      const h2 = container.clientHeight || 600;
+      canvas.width = Math.round(w2 * dpr2);
+      canvas.height = Math.round(h2 * dpr2);
+      canvas.style.width = w2 + 'px';
+      canvas.style.height = h2 + 'px';
+      if (canvas.width === 0 || canvas.height === 0) return; // Still 0, nothing to draw
+    }
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const dpr = window.devicePixelRatio || 1;
 
@@ -120,19 +150,20 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
 
     // Draw edges
     currentLinks.forEach(link => {
-      const src = simMap.get(link.source);
-      const tgt = simMap.get(link.target);
+      const src = simMap.get(String(link.source));
+      const tgt = simMap.get(String(link.target));
       if (!src || !tgt) return;
       const sx = src.x ?? 0, sy = src.y ?? 0;
       const tx = tgt.x ?? 0, ty = tgt.y ?? 0;
+      if (!isFinite(sx) || !isFinite(sy) || !isFinite(tx) || !isFinite(ty)) return;
       if (sx === 0 && sy === 0 && tx === 0 && ty === 0) return;
       const isCoOccur = link.relationship === "CO_OCCURS";
       ctx.beginPath();
       ctx.moveTo(sx, sy);
       ctx.lineTo(tx, ty);
-      ctx.strokeStyle = isCoOccur ? "rgba(148,163,184,0.70)" : "rgba(129,140,248,0.95)";
-      ctx.lineWidth = isCoOccur ? 1.5 : 2.5;
-      ctx.setLineDash(isCoOccur ? [5, 5] : []);
+      ctx.strokeStyle = isCoOccur ? "rgba(148,163,184,0.55)" : `${accentColorRef.current}cc`;
+      ctx.lineWidth = isCoOccur ? 1.2 : 2.2;
+      ctx.setLineDash(isCoOccur ? [4, 4] : []);
       ctx.stroke();
     });
     ctx.setLineDash([]);
@@ -144,12 +175,22 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
 
     Array.from(simMap.values()).forEach(node => {
       const nx = node.x ?? 0, ny = node.y ?? 0;
+      if (!isFinite(nx) || !isFinite(ny)) return;
       if (nx === 0 && ny === 0) return;
       const isSearch = lowerSearch.length > 0 && node.name.toLowerCase().includes(lowerSearch);
-      const isSel = selected?.id === node.id;
-      const isDrag = dragged?.id === node.id;
+      const isSel = selected && String(selected.id) === String(node.id);
+      const isDrag = dragged && String(dragged.id) === String(node.id);
+      const isShared = !!(highlightNamesRef.current && highlightNamesRef.current.has(node.name?.toLowerCase().trim()));
       const style = TYPE_COLORS[node.type] || TYPE_COLORS["Metric"];
       const r = node.type === "Project" ? 16 : Math.min(13, 7 + (node.degree || 1));
+
+      // Shared entity — golden glow
+      if (isShared) {
+        ctx.beginPath();
+        ctx.arc(nx, ny, r + 8, 0, 2 * Math.PI);
+        ctx.fillStyle = "rgba(234,179,8,0.35)";
+        ctx.fill();
+      }
 
       if (isSel || isSearch || isDrag) {
         ctx.beginPath();
@@ -168,7 +209,7 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
 
       const isHi = isSel || isSearch || isDrag;
       const maxCh = isHi ? 22 : 14;
-      const label = node.name.length > maxCh ? node.name.substring(0, maxCh - 1) + "�" : node.name;
+      const label = node.name.length > maxCh ? node.name.substring(0, maxCh - 1) + "…" : node.name;
       ctx.font = (isHi ? "bold " : "") + (isHi ? "11" : "9") + "px Inter, system-ui, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
@@ -183,6 +224,47 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
     ctx.restore();
   }, []);
 
+  // Fit all nodes into canvas view
+  const fitToView = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const cw = container.clientWidth || 900;
+    const ch = container.clientHeight || 600;
+    const simNodes = Array.from(simulationNodesRef.current.values());
+    if (simNodes.length === 0) {
+      panOffsetRef.current = { x: 0, y: 0 };
+      zoomLevelRef.current = 1;
+      setZoomLevel(1);
+      renderCanvas();
+      return;
+    }
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    simNodes.forEach(n => {
+      const x = n.x ?? 0, y = n.y ?? 0;
+      if (isFinite(x) && isFinite(y) && (x !== 0 || y !== 0)) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    });
+    if (!isFinite(minX) || minX === Infinity) return;
+    const gw = Math.max(60, maxX - minX);
+    const gh = Math.max(60, maxY - minY);
+    const padding = 70;
+    const scaleX = (cw - padding * 2) / gw;
+    const scaleY = (ch - padding * 2) / gh;
+    const targetZoom = Math.min(2.0, Math.max(0.3, Math.min(scaleX, scaleY)));
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const targetPanX = cw / 2 - centerX * targetZoom;
+    const targetPanY = ch / 2 - centerY * targetZoom;
+    panOffsetRef.current = { x: targetPanX, y: targetPanY };
+    zoomLevelRef.current = targetZoom;
+    setZoomLevel(targetZoom);
+    renderCanvas();
+  }, [renderCanvas]);
+
   // Physics simulation
   useEffect(() => {
     cancelAnimationFrame(simLoopRef.current);
@@ -192,74 +274,142 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
     const height = container?.clientHeight || 600;
 
     filteredNodes.forEach((node, i) => {
-      if (!simMap.has(node.id)) {
+      const nid = String(node.id);
+      if (!simMap.has(nid)) {
         const angle = (i / Math.max(1, filteredNodes.length)) * 2 * Math.PI;
         const rad = Math.min(width, height) * 0.28 * (0.5 + Math.random() * 0.5);
-        simMap.set(node.id, { ...node, x: width / 2 + rad * Math.cos(angle), y: height / 2 + rad * Math.sin(angle), vx: 0, vy: 0 });
+        simMap.set(nid, { ...node, id: nid, x: width / 2 + rad * Math.cos(angle), y: height / 2 + rad * Math.sin(angle), vx: 0, vy: 0 });
       } else {
-        const ex = simMap.get(node.id)!;
+        const ex = simMap.get(nid)!;
         ex.name = node.name; ex.type = node.type; ex.degree = node.degree;
       }
     });
-    const activeIds = new Set(filteredNodes.map(n => n.id));
-    Array.from(simMap.keys()).forEach(id => { if (!activeIds.has(id)) simMap.delete(id); });
+    const activeIds = new Set(filteredNodes.map(n => String(n.id)));
+    Array.from(simMap.keys()).forEach(id => { if (!activeIds.has(String(id))) simMap.delete(id); });
 
     ticksRef.current = 0;
-    const MAX = 500;
+    const MAX = 220;
 
     const step = () => {
-      if (ticksRef.current >= MAX) { renderCanvas(); return; }
+      if (ticksRef.current >= MAX) {
+        if (!userInteractedRef.current) {
+          fitToView();
+        } else {
+          renderCanvas();
+        }
+        return;
+      }
       ticksRef.current++;
       const nl = Array.from(simMap.values());
-      const k = Math.sqrt((width * height) / Math.max(1, nl.length));
+      const n = nl.length;
+      if (n === 0) return;
 
-      for (let i = 0; i < nl.length; i++) {
-        for (let j = i + 1; j < nl.length; j++) {
-          const a = nl[i], b = nl[j];
-          const dx = (b.x ?? 0) - (a.x ?? 0), dy = (b.y ?? 0) - (a.y ?? 0);
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          const d = Math.max(70, dist);
-          const force = (k * k * 45) / (d * d);
-          const fx = (dx / dist) * force * 0.09, fy = (dy / dist) * force * 0.09;
-          a.vx = (a.vx ?? 0) - fx; a.vy = (a.vy ?? 0) - fy;
-          b.vx = (b.vx ?? 0) + fx; b.vy = (b.vy ?? 0) + fy;
+      const k = Math.sqrt((width * height) / Math.max(1, n)) * 1.4;
+
+      // Efficient spatial-hash repulsion
+      const cellSize = Math.max(80, k * 1.5);
+      const grid = new Map<string, typeof nl>();
+      nl.forEach(node => {
+        const cx = Math.floor((node.x ?? 0) / cellSize);
+        const cy = Math.floor((node.y ?? 0) / cellSize);
+        const key = `${cx},${cy}`;
+        if (!grid.has(key)) grid.set(key, []);
+        grid.get(key)!.push(node);
+      });
+
+      nl.forEach(a => {
+        const ax = a.x ?? 0, ay = a.y ?? 0;
+        const cx = Math.floor(ax / cellSize);
+        const cy = Math.floor(ay / cellSize);
+        for (let dcx = -1; dcx <= 1; dcx++) {
+          for (let dcy = -1; dcy <= 1; dcy++) {
+            const neighbors = grid.get(`${cx + dcx},${cy + dcy}`);
+            if (!neighbors) continue;
+            for (const b of neighbors) {
+              if (b === a) continue;
+              const dx = ax - (b.x ?? 0), dy = ay - (b.y ?? 0);
+              const dist2 = dx * dx + dy * dy || 1;
+              const dist = Math.sqrt(dist2);
+              if (dist > cellSize * 2.5) continue;
+              const force = (k * k) / Math.max(30, dist) * 0.06;
+              a.vx = (a.vx ?? 0) + (dx / dist) * force;
+              a.vy = (a.vy ?? 0) + (dy / dist) * force;
+            }
+          }
         }
-      }
+      });
 
+      // Attraction along links
       filteredLinksRef.current.forEach(link => {
-        const s = simMap.get(link.source), t = simMap.get(link.target);
+        const s = simMap.get(String(link.source)), t = simMap.get(String(link.target));
         if (!s || !t) return;
         const dx = (t.x ?? 0) - (s.x ?? 0), dy = (t.y ?? 0) - (s.y ?? 0);
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const force = (dist - k * 2.2) * 0.045;
+        const force = (dist - k * 1.8) * 0.04;
         const fx = (dx / dist) * force, fy = (dy / dist) * force;
         s.vx = (s.vx ?? 0) + fx; s.vy = (s.vy ?? 0) + fy;
         t.vx = (t.vx ?? 0) - fx; t.vy = (t.vy ?? 0) - fy;
       });
 
+      // Update positions + gravity toward center + damping + velocity clamping
       nl.forEach(n => {
-        n.vx = ((n.vx ?? 0) + (width / 2 - (n.x ?? 0)) * 0.0025) * 0.82;
-        n.vy = ((n.vy ?? 0) + (height / 2 - (n.y ?? 0)) * 0.0025) * 0.82;
+        n.vx = ((n.vx ?? 0) + (width / 2 - (n.x ?? 0)) * 0.003) * 0.84;
+        n.vy = ((n.vy ?? 0) + (height / 2 - (n.y ?? 0)) * 0.003) * 0.84;
+        const maxV = 25;
+        n.vx = Math.max(-maxV, Math.min(maxV, n.vx ?? 0));
+        n.vy = Math.max(-maxV, Math.min(maxV, n.vy ?? 0));
         n.x = (n.x ?? 0) + (n.vx ?? 0);
         n.y = (n.y ?? 0) + (n.vy ?? 0);
       });
 
-      renderCanvas();
+      if (ticksRef.current % 3 === 0 || ticksRef.current <= 5) renderCanvas();
       simLoopRef.current = requestAnimationFrame(step);
     };
-    simLoopRef.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(simLoopRef.current);
-  }, [filteredNodes, filteredLinks, renderCanvas]);
 
-  // ResizeObserver for layout changes
+    const initRaf = requestAnimationFrame(() => {
+      resizeCanvas();
+      renderCanvas();
+      simLoopRef.current = requestAnimationFrame(step);
+    });
+    return () => { cancelAnimationFrame(initRaf); cancelAnimationFrame(simLoopRef.current); };
+  }, [filteredNodes, filteredLinks, renderCanvas, resizeCanvas, fitToView]);
+
+  // Non-passive wheel listener for smooth cursor-centered zoom
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      userInteractedRef.current = true;
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      const prevZoom = zoomLevelRef.current;
+      const nz = Math.min(3, Math.max(0.25, prevZoom * zoomFactor));
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const newPanX = mouseX - (mouseX - panOffsetRef.current.x) * (nz / prevZoom);
+      const newPanY = mouseY - (mouseY - panOffsetRef.current.y) * (nz / prevZoom);
+
+      panOffsetRef.current = { x: newPanX, y: newPanY };
+      zoomLevelRef.current = nz;
+      setZoomLevel(nz);
+      renderCanvas();
+    };
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', onWheel);
+  }, [renderCanvas]);
+
+  // ResizeObserver — sizes canvas AND kicks off initial render after layout
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    resizeCanvas();
     const ro = new ResizeObserver(() => { resizeCanvas(); renderCanvas(); });
     ro.observe(container);
-    resizeCanvas();
-    renderCanvas();
-    return () => ro.disconnect();
+    const raf = requestAnimationFrame(() => { resizeCanvas(); renderCanvas(); });
+    return () => { ro.disconnect(); cancelAnimationFrame(raf); };
   }, [resizeCanvas, renderCanvas]);
 
   // Fullscreen
@@ -276,11 +426,11 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
   useEffect(() => {
     const onFsChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
-      setTimeout(() => { resizeCanvas(); renderCanvas(); }, 120);
+      setTimeout(() => { resizeCanvas(); renderCanvas(); fitToView(); }, 120);
     };
     document.addEventListener("fullscreenchange", onFsChange);
     return () => document.removeEventListener("fullscreenchange", onFsChange);
-  }, [resizeCanvas, renderCanvas]);
+  }, [resizeCanvas, renderCanvas, fitToView]);
 
   // Hit-test helper
   const getNodeAtPoint = useCallback((cx: number, cy: number): GraphNodeData | null => {
@@ -306,6 +456,7 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
   }, [getNodeAtPoint, onNodeClick, renderCanvas]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    userInteractedRef.current = true;
     const rect = canvasRef.current!.getBoundingClientRect();
     const node = getNodeAtPoint(e.clientX - rect.left, e.clientY - rect.top);
     if (node) {
@@ -323,7 +474,7 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
       const rect = canvasRef.current!.getBoundingClientRect();
       const wx = (e.clientX - rect.left - panOffsetRef.current.x) / zoomLevelRef.current;
       const wy = (e.clientY - rect.top - panOffsetRef.current.y) / zoomLevelRef.current;
-      const n = simulationNodesRef.current.get(draggedNodeRef.current.id);
+      const n = simulationNodesRef.current.get(String(draggedNodeRef.current.id));
       if (n) { n.x = wx; n.y = wy; n.vx = 0; n.vy = 0; }
       ticksRef.current = 0;
       renderCanvas();
@@ -339,17 +490,26 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
     isDraggingRef.current = false;
   }, []);
 
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const nz = Math.min(3, Math.max(0.3, zoomLevelRef.current + (e.deltaY > 0 ? -0.1 : 0.1)));
+  const zoomIn = () => {
+    userInteractedRef.current = true;
+    const nz = Math.min(3, zoomLevelRef.current + 0.25);
     zoomLevelRef.current = nz;
     setZoomLevel(nz);
     renderCanvas();
-  }, [renderCanvas]);
+  };
 
-  const zoomIn = () => { const nz = Math.min(3, zoomLevelRef.current + 0.25); zoomLevelRef.current = nz; setZoomLevel(nz); renderCanvas(); };
-  const zoomOut = () => { const nz = Math.max(0.3, zoomLevelRef.current - 0.25); zoomLevelRef.current = nz; setZoomLevel(nz); renderCanvas(); };
-  const resetView = () => { zoomLevelRef.current = 1; panOffsetRef.current = { x: 0, y: 0 }; setZoomLevel(1); renderCanvas(); };
+  const zoomOut = () => {
+    userInteractedRef.current = true;
+    const nz = Math.max(0.25, zoomLevelRef.current - 0.25);
+    zoomLevelRef.current = nz;
+    setZoomLevel(nz);
+    renderCanvas();
+  };
+
+  const resetView = () => {
+    userInteractedRef.current = false;
+    fitToView();
+  };
 
   const toggleTypeFilter = (type: string) => {
     setActiveTypes(prev => {
@@ -361,7 +521,7 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
 
   const connectedLinks = useMemo(() => {
     if (!selectedNode) return [];
-    return links.filter(l => l.source === selectedNode.id || l.target === selectedNode.id);
+    return links.filter(l => String(l.source) === String(selectedNode.id) || String(l.target) === String(selectedNode.id));
   }, [selectedNode, links]);
 
   return (
@@ -370,7 +530,11 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
       className={`flex flex-col lg:flex-row bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl ${isFullscreen ? "fixed inset-0 z-50 rounded-none border-0" : "h-[760px]"}`}
     >
       {/* Canvas Area */}
-      <div ref={containerRef} className="relative flex-1 bg-[#020617] overflow-hidden" style={{ cursor: "crosshair" }}>
+      <div
+        ref={containerRef}
+        className="relative flex-1 min-h-[420px] w-full bg-[#020617] overflow-hidden"
+        style={{ cursor: isDraggingRef.current ? "grabbing" : "crosshair" }}
+      >
 
         {/* Top Bar */}
         <div className="absolute top-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2 bg-slate-900/95 backdrop-blur px-3 py-2 rounded-xl border border-slate-700/70 shadow-xl">
@@ -378,7 +542,7 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <input
               type="text"
-              placeholder="Search nodes�"
+              placeholder="Search nodes…"
               value={searchTerm}
               onChange={e => { setSearchTerm(e.target.value); searchTermRef.current = e.target.value; renderCanvas(); }}
               className="w-full bg-slate-950 text-slate-100 pl-8 pr-3 py-1.5 rounded-lg border border-slate-700 text-xs focus:outline-none focus:border-indigo-500 transition"
@@ -387,7 +551,7 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
           <div className="flex items-center gap-1.5">
             <button onClick={zoomIn} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition" title="Zoom In"><ZoomIn className="w-3.5 h-3.5" /></button>
             <button onClick={zoomOut} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition" title="Zoom Out"><ZoomOut className="w-3.5 h-3.5" /></button>
-            <button onClick={resetView} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition" title="Reset View">
+            <button onClick={resetView} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition" title="Reset View (Fit to Screen)">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 9V5H5v4h4zm0 10H5v-4h4v4zm10 0h-4v-4h4v4zm0-10h-4V5h4v4z" /></svg>
             </button>
             <button onClick={toggleFullscreen} className="p-1.5 bg-indigo-800 hover:bg-indigo-700 text-indigo-200 rounded-lg transition" title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>
@@ -421,10 +585,10 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
               </button>
             );
           })}
-          <span className="ml-auto text-[10px] text-slate-500 font-mono flex-shrink-0">{filteredNodes.length}N � {filteredLinks.length}E</span>
+          <span className="ml-auto text-[10px] text-slate-500 font-mono flex-shrink-0">{filteredNodes.length}N · {filteredLinks.length}E</span>
         </div>
 
-        {/* Canvas */}
+        {/* Canvas — wheel handled natively with passive:false via useEffect */}
         <canvas
           ref={canvasRef}
           onClick={handleCanvasClick}
@@ -432,7 +596,6 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-          onWheel={handleWheel}
           style={{ display: "block", width: "100%", height: "100%" }}
         />
 
@@ -440,8 +603,18 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-30">
             <div className="flex flex-col items-center gap-3">
               <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
-              <p className="text-sm font-medium text-slate-300">Constructing Knowledge Graph�</p>
+              <p className="text-sm font-medium text-slate-300">Constructing Knowledge Graph…</p>
             </div>
+          </div>
+        )}
+
+        {!isLoading && filteredNodes.length === 0 && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-slate-400 p-6 text-center pointer-events-none z-10">
+            <Share2 className="w-10 h-10 text-slate-600 animate-pulse" />
+            <p className="text-sm font-semibold text-slate-300">No Graph Nodes Available</p>
+            <p className="text-xs text-slate-500 max-w-sm">
+              No extracted entities or relationships match the selected filters. Click "Reload" or "Reconstruct" to refresh the graph.
+            </p>
           </div>
         )}
       </div>
@@ -499,11 +672,14 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
             <Info className="w-7 h-7 text-slate-600 mx-auto" />
             <p className="font-medium text-slate-300">Click any node to inspect connections.</p>
             <div className="text-[11px] text-slate-500 space-y-1 text-left pt-1">
-              <p>?? <b>Click node</b> � inspect it</p>
-              <p>?? <b>Drag node</b> � reposition</p>
-              <p>?? <b>Drag canvas</b> � pan view</p>
-              <p>?? <b>Scroll</b> � zoom in/out</p>
-              <p>? <b>?</b> button � fullscreen</p>
+              <p><b>Click node</b> — inspect it</p>
+              <p><b>Drag node</b> — reposition</p>
+              <p><b>Drag canvas</b> — pan view</p>
+              <p><b>Scroll</b> — zoom in/out</p>
+              <p><b>Fullscreen</b> button — expand</p>
+              {highlightNames && highlightNames.size > 0 && (
+                <p className="text-amber-400 font-medium"><b>Golden glow</b> = shared entity</p>
+              )}
             </div>
           </div>
         )}

@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.models.project import Project
 from app.services.graph_db import GRAPH_INGESTION_VERSION, graph_service
+from app.services.entity_normalizer import canonicalize_extracted_entities
 
 log = logging.getLogger(__name__)
 
@@ -98,6 +99,9 @@ def ingest_project_to_relational_graph(
     """
     nodes_created = 0
     edges_created = 0
+
+    # Ensure extracted entities are clean, normalized, and deduplicated
+    extracted_entities = canonicalize_extracted_entities(extracted_entities or {})
 
     # 1. Project node uses the immutable project UUID as its storage key while
     # keeping the editable title purely as display text.
@@ -209,15 +213,9 @@ def bulk_rebuild_graph(db: Session) -> dict:
     db.execute(text("TRUNCATE TABLE graph_edges, graph_nodes RESTART IDENTITY CASCADE;"))
     db.commit()
 
-    from app.models.evaluation import EvaluationReport
-
     projects = (
         db.query(Project)
-        .join(EvaluationReport, EvaluationReport.project_id == Project.id)
-        .filter(
-            Project.extracted_entities.isnot(None),
-            EvaluationReport.novelty_report.isnot(None),
-        )
+        .filter(Project.extracted_entities.isnot(None))
         .all()
     )
 
@@ -227,7 +225,12 @@ def bulk_rebuild_graph(db: Session) -> dict:
 
     for proj in projects:
         title = proj.title or ""
-        entities = proj.extracted_entities or {}
+        # Canonicalize and persist clean entities
+        entities = canonicalize_extracted_entities(proj.extracted_entities or {})
+        proj.extracted_entities = entities
+        db.add(proj)
+        db.commit()
+
         domain = entities.get("domain", proj.domain or "General CSE")
         sub_domain = entities.get("sub_domain", "Machine Learning")
 

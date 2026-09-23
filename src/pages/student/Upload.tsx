@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText, Video, FileSearch, GitBranch, AlertCircle, CheckCircle, Loader2, ChevronRight } from 'lucide-react';
 import FileUploader from '../../components/FileUploader';
-import { uploadProject } from '../../api/endpoints';
+import { uploadProject, getPipelineStatus } from '../../api/endpoints';
 import { useAuth } from '../../auth/AuthContext';
 import clsx from 'clsx';
 
@@ -43,6 +43,13 @@ const Upload: React.FC = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [submitted, setSubmitted] = useState(false);
 
+  const [submittedProjectId, setSubmittedProjectId] = useState<string | null>(null);
+  const [pipelineState, setPipelineState] = useState<{
+    db_status: string;
+    ready: boolean;
+    error: string | null;
+  } | null>(null);
+
   const { register, handleSubmit, watch, formState: { errors } } = useForm<AbstractFormData>({
     resolver: zodResolver(abstractSchema),
   });
@@ -50,11 +57,43 @@ const Upload: React.FC = () => {
   const abstractText = watch('abstract', '');
   const wordCount = abstractText ? abstractText.trim().split(/\s+/).filter(Boolean).length : 0;
 
-  const invalidateAndSetSubmitted = () => {
+  const handleSuccessfulUpload = (projectId: string) => {
     queryClient.invalidateQueries({ queryKey: ['myProjects'] });
     queryClient.invalidateQueries({ queryKey: ['myReports'] });
+    setSubmittedProjectId(projectId);
     setSubmitted(true);
   };
+
+  // Poll pipeline status if submitted
+  React.useEffect(() => {
+    if (!submittedProjectId) return;
+
+    let active = true;
+    const checkStatus = async () => {
+      try {
+        const st = await getPipelineStatus(submittedProjectId);
+        if (active) {
+          setPipelineState(st);
+          if (st.ready || st.error) {
+            queryClient.invalidateQueries({ queryKey: ['myProjects'] });
+          }
+        }
+      } catch (err) {
+        console.error('Pipeline status poll error:', err);
+      }
+    };
+
+    checkStatus();
+    const interval = setInterval(() => {
+      if (pipelineState?.ready || pipelineState?.error) return;
+      checkStatus();
+    }, 2500);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [submittedProjectId, pipelineState?.ready, pipelineState?.error, queryClient]);
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -66,7 +105,7 @@ const Upload: React.FC = () => {
       if (githubUrl) fd.append('githubUrl', githubUrl);
       return uploadProject(fd);
     },
-    onSuccess: invalidateAndSetSubmitted,
+    onSuccess: (res) => handleSuccessfulUpload(res.projectId),
   });
 
   const onAbstractSubmit = (data: AbstractFormData) => {
@@ -76,27 +115,86 @@ const Upload: React.FC = () => {
     fd.append('domain', data.domain);
     fd.append('teamMembers', data.teamMembers);
     fd.append('abstract', data.abstract);
-    uploadProject(fd).then(invalidateAndSetSubmitted);
+    uploadProject(fd).then((res) => handleSuccessfulUpload(res.projectId));
   };
 
   if (submitted) {
+    const isReady = pipelineState?.ready || pipelineState?.db_status === 'awaiting_review' || pipelineState?.db_status === 'reviewed';
+    const isFailed = !!pipelineState?.error;
+
     return (
-      <div className="max-w-lg mx-auto mt-12">
-        <div className="card text-center py-12">
-          <div className="w-20 h-20 bg-teal-50 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle size={36} className="text-teal-500" />
+      <div className="max-w-xl mx-auto mt-8">
+        <div className="card py-8 px-6 text-center">
+          <div className={clsx(
+            'w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4',
+            isFailed ? 'bg-red-50 text-red-500' :
+            isReady ? 'bg-teal-50 text-teal-600' : 'bg-navy-50 text-navy-700 animate-pulse'
+          )}>
+            {isFailed ? <AlertCircle size={32} /> :
+             isReady ? <CheckCircle size={32} /> : <Loader2 size={32} className="animate-spin text-teal-600" />}
           </div>
-          <h2 className="text-2xl font-display font-bold text-navy-900 mb-2">Submission Received!</h2>
-          <p className="text-slate-500 mb-2">Your project has been submitted for AI processing.</p>
-          <div className="bg-teal-50 rounded-xl p-4 border border-teal-100 text-sm text-teal-700 mb-6">
-            <p className="font-semibold mb-1">What happens next?</p>
-            <p>The AI pipeline will process your submission and generate an evaluation report within a few minutes. Your guide will then review and publish the final report.</p>
+
+          <h2 className="text-xl font-display font-bold text-navy-900 mb-1">
+            {isFailed ? 'Processing Issue Detected' :
+             isReady ? 'AI Analysis Complete!' : 'Processing Submission...'}
+          </h2>
+          <p className="text-slate-500 text-sm mb-6">
+            {isFailed ? 'There was an issue running the automated evaluation pipeline.' :
+             isReady ? 'Your project has been indexed and analyzed. Awaiting faculty review.' :
+             'The AI pipeline is parsing your files, extracting entities, and calculating metrics.'}
+          </p>
+
+          {/* Pipeline Live Steps */}
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-left mb-6 space-y-3">
+            <div className="flex items-center gap-3">
+              <CheckCircle size={16} className="text-teal-600 flex-shrink-0" />
+              <span className="text-sm font-medium text-slate-700">1. Document & Repository Ingestion</span>
+            </div>
+            <div className="flex items-center gap-3">
+              {isReady || pipelineState?.db_status === 'ai_processing' ? (
+                <CheckCircle size={16} className="text-teal-600 flex-shrink-0" />
+              ) : (
+                <Loader2 size={16} className="text-teal-600 animate-spin flex-shrink-0" />
+              )}
+              <span className="text-sm font-medium text-slate-700">2. Domain Classification & Entity Extraction</span>
+            </div>
+            <div className="flex items-center gap-3">
+              {isReady ? (
+                <CheckCircle size={16} className="text-teal-600 flex-shrink-0" />
+              ) : (
+                <Loader2 size={16} className="text-slate-400 animate-spin flex-shrink-0" />
+              )}
+              <span className="text-sm font-medium text-slate-700">3. Knowledge Graph Construction & Novelty Math</span>
+            </div>
+            <div className="flex items-center gap-3">
+              {isReady ? (
+                <CheckCircle size={16} className="text-teal-600 flex-shrink-0" />
+              ) : (
+                <div className="w-4 h-4 rounded-full border-2 border-slate-300 flex-shrink-0" />
+              )}
+              <span className="text-sm font-medium text-slate-700">4. Ready for Faculty Review & Publication</span>
+            </div>
           </div>
+
           <div className="flex gap-3 justify-center">
-            <button onClick={() => navigate('/student/reports')} className="btn-primary">
-              View My Reports <ChevronRight size={16} />
+            {submittedProjectId && (
+              <button
+                onClick={() => navigate(`/student/report/${submittedProjectId}`)}
+                className="btn-primary"
+              >
+                View Status <ChevronRight size={16} />
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setSubmitted(false);
+                setSubmittedProjectId(null);
+                setPipelineState(null);
+              }}
+              className="btn-outline"
+            >
+              Submit Another
             </button>
-            <button onClick={() => setSubmitted(false)} className="btn-outline">Submit Another</button>
           </div>
         </div>
       </div>

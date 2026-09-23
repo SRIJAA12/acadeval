@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import {
-  LayoutDashboard, Scale, Trophy, Users, LogOut, GraduationCap, ChevronRight, Bell, Shield,
+  LayoutDashboard, FolderGit2, Scale, Trophy, Users, LogOut, GraduationCap, ChevronRight, Bell, Shield,
 } from 'lucide-react';
 import clsx from 'clsx';
 
 const navItems = [
   { to: '/hod/overview', icon: <LayoutDashboard size={18} />, label: 'Dept. Overview' },
+  { to: '/hod/projects', icon: <FolderGit2 size={18} />, label: 'Project Submissions' },
   { to: '/hod/rubrics', icon: <Scale size={18} />, label: 'Rubric Management' },
   { to: '/hod/leaderboard', icon: <Trophy size={18} />, label: 'Leaderboard Admin' },
   { to: '/hod/users', icon: <Users size={18} />, label: 'User Management' },

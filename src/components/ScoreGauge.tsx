@@ -40,8 +40,11 @@ const ScoreGauge: React.FC<ScoreGaugeProps> = ({
   const dashOffset = dashArray * (1 - progress);
   const color = getScoreColor(value);
 
+  // Extract letter grade (e.g. 'C') and optional qualifier (e.g. 'Requires Improvement')
+  const [letterGrade, qualifier] = grade ? grade.split('/').map(s => s.trim()) : ['', ''];
+
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-1.5">
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="rotate-[135deg]">
           {/* Background track */}
@@ -69,18 +72,39 @@ const ScoreGauge: React.FC<ScoreGaugeProps> = ({
           />
         </svg>
         {/* Center text */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-3xl font-bold font-display" style={{ color }}>
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-center pointer-events-none">
+          <span className="text-3xl font-extrabold font-display leading-none tracking-tight" style={{ color }}>
             {value}
           </span>
-          {showGrade && grade && (
-            <span className={clsx('text-sm font-semibold', getGradeBg(grade))}>
-              Grade {grade}
+          {showGrade && letterGrade && (
+            <span
+              className={clsx(
+                'text-xs font-bold px-2 py-0.5 rounded-full mt-1 border shadow-xs',
+                value >= 80 ? 'bg-teal-50 text-teal-700 border-teal-200' :
+                value >= 60 ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                'bg-red-50 text-red-600 border-red-200'
+              )}
+            >
+              Grade {letterGrade}
             </span>
           )}
         </div>
       </div>
-      {label && <p className="text-xs text-slate-500 font-medium">{label}</p>}
+      <div className="flex flex-col items-center text-center">
+        {qualifier && (
+          <span
+            className={clsx(
+              'text-[11px] font-semibold px-2 py-0.5 rounded-md mb-0.5',
+              value >= 80 ? 'bg-teal-50 text-teal-700' :
+              value >= 60 ? 'bg-amber-50 text-amber-700' :
+              'bg-red-50 text-red-600'
+            )}
+          >
+            {qualifier}
+          </span>
+        )}
+        {label && <p className="text-xs text-slate-400 font-medium">{label}</p>}
+      </div>
     </div>
   );
 };

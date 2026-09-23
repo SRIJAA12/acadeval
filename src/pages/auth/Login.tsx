@@ -36,6 +36,18 @@ const Login: React.FC = () => {
     }
   }, [isAuthenticated, user, navigate]);
 
+  // Pre-fill demo credentials based on role
+  useEffect(() => {
+    const demoEmails: Record<UserRole, string> = {
+      student: 'priya@college.edu',
+      guide: 'meera@college.edu',
+      reviewer: 'suresh@college.edu',
+      hod: 'hod@college.edu',
+    };
+    setEmail(demoEmails[selectedRole]);
+    setPassword('demo123');
+  }, [selectedRole]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -185,8 +197,10 @@ const Login: React.FC = () => {
           </form>
 
           <div className="mt-6 bg-slate-50 rounded-xl p-4 border border-slate-100">
-            <p className="text-xs text-slate-500 font-medium mb-2">Demo credentials (auto-filled):</p>
-            <p className="text-xs text-slate-400">Select a role above — credentials are pre-filled automatically.</p>
+            <p className="text-xs text-slate-500 font-medium mb-1">Demo credentials (auto-filled):</p>
+            <p className="text-xs text-slate-700 font-mono font-medium">
+              {email || 'Select a role above'} <span className="text-slate-400">/</span> demo123
+            </p>
           </div>
         </div>
       </div>

@@ -257,7 +257,7 @@ Respond with a single JSON object only:
 
     def fetch_github_features(self, github_url: str) -> dict:
         """
-        Extracts repository features (README, tech stack, requirements, package.json)
+        Extracts repository features (README, tech stack, requirements, package.json, pyproject.toml)
         from a public GitHub repository URL.
         """
         import urllib.request
@@ -271,31 +271,70 @@ Respond with a single JSON object only:
         if len(parts) < 2:
             return {"raw_text": "", "extracted_entities": {}}
 
-        user, repo = parts[0], parts[1]
-        raw_base = f"https://raw.githubusercontent.com/{user}/{repo}/main"
-        raw_base_master = f"https://raw.githubusercontent.com/{user}/{repo}/master"
+        user = parts[0]
+        repo = parts[1].replace(".git", "")
+        branches = ["main", "master", "dev"]
 
         fetched_text = []
 
-        for base in [raw_base, raw_base_master]:
+        # 1. Fetch README
+        readme_found = False
+        for b in branches:
+            if readme_found:
+                break
+            for fname in ["README.md", "readme.md", "README"]:
+                raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/{b}/{fname}"
+                try:
+                    req = urllib.request.Request(raw_url, headers={"User-Agent": "AcadEval-Parser"})
+                    with urllib.request.urlopen(req, timeout=4) as resp:
+                        content = resp.read().decode("utf-8", errors="ignore")
+                        if content.strip():
+                            fetched_text.append(f"--- GitHub README ({user}/{repo}) ---\n" + content[:4000])
+                            readme_found = True
+                            break
+                except Exception:
+                    continue
+
+        # 2. Fetch requirements.txt
+        for b in branches:
+            raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/{b}/requirements.txt"
             try:
-                req = urllib.request.Request(f"{base}/README.md", headers={"User-Agent": "AcadEval-Parser"})
-                with urllib.request.urlopen(req, timeout=4) as resp:
-                    readme_content = resp.read().decode("utf-8", errors="ignore")
-                    fetched_text.append(f"--- GitHub README ({user}/{repo}) ---\n" + readme_content[:3000])
-                    break
+                req = urllib.request.Request(raw_url, headers={"User-Agent": "AcadEval-Parser"})
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    content = resp.read().decode("utf-8", errors="ignore")
+                    if content.strip():
+                        fetched_text.append("--- GitHub Python Dependencies (requirements.txt) ---\n" + content[:1500])
+                        break
             except Exception:
                 continue
 
-        for base in [raw_base, raw_base_master]:
+        # 3. Fetch package.json
+        for b in branches:
+            raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/{b}/package.json"
             try:
-                req = urllib.request.Request(f"{base}/requirements.txt", headers={"User-Agent": "AcadEval-Parser"})
+                req = urllib.request.Request(raw_url, headers={"User-Agent": "AcadEval-Parser"})
                 with urllib.request.urlopen(req, timeout=3) as resp:
-                    req_content = resp.read().decode("utf-8", errors="ignore")
-                    fetched_text.append("--- GitHub Dependencies (requirements.txt) ---\n" + req_content[:1000])
-                    break
+                    pkg_text = resp.read().decode("utf-8", errors="ignore")
+                    pkg = json.loads(pkg_text)
+                    deps = list(pkg.get("dependencies", {}).keys()) + list(pkg.get("devDependencies", {}).keys())
+                    if deps:
+                        fetched_text.append("--- GitHub JavaScript/TypeScript Dependencies (package.json) ---\n" + ", ".join(deps[:60]))
+                        break
             except Exception:
-                pass
+                continue
+
+        # 4. Fetch pyproject.toml
+        for b in branches:
+            raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/{b}/pyproject.toml"
+            try:
+                req = urllib.request.Request(raw_url, headers={"User-Agent": "AcadEval-Parser"})
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    toml_content = resp.read().decode("utf-8", errors="ignore")
+                    if toml_content.strip():
+                        fetched_text.append("--- GitHub Dependencies (pyproject.toml) ---\n" + toml_content[:1500])
+                        break
+            except Exception:
+                continue
 
         full_github_text = "\n\n".join(fetched_text).strip()
         return {

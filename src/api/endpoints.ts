@@ -43,6 +43,18 @@ export const getProjectStatus = async (projectId: string): Promise<{ status: str
   return data;
 };
 
+export const getPipelineStatus = async (projectId: string): Promise<{
+  project_id: string;
+  db_status: string;
+  celery_state: string | null;
+  celery_task_id: string | null;
+  ready: boolean;
+  error: string | null;
+}> => {
+  const { data } = await apiClient.get(`/projects/${projectId}/pipeline-status`);
+  return data;
+};
+
 export const uploadProject = async (formData: FormData): Promise<{ projectId: string }> => {
   const { data } = await apiClient.post('/projects/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -261,3 +273,24 @@ export const rebuildKnowledgeGraph = async () => {
   const { data } = await apiClient.post('/graph/rebuild');
   return data;
 };
+
+export const getProjectGraph = async (projectId: string) => {
+  const { data } = await apiClient.get(`/graph/project/${projectId}`);
+  return data;
+};
+
+export const getComparisonGraph = async (projectId: string, distanceThreshold = 0.5) => {
+  const { data } = await apiClient.get(`/graph/comparison/${projectId}?distance_threshold=${distanceThreshold}`);
+  return data;
+};
+
+export const rebuildProjectGraph = async (projectId: string) => {
+  const { data } = await apiClient.post(`/graph/rebuild/${projectId}`);
+  return data;
+};
+
+export const getProjectNoveltyReport = async (projectId: string, distanceThreshold = 0.5) => {
+  const { data } = await apiClient.get(`/v1/acadeval/report/${projectId}?distance_threshold=${distanceThreshold}`);
+  return data;
+};
+
