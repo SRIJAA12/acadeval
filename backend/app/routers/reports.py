@@ -263,15 +263,33 @@ def _report_to_internal(
         if isinstance(a, dict)
     ]
 
+    from app.services.explainability import explainability_service
+    explain_data = explainability_service.generate_full_explainability(project, report)
+
     return InternalEvaluationReport(
         **public_base.model_dump(),
         facultyNotes=notes,
         explainabilityAnnotations=annotations,
+        explainability=explain_data,
         flaggingReasons=report.flagging_reasons or [],
         assignedGuide=project.guide.name if getattr(project, "guide", None) else "Guide Unassigned",
         assignedReviewer=project.reviewer.name if getattr(project, "reviewer", None) else None,
         scoreOverrideHistory=overrides,
     )
+
+
+@router.get("/{project_id}/explainability")
+def get_project_explainability(project_id: str, current_user: CurrentUser, db: DB):
+    """
+    Returns full explainability breakdown for the project:
+    - 5 Novelty Graph Feature Attribution Signals
+    - 7 Rubric Evaluation Dimension mathematical formulas and point contributions
+    - 7 Project Datasets comparative benchmark analysis
+    """
+    project = _get_project_or_404(project_id, db)
+    report = db.query(EvaluationReport).filter(EvaluationReport.project_id == project_id).first()
+    from app.services.explainability import explainability_service
+    return explainability_service.generate_full_explainability(project, report)
 
 
 def _get_project_or_404(project_id: str, db: Session) -> Project:

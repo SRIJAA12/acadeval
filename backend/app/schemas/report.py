@@ -99,6 +99,7 @@ class InternalEvaluationReport(PublicEvaluationReport):
     """Extends public report — never returned on student routes."""
     facultyNotes: list[FacultyNote]
     explainabilityAnnotations: list[ExplainabilityAnnotation]
+    explainability: Optional[dict[str, Any]] = None
     flaggingReasons: list[str]
     assignedGuide: str
     assignedReviewer: Optional[str]

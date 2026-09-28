@@ -277,7 +277,7 @@ Respond with a single JSON object only:
 
         fetched_text = []
 
-        # 1. Fetch README
+        # 1. Fetch README (read complete README up to 30,000 chars)
         readme_found = False
         for b in branches:
             if readme_found:
@@ -286,10 +286,10 @@ Respond with a single JSON object only:
                 raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/{b}/{fname}"
                 try:
                     req = urllib.request.Request(raw_url, headers={"User-Agent": "AcadEval-Parser"})
-                    with urllib.request.urlopen(req, timeout=4) as resp:
+                    with urllib.request.urlopen(req, timeout=5) as resp:
                         content = resp.read().decode("utf-8", errors="ignore")
                         if content.strip():
-                            fetched_text.append(f"--- GitHub README ({user}/{repo}) ---\n" + content[:4000])
+                            fetched_text.append(f"--- GitHub README ({user}/{repo}) ---\n" + content[:30000])
                             readme_found = True
                             break
                 except Exception:
@@ -300,10 +300,10 @@ Respond with a single JSON object only:
             raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/{b}/requirements.txt"
             try:
                 req = urllib.request.Request(raw_url, headers={"User-Agent": "AcadEval-Parser"})
-                with urllib.request.urlopen(req, timeout=3) as resp:
+                with urllib.request.urlopen(req, timeout=4) as resp:
                     content = resp.read().decode("utf-8", errors="ignore")
                     if content.strip():
-                        fetched_text.append("--- GitHub Python Dependencies (requirements.txt) ---\n" + content[:1500])
+                        fetched_text.append("--- GitHub Python Dependencies (requirements.txt) ---\n" + content[:5000])
                         break
             except Exception:
                 continue
@@ -313,12 +313,12 @@ Respond with a single JSON object only:
             raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/{b}/package.json"
             try:
                 req = urllib.request.Request(raw_url, headers={"User-Agent": "AcadEval-Parser"})
-                with urllib.request.urlopen(req, timeout=3) as resp:
+                with urllib.request.urlopen(req, timeout=4) as resp:
                     pkg_text = resp.read().decode("utf-8", errors="ignore")
                     pkg = json.loads(pkg_text)
                     deps = list(pkg.get("dependencies", {}).keys()) + list(pkg.get("devDependencies", {}).keys())
                     if deps:
-                        fetched_text.append("--- GitHub JavaScript/TypeScript Dependencies (package.json) ---\n" + ", ".join(deps[:60]))
+                        fetched_text.append("--- GitHub JavaScript/TypeScript Dependencies (package.json) ---\n" + ", ".join(deps[:100]))
                         break
             except Exception:
                 continue
@@ -328,10 +328,30 @@ Respond with a single JSON object only:
             raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/{b}/pyproject.toml"
             try:
                 req = urllib.request.Request(raw_url, headers={"User-Agent": "AcadEval-Parser"})
-                with urllib.request.urlopen(req, timeout=3) as resp:
+                with urllib.request.urlopen(req, timeout=4) as resp:
                     toml_content = resp.read().decode("utf-8", errors="ignore")
                     if toml_content.strip():
-                        fetched_text.append("--- GitHub Dependencies (pyproject.toml) ---\n" + toml_content[:1500])
+                        fetched_text.append("--- GitHub Dependencies (pyproject.toml) ---\n" + toml_content[:3000])
+                        break
+            except Exception:
+                continue
+
+        # 5. Check repository datasets and specifications
+        local_datasets_dir = Path("/datasets")
+        if local_datasets_dir.exists():
+            ds_files = [f.name for f in local_datasets_dir.glob("*.csv")] + [f.name for f in (local_datasets_dir / "corpus").glob("*.csv") if (local_datasets_dir / "corpus").exists()]
+            if ds_files:
+                fetched_text.append("--- Repository Datasets Discovered ---\n" + "\n".join(ds_files))
+
+        # Check for hardware and runtime specs in docker-compose or docs
+        for b in branches:
+            raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/{b}/docker-compose.yml"
+            try:
+                req = urllib.request.Request(raw_url, headers={"User-Agent": "AcadEval-Parser"})
+                with urllib.request.urlopen(req, timeout=4) as resp:
+                    compose_content = resp.read().decode("utf-8", errors="ignore")
+                    if compose_content.strip():
+                        fetched_text.append("--- Repository Infrastructure Specs (docker-compose) ---\n" + compose_content[:2000])
                         break
             except Exception:
                 continue

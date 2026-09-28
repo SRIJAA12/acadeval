@@ -532,5 +532,65 @@
     "data_source": "semantic_scholar",
     "cached_at": "2026-09-21T15:20:32.322792+00:00",
     "_topic_label": "General Machine Learning"
+  },
+  "de19e102fde0e4ac": {
+    "topic": "computer vision",
+    "growth_rate_pct": 16.7,
+    "paper_count_3yr": 840,
+    "citation_velocity": 1108.7,
+    "trend_status": "Hot",
+    "top_papers": [
+      {
+        "title": "A Comprehensive Review of YOLO Architectures in Computer Vision: From YOLOv1 to YOLOv8 and YOLO-NAS",
+        "year": 2023,
+        "citations": 2962,
+        "url": "https://doi.org/10.3390/make5040083"
+      },
+      {
+        "title": "Design and Development of Cost-Effective Child Surveillance System using Computer Vision Technology",
+        "year": 2022,
+        "citations": 2683,
+        "url": "https://doi.org/10.1109/ICMACC54824.2022.10093561"
+      },
+      {
+        "title": "A review of convolutional neural networks in computer vision",
+        "year": 2024,
+        "citations": 1141,
+        "url": "https://doi.org/10.1007/s10462-024-10721-6"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-28T09:35:19.990468+00:00",
+    "_topic_label": "computer vision"
+  },
+  "81861c829fa095b4": {
+    "topic": "natural language processing",
+    "growth_rate_pct": 0.0,
+    "paper_count_3yr": 720,
+    "citation_velocity": 281.8,
+    "trend_status": "Steady",
+    "top_papers": [
+      {
+        "title": "Is ChatGPT a General-Purpose Natural Language Processing Task Solver?",
+        "year": 2023,
+        "citations": 888,
+        "url": "https://doi.org/10.18653/v1/2023.emnlp-main.85"
+      },
+      {
+        "title": "BERT applications in natural language processing: a review",
+        "year": 2025,
+        "citations": 266,
+        "url": "https://doi.org/10.1007/s10462-025-11162-5"
+      },
+      {
+        "title": "Retrieval-augmented generation for natural language processing: a survey",
+        "year": 2024,
+        "citations": 165,
+        "url": "https://doi.org/10.1007/s10462-026-11605-7"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-28T09:35:21.833981+00:00",
+    "_topic_label": "natural language processing"
   }
 }

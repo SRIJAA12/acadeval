@@ -32,6 +32,10 @@ interface ProjectGraphViewerProps {
   highlightNames?: Set<string>;
   /** Accent color used for edges and selected UI elements */
   accentColor?: string;
+  /** Optional custom container height class (e.g. 'h-[520px]') */
+  height?: string;
+  /** When true, optimizes layout for side-by-side dual graph view */
+  compact?: boolean;
 }
 
 const TYPE_COLORS: Record<string, { bg: string; text: string; border: string; colorHex: string }> = {
@@ -61,6 +65,8 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
   onRefresh,
   highlightNames,
   accentColor = '#6366f1',
+  height,
+  compact = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -273,11 +279,13 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
     const width = container?.clientWidth || 900;
     const height = container?.clientHeight || 600;
 
+    let hasNewNodes = false;
     filteredNodes.forEach((node, i) => {
       const nid = String(node.id);
       if (!simMap.has(nid)) {
+        hasNewNodes = true;
         const angle = (i / Math.max(1, filteredNodes.length)) * 2 * Math.PI;
-        const rad = Math.min(width, height) * 0.28 * (0.5 + Math.random() * 0.5);
+        const rad = Math.min(width, height) * 0.25 * (0.6 + Math.random() * 0.4);
         simMap.set(nid, { ...node, id: nid, x: width / 2 + rad * Math.cos(angle), y: height / 2 + rad * Math.sin(angle), vx: 0, vy: 0 });
       } else {
         const ex = simMap.get(nid)!;
@@ -287,27 +295,14 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
     const activeIds = new Set(filteredNodes.map(n => String(n.id)));
     Array.from(simMap.keys()).forEach(id => { if (!activeIds.has(String(id))) simMap.delete(id); });
 
-    ticksRef.current = 0;
-    const MAX = 220;
-
-    const step = () => {
-      if (ticksRef.current >= MAX) {
-        if (!userInteractedRef.current) {
-          fitToView();
-        } else {
-          renderCanvas();
-        }
-        return;
-      }
-      ticksRef.current++;
+    // Physics step function with cooling factor (alpha) and velocity decay
+    const applySimulationForces = (alphaVal: number, isWarmup = false) => {
       const nl = Array.from(simMap.values());
       const n = nl.length;
       if (n === 0) return;
 
-      const k = Math.sqrt((width * height) / Math.max(1, n)) * 1.4;
-
-      // Efficient spatial-hash repulsion
-      const cellSize = Math.max(80, k * 1.5);
+      const k = Math.sqrt((width * height) / Math.max(1, n)) * 1.35;
+      const cellSize = Math.max(70, k * 1.4);
       const grid = new Map<string, typeof nl>();
       nl.forEach(node => {
         const cx = Math.floor((node.x ?? 0) / cellSize);
@@ -317,6 +312,7 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
         grid.get(key)!.push(node);
       });
 
+      // 1. Soft-clamped spatial repulsion
       nl.forEach(a => {
         const ax = a.x ?? 0, ay = a.y ?? 0;
         const cx = Math.floor(ax / cellSize);
@@ -330,8 +326,9 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
               const dx = ax - (b.x ?? 0), dy = ay - (b.y ?? 0);
               const dist2 = dx * dx + dy * dy || 1;
               const dist = Math.sqrt(dist2);
-              if (dist > cellSize * 2.5) continue;
-              const force = (k * k) / Math.max(30, dist) * 0.06;
+              if (dist > cellSize * 2.2) continue;
+              const softDist = Math.max(45, dist);
+              const force = ((k * k) / (softDist * softDist)) * 0.25 * alphaVal;
               a.vx = (a.vx ?? 0) + (dx / dist) * force;
               a.vy = (a.vy ?? 0) + (dy / dist) * force;
             }
@@ -339,30 +336,62 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
         }
       });
 
-      // Attraction along links
+      // 2. Link attraction scaled by alpha
       filteredLinksRef.current.forEach(link => {
         const s = simMap.get(String(link.source)), t = simMap.get(String(link.target));
         if (!s || !t) return;
         const dx = (t.x ?? 0) - (s.x ?? 0), dy = (t.y ?? 0) - (s.y ?? 0);
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const force = (dist - k * 1.8) * 0.04;
+        const desiredDist = k * 1.15;
+        const force = (dist - desiredDist) * 0.045 * alphaVal;
         const fx = (dx / dist) * force, fy = (dy / dist) * force;
         s.vx = (s.vx ?? 0) + fx; s.vy = (s.vy ?? 0) + fy;
         t.vx = (t.vx ?? 0) - fx; t.vy = (t.vy ?? 0) - fy;
       });
 
-      // Update positions + gravity toward center + damping + velocity clamping
-      nl.forEach(n => {
-        n.vx = ((n.vx ?? 0) + (width / 2 - (n.x ?? 0)) * 0.003) * 0.84;
-        n.vy = ((n.vy ?? 0) + (height / 2 - (n.y ?? 0)) * 0.003) * 0.84;
-        const maxV = 25;
-        n.vx = Math.max(-maxV, Math.min(maxV, n.vx ?? 0));
-        n.vy = Math.max(-maxV, Math.min(maxV, n.vy ?? 0));
-        n.x = (n.x ?? 0) + (n.vx ?? 0);
-        n.y = (n.y ?? 0) + (n.vy ?? 0);
+      // 3. Central gravity and strong velocity damping (velocityDecay = 0.40 -> friction = 0.60)
+      const friction = 0.60;
+      const maxV = isWarmup ? 12 : 4.5;
+      nl.forEach(node => {
+        // Skip pinned dragged node
+        if (draggedNodeRef.current && String(draggedNodeRef.current.id) === String(node.id)) {
+          node.vx = 0;
+          node.vy = 0;
+          return;
+        }
+        node.vx = ((node.vx ?? 0) + (width / 2 - (node.x ?? 0)) * 0.0025 * alphaVal) * friction;
+        node.vy = ((node.vy ?? 0) + (height / 2 - (node.y ?? 0)) * 0.0025 * alphaVal) * friction;
+        node.vx = Math.max(-maxV, Math.min(maxV, node.vx ?? 0));
+        node.vy = Math.max(-maxV, Math.min(maxV, node.vy ?? 0));
+        node.x = (node.x ?? 0) + (node.vx ?? 0);
+        node.y = (node.y ?? 0) + (node.vy ?? 0);
       });
+    };
 
-      if (ticksRef.current % 3 === 0 || ticksRef.current <= 5) renderCanvas();
+    // Pre-simulation warmup ticks: settle node positions silently before first paint
+    if (hasNewNodes) {
+      let warmAlpha = 1.0;
+      for (let t = 0; t < 60; t++) {
+        applySimulationForces(warmAlpha, true);
+        warmAlpha *= 0.94;
+      }
+    }
+
+    let alpha = 0.45;
+    const alphaMin = 0.005;
+
+    const step = () => {
+      if (alpha < alphaMin) {
+        if (!userInteractedRef.current) {
+          fitToView();
+        } else {
+          renderCanvas();
+        }
+        return;
+      }
+      applySimulationForces(alpha, false);
+      alpha *= 0.94; // Exponential simulation cooling factor
+      renderCanvas();
       simLoopRef.current = requestAnimationFrame(step);
     };
 
@@ -476,7 +505,6 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
       const wy = (e.clientY - rect.top - panOffsetRef.current.y) / zoomLevelRef.current;
       const n = simulationNodesRef.current.get(String(draggedNodeRef.current.id));
       if (n) { n.x = wx; n.y = wy; n.vx = 0; n.vy = 0; }
-      ticksRef.current = 0;
       renderCanvas();
     } else if (isDraggingRef.current) {
       const np = { x: e.clientX - dragStartRef.current.x, y: e.clientY - dragStartRef.current.y };
@@ -527,12 +555,12 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
   return (
     <div
       ref={wrapperRef}
-      className={`flex flex-col lg:flex-row bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl ${isFullscreen ? "fixed inset-0 z-50 rounded-none border-0" : "h-[760px]"}`}
+      className={`flex flex-col ${compact ? "" : "lg:flex-row"} bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl ${isFullscreen ? "fixed inset-0 z-50 rounded-none border-0" : (height || "h-[760px]")}`}
     >
       {/* Canvas Area */}
       <div
         ref={containerRef}
-        className="relative flex-1 min-h-[420px] w-full bg-[#020617] overflow-hidden"
+        className="relative flex-1 min-h-[380px] w-full bg-[#020617] overflow-hidden"
         style={{ cursor: isDraggingRef.current ? "grabbing" : "crosshair" }}
       >
 
@@ -617,10 +645,21 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
             </p>
           </div>
         )}
+        {/* Compact floating inspector badge */}
+        {compact && selectedNode && (
+          <div className="absolute top-14 left-3 z-20 bg-slate-900/95 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-700 shadow-lg text-xs flex items-center gap-2">
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${TYPE_COLORS[selectedNode.type]?.bg} ${TYPE_COLORS[selectedNode.type]?.text} ${TYPE_COLORS[selectedNode.type]?.border}`}>
+              {selectedNode.type}
+            </span>
+            <span className="font-semibold text-slate-100">{selectedNode.name}</span>
+            <span className="text-[10px] text-slate-400 font-mono">({selectedNode.degree || connectedLinks.length} links)</span>
+          </div>
+        )}
       </div>
 
       {/* Inspector Panel */}
-      <div className={`${isFullscreen ? "w-72" : "w-full lg:w-72"} bg-slate-900 border-t lg:border-t-0 lg:border-l border-slate-800 p-4 flex flex-col gap-4 overflow-y-auto flex-shrink-0`}>
+      {!compact && (
+        <div className={`${isFullscreen ? "w-72" : "w-full lg:w-72"} bg-slate-900 border-t lg:border-t-0 lg:border-l border-slate-800 p-4 flex flex-col gap-4 overflow-y-auto flex-shrink-0`}>
         <div className="flex items-center gap-2 text-indigo-400 font-semibold text-sm">
           <Share2 className="w-4 h-4" /> Node Inspector
         </div>
@@ -695,6 +734,7 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

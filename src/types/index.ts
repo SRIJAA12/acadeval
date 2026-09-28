@@ -153,12 +153,41 @@ export interface ExplainabilitySignal {
   explanation: string;
 }
 
+export interface ExplainabilityDimensionScore {
+  dimension_key: string;
+  dimension_name: string;
+  raw_score: number;
+  weight: number;
+  weight_percentage: number;
+  weighted_contribution: number;
+  max_possible_contribution: number;
+  percentage_of_max: number;
+  formula: string;
+  description: string;
+  explanation: string;
+}
+
+export interface ExplainabilityDatasetComparison {
+  dataset_name: string;
+  dataset_category: string;
+  role: string;
+  algorithm_used: string;
+  comparative_metric: string;
+  status: string;
+  status_color: string;
+  explanation: string;
+}
+
 export interface ExplainabilityResult {
   explainer_mode: string;
   composite_novelty_score: number;
   novelty_band: string;
+  overall_score?: number;
+  overall_grade?: string;
   overall_summary: string;
   signals: ExplainabilitySignal[];
+  dimension_scores?: ExplainabilityDimensionScore[];
+  dataset_comparisons?: ExplainabilityDatasetComparison[];
 }
 
 export interface ScoreOverrideEntry {
