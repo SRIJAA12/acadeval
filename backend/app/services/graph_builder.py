@@ -2,17 +2,33 @@
 Module 4 — Relational Graph Builder & Ingestion Service
 =========================================================
 Handles upserting nodes and edges into PostgreSQL `graph_nodes` and `graph_edges`
-in a single DB transaction. Also synchronizes Neo4j Aura in parallel.
+in a single DB transaction. Also attempts to synchronize Neo4j Aura, best-effort:
+a Neo4j failure never rolls back the Postgres write (the source of truth used
+for scoring) -- it's recorded via pending_neo4j_sync for later retry instead.
 """
 
 import json
 import logging
+import uuid
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.models.project import Project
-from app.services.graph_db import GRAPH_INGESTION_VERSION, graph_service
+from app.services.graph_db import GRAPH_INGESTION_VERSION, GraphUnavailableError, graph_service
 
 log = logging.getLogger(__name__)
+
+
+def mark_pending_neo4j_sync(db: Session, project_id: str) -> None:
+    """Flags a project so the periodic retry task (app/tasks/scheduled.py)
+    picks it up once Neo4j is reachable again. Caller is responsible for
+    committing (or having already committed) db.
+    """
+    try:
+        pid = uuid.UUID(str(project_id))
+    except ValueError:
+        log.warning("mark_pending_neo4j_sync: %r is not a UUID, skipping", project_id)
+        return
+    db.query(Project).filter(Project.id == pid).update({"pending_neo4j_sync": True})
 
 # Category to relationship mapping
 CATEGORY_RELATION_MAP = {
@@ -90,11 +106,17 @@ def ingest_project_to_relational_graph(
     title: str,
     domain: str,
     sub_domain: str,
-    extracted_entities: dict
+    extracted_entities: dict,
+    skip_neo4j: bool = False,
 ) -> dict:
     """
     Ingests a project and all its extracted entities into `graph_nodes` & `graph_edges`.
     Executed inside a single DB transaction.
+
+    skip_neo4j=True bypasses the Neo4j attempt entirely (neo4j_sync="skipped")
+    instead of trying and recording a pending retry -- used by
+    scripts/backfill_corpus_graph.py --local-only for corpus rows that were
+    never meant to touch Neo4j in that mode.
     """
     nodes_created = 0
     edges_created = 0
@@ -164,39 +186,55 @@ def ingest_project_to_relational_graph(
                 )
                 edges_created += 1
 
-    # 5. Neo4j sync must succeed before the relational transaction commits.
-    neo4j_status = "synced"
-    try:
-        neo4j_result = graph_service.build_project_graph(
-            project_id=str(project_id),
-            title=title,
-            domain=domain or "Unknown",
-            sub_domain=sub_domain or "Unknown",
-            extracted_entities=extracted_entities,
-            source_type="submission",
-            source_version=GRAPH_INGESTION_VERSION,
-        )
-    except Exception as e:
-        log.error("Neo4j sync failed for project %s: %s", project_id, e)
-        raise
+    # 5. Neo4j sync is attempted, but a failure here must NOT roll back the
+    # Postgres graph write above -- Postgres (and the in-memory corpus
+    # index) is the source of truth used for scoring and must always
+    # persist independent of Neo4j's availability. A failure is recorded via
+    # pending_neo4j_sync for the periodic retry task instead of raised.
+    neo4j_status = "skipped" if skip_neo4j else "synced"
+    neo4j_content_hash = None
+    if not skip_neo4j:
+        try:
+            neo4j_result = graph_service.build_project_graph(
+                project_id=str(project_id),
+                title=title,
+                domain=domain or "Unknown",
+                sub_domain=sub_domain or "Unknown",
+                extracted_entities=extracted_entities,
+                source_type="submission",
+                source_version=GRAPH_INGESTION_VERSION,
+            )
+            neo4j_content_hash = neo4j_result["content_hash"]
+        except GraphUnavailableError as e:
+            log.warning("Neo4j unavailable, deferring sync for project %s: %s", project_id, e)
+            neo4j_status = "pending"
+            mark_pending_neo4j_sync(db, project_id)
+        except Exception as e:
+            log.error("Neo4j sync failed for project %s: %s", project_id, e)
+            neo4j_status = "pending"
+            mark_pending_neo4j_sync(db, project_id)
 
     db.commit()
 
-    # Invalidate NetworkX cache only after both graph stores are ready.
+    # Invalidate the NetworkX cache regardless of Neo4j outcome -- it's built
+    # from Postgres (graph_networkx.load_graph), which just committed above.
     try:
         from app.services.graph_networkx import invalidate_graph_cache
         invalidate_graph_cache()
     except Exception as e:
         log.warning("Could not invalidate NetworkX cache: %s", e)
 
-    log.info("Relational Graph Ingestion complete for project %s: %d nodes, %d edges.", project_id, nodes_created, edges_created)
+    log.info(
+        "Relational Graph Ingestion complete for project %s: %d nodes, %d edges (neo4j_sync=%s).",
+        project_id, nodes_created, edges_created, neo4j_status,
+    )
 
     return {
         "project_id": project_id,
         "relational_nodes_ingested": nodes_created,
         "relational_edges_ingested": edges_created,
         "neo4j_sync": neo4j_status,
-        "neo4j_content_hash": neo4j_result["content_hash"],
+        "neo4j_content_hash": neo4j_content_hash,
     }
 
 

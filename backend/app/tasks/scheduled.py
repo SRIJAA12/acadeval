@@ -4,9 +4,12 @@ Module 11 — Celery Beat Scheduled Tasks
 Periodic background jobs that run on a fixed schedule without any human trigger.
 
 Schedule (configured in worker.py celery_app.conf.beat_schedule):
-  - refresh_trend_base   : every Sunday 00:00 UTC  — re-crawls Semantic Scholar
-  - nightly_correlation  : every night   02:00 UTC  — Pearson correlation between
-                           faculty manual scores and system novelty scores
+  - refresh_trend_base       : every Sunday 00:00 UTC — re-crawls Semantic Scholar
+  - nightly_correlation      : every night   02:00 UTC — Pearson correlation between
+                               faculty manual scores and system novelty scores
+  - retry_pending_neo4j_sync : every 15 min           — re-attempts Neo4j sync for
+                               projects whose graph write succeeded in Postgres
+                               but failed against Neo4j (see graph_builder.py)
 """
 
 from __future__ import annotations
@@ -108,3 +111,59 @@ def nightly_correlation(self):
     except Exception as exc:
         log.exception("nightly_correlation failed: %s", exc)
         raise self.retry(exc=exc)
+
+
+@celery_app.task(name="scheduled.retry_pending_neo4j_sync", bind=True, max_retries=0)
+def retry_pending_neo4j_sync(self):
+    """
+    Every 15 min — re-attempt Neo4j sync for projects flagged pending_neo4j_sync
+    (Postgres graph write succeeded, Neo4j write did not — see graph_builder.py).
+    Stops early on the first GraphUnavailableError: if Neo4j is still down,
+    every remaining row would fail identically, so there's no value in
+    burning through the whole backlog on every 15-minute tick.
+    """
+    from app.database import SessionLocal
+    from app.models.project import Project
+    from app.services.graph_db import GRAPH_INGESTION_VERSION, GraphUnavailableError, graph_service
+
+    db = SessionLocal()
+    synced, still_pending, remaining = 0, 0, 0
+    try:
+        pending_projects = db.query(Project).filter(Project.pending_neo4j_sync.is_(True)).all()
+        if not pending_projects:
+            return {"status": "ok", "synced": 0, "still_pending": 0}
+
+        log.info("retry_pending_neo4j_sync — %d project(s) pending", len(pending_projects))
+
+        for i, project in enumerate(pending_projects):
+            entities = project.extracted_entities or {}
+            sub_domain = entities.get("sub_domain", "General")
+            try:
+                graph_service.build_project_graph(
+                    project_id=str(project.id),
+                    title=project.title,
+                    domain=project.domain or "Unknown",
+                    sub_domain=sub_domain or "Unknown",
+                    extracted_entities=entities,
+                    source_type="submission",
+                    source_version=GRAPH_INGESTION_VERSION,
+                )
+                project.pending_neo4j_sync = False
+                db.commit()
+                synced += 1
+            except GraphUnavailableError as exc:
+                remaining = len(pending_projects) - i
+                log.warning(
+                    "retry_pending_neo4j_sync — Neo4j still unavailable (%s), "
+                    "stopping this run with %d project(s) left pending", exc, remaining,
+                )
+                still_pending = remaining
+                break
+            except Exception as exc:
+                log.exception("retry_pending_neo4j_sync — unexpected error for %s: %s", project.id, exc)
+                still_pending += 1
+
+        log.info("retry_pending_neo4j_sync done — synced=%d still_pending=%d", synced, still_pending)
+        return {"status": "ok", "synced": synced, "still_pending": still_pending}
+    finally:
+        db.close()

@@ -1,8 +1,15 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
+    # pydantic-settings loads env_file entries in order and LATER files
+    # override earlier ones. This used to be (".env", "../.env"), which let
+    # the root ../.env (Docker-compose values, e.g. NEO4J_URI=bolt://neo4j:7687)
+    # silently override backend/.env's real values whenever the backend ran
+    # outside Docker. Local backend/.env must win, so it goes last.
+    model_config = SettingsConfigDict(env_file=("../.env", ".env"), extra="ignore")
 
     DATABASE_URL: str
     JWT_SECRET: str
@@ -35,6 +42,16 @@ class Settings(BaseSettings):
     @property
     def effective_neo4j_user(self) -> str:
         return self.NEO4J_USERNAME or self.NEO4J_USER or "neo4j"
+
+    # Which engine is authoritative for the novelty score on a report.
+    #   corpus -> always use the in-memory/CSV corpus index (default). Neo4j
+    #             is a visualization-only layer and never affects the score,
+    #             so the same submission scores the same regardless of Neo4j
+    #             uptime.
+    #   auto   -> try Neo4j first, fall back to the corpus index on failure.
+    #   neo4j  -> require Neo4j; raises on failure (old crash-on-failure
+    #             behavior — only for explicit strict-mode testing).
+    NOVELTY_GRAPH_BACKEND: Literal["auto", "corpus", "neo4j"] = "corpus"
 
     REDIS_URL: str = "redis://localhost:6379/0"
     GROBID_URL: str = "http://localhost:8070"

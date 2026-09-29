@@ -50,6 +50,10 @@ export interface ScoringMetadata {
   evidence_quality: 'empty' | 'limited' | 'adequate';
   candidate_preexisting_in_graph: boolean;
   candidate_excluded_from_snapshot: boolean;
+  // Which engine actually produced this score -- "in-memory-corpus" (the
+  // default) or "neo4j". Absent on reports generated before this field
+  // existed. See NOVELTY_GRAPH_BACKEND in the backend config.
+  graph_backend?: 'in-memory-corpus' | 'neo4j';
 }
 
 export interface NoveltyReportData {
@@ -310,6 +314,18 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
       <div className="bg-indigo-950/60 p-6 rounded-2xl border border-indigo-800 shadow-xl space-y-4">
         <h3 className="text-base font-bold text-indigo-200 flex items-center gap-2">
           <Database className="w-5 h-5 text-gold-400" /> Historical Evidence Used
+          {report.scoring_metadata?.graph_backend && (
+            <span
+              className={`ml-auto px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full border ${
+                report.scoring_metadata.graph_backend === 'neo4j'
+                  ? 'bg-purple-500/10 text-purple-300 border-purple-700'
+                  : 'bg-emerald-500/10 text-emerald-300 border-emerald-700'
+              }`}
+              title="Which engine computed this score -- Neo4j (graph visualization source) or the in-memory CSV corpus index (default scoring engine)"
+            >
+              Scored via {report.scoring_metadata.graph_backend === 'neo4j' ? 'Neo4j graph' : 'corpus index'}
+            </span>
+          )}
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           <div className="p-4 bg-slate-900/90 rounded-xl border border-emerald-800/80 space-y-2">

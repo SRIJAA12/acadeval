@@ -6,8 +6,9 @@ Single source of truth for the Celery instance.  Both the FastAPI process
 import from this module, so there is no risk of configuration drift.
 
 Beat schedule (requires running:  celery -A app.worker beat):
-  - Weekly  trend refresh     — every Sunday at 00:00 UTC
-  - Nightly correlation run   — every night   at 02:00 UTC
+  - Weekly  trend refresh       — every Sunday at 00:00 UTC
+  - Nightly correlation run     — every night   at 02:00 UTC
+  - Pending Neo4j sync retry    — every 15 minutes
 """
 
 from celery import Celery
@@ -56,6 +57,11 @@ celery_app.conf.beat_schedule = {
     "nightly-score-correlation": {
         "task": "scheduled.nightly_correlation",
         "schedule": crontab(hour=2, minute=0),
+        "options": {"queue": "periodic"},
+    },
+    "retry-pending-neo4j-sync": {
+        "task": "scheduled.retry_pending_neo4j_sync",
+        "schedule": 900.0,  # every 15 minutes
         "options": {"queue": "periodic"},
     },
 }

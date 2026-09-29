@@ -10,10 +10,15 @@ extracts), connected via HAS_DOMAIN/HAS_SUBDOMAIN/SUBDOMAIN_OF/USES_*/
 TARGETS_APPLICATION/EVALUATED_BY edges, with a derived CO_OCCURS edge between
 every pair of entities used together on the same project.
 
-There is deliberately no in-memory/NetworkX fallback here: the novelty engine
-(Module 4) reads directly from Neo4j, so a project that can't be written to
-Neo4j must fail loudly (GraphUnavailableError) rather than silently drifting
-onto a second, ephemeral source of truth.
+Neo4j is a VISUALIZATION layer only as of the NOVELTY_GRAPH_BACKEND change
+(app/config.py) -- the novelty score shown on a report comes from the
+in-memory corpus index (app/services/corpus_index.py) by default, not from
+this graph, so a Neo4j outage no longer blocks scoring. This class still has
+no in-memory fallback of its own for the graph WRITE path: session() still
+raises GraphUnavailableError when Neo4j can't be reached, and
+graph_builder.ingest_project_to_relational_graph() is responsible for making
+sure that failure only skips the Neo4j-specific write (marking it for later
+retry) rather than losing the Postgres graph_nodes/graph_edges write too.
 """
 
 import hashlib

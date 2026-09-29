@@ -1,18 +1,30 @@
-"""Versioned graph novelty scoring against a frozen historical snapshot.
+"""Versioned novelty scoring against a frozen historical snapshot.
 
 The candidate project is deliberately not inserted before this service runs.
-All Neo4j reads execute inside one read transaction, so the five signals use
-the same historical graph even while other workers ingest completed projects.
+
+Two scoring engines share the same five formulas (novelty_math.py) and the
+same output contract (see compute_novelty_signals):
+  - corpus (default, settings.NOVELTY_GRAPH_BACKEND): the in-memory index
+    over datasets/AcadEval_Corpus_MASTER.csv (corpus_index.py). Always
+    available, no external service required.
+  - neo4j: the graph in Neo4j Aura, read inside one transaction so the five
+    signals see the same historical graph even while other workers ingest
+    completed projects. Optional -- used for "auto" fallback or "neo4j"
+    strict mode; Neo4j itself remains the source of truth for the graph
+    *visualization* UI regardless of which engine scores a given submission.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from datetime import datetime, timezone
 from itertools import combinations
 
-from app.services.graph_db import CATEGORY_EDGE_MAP, ENTITY_LABELS, graph_service
+from app.config import settings
+from app.services.corpus_index import get_corpus_index
+from app.services.graph_db import CATEGORY_EDGE_MAP, ENTITY_LABELS, GraphUnavailableError, graph_service
 from app.services.novelty_math import (
     combine_signals,
     feature_rarity,
@@ -22,7 +34,16 @@ from app.services.novelty_math import (
     relationship_rarity,
 )
 
-SCORING_METHOD_VERSION = "graph-novelty-v2.0"
+log = logging.getLogger(__name__)
+
+# Bumped from v2.0 -> v2.1: the corpus-index fallback (Task: "make novelty
+# scoring always succeed") means a project scored before this change and one
+# scored after may have taken different code paths even under identical
+# settings, so cached evidence from before this version is invalidated and
+# recomputed once. Both engines share one version string on purpose --
+# graph_backend (in scoring_metadata) records which engine actually ran,
+# rather than forking the version per engine.
+SCORING_METHOD_VERSION = "graph-novelty-v2.1"
 COMBINER_METHOD = "unweighted-mean-v2"
 SIMILAR_PROJECTS_TOP_K = 5
 ADEQUATE_CORPUS_SIZE = 30
@@ -50,6 +71,42 @@ class NoveltyEngineService:
         return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
 
     def compute_novelty_signals(
+        self,
+        project_id: str,
+        extracted_entities: dict,
+        domain: str,
+        sub_domain: str = "",
+    ) -> dict:
+        """Score a candidate against historical evidence. Dispatches to the
+        engine selected by settings.NOVELTY_GRAPH_BACKEND (default "corpus"
+        -- see app/config.py). Neo4j, when used, is wrapped so its outage
+        falls back to the corpus index instead of aborting the caller
+        (pipeline.task_score_and_report / report_generator) with an
+        unhandled GraphUnavailableError.
+        """
+        backend = settings.NOVELTY_GRAPH_BACKEND
+
+        if backend in ("auto", "neo4j"):
+            try:
+                result = self._compute_via_neo4j(project_id, extracted_entities, domain, sub_domain)
+                result["scoring_metadata"]["graph_backend"] = "neo4j"
+                log.info("novelty_engine: scored %s via neo4j", project_id)
+                return result
+            except GraphUnavailableError as exc:
+                if backend == "neo4j":
+                    raise  # strict mode: caller explicitly wants crash-on-failure
+                log.warning(
+                    "novelty_engine: Neo4j unavailable for %s (%s) -- falling back to in-memory corpus index",
+                    project_id, exc,
+                )
+            except Exception:
+                if backend == "neo4j":
+                    raise
+                log.exception("novelty_engine: unexpected Neo4j error for %s -- falling back", project_id)
+
+        return self._compute_via_corpus(project_id, extracted_entities, domain, sub_domain)
+
+    def _compute_via_neo4j(
         self,
         project_id: str,
         extracted_entities: dict,
@@ -116,6 +173,140 @@ class NoveltyEngineService:
             "novelty_band": novelty_band,
             "explanation_bullets": explanation_bullets,
             "similar_projects": evidence["similar_projects"],
+            "distance_method": "nearest-neighbour-jaccard-v2",
+            "density_method": "historical-neighborhood-saturation-v2",
+            "scoring_metadata": metadata,
+        }
+
+    def _compute_via_corpus(
+        self,
+        project_id: str,
+        extracted_entities: dict,
+        domain: str,
+        sub_domain: str = "",
+    ) -> dict:
+        """Score against datasets/AcadEval_Corpus_MASTER.csv via CorpusIndex.
+        Adapts CorpusIndex.compute_signals()'s own return contract (status /
+        composite_score / band / signals dict -- see corpus_index.py, kept
+        exactly as its own tests expect) into the shape pipeline.py and
+        report_generator.py already rely on from this method, so neither
+        needed to change.
+        """
+        index = get_corpus_index()
+
+        algorithms = list(extracted_entities.get("algorithms", []))
+        # The corpus CSV models one "tech stack" bucket; frameworks/libraries
+        # fold into it. Hardware/metrics have no analog in the corpus data
+        # and are intentionally left out of the comparison rather than
+        # counted as guaranteed-zero-overlap noise against every project.
+        technologies = (
+            list(extracted_entities.get("technologies", []))
+            + list(extracted_entities.get("frameworks", []))
+            + list(extracted_entities.get("libraries", []))
+        )
+        datasets = list(extracted_entities.get("datasets", []))
+        applications = list(extracted_entities.get("applications", []))
+        application = applications[0] if applications else ""
+
+        result = index.compute_signals(
+            domain=domain, subdomain=sub_domain,
+            algorithms=algorithms, technologies=technologies,
+            datasets=datasets, application=application,
+        )
+
+        corpus_size = result["corpus_size"]
+        signals = result.get("signals", {})
+
+        if result["status"] == "insufficient_extracted_evidence":
+            novelty_band = "Insufficient Extracted Evidence"
+            evidence_quality = "empty"
+        elif result["status"] == "insufficient_historical_evidence":
+            novelty_band = "Insufficient Historical Evidence"
+            evidence_quality = "empty"
+        elif corpus_size < ADEQUATE_CORPUS_SIZE:
+            novelty_band = result["band"]
+            evidence_quality = "limited"
+        else:
+            novelty_band = result["band"]
+            evidence_quality = "adequate"
+
+        # A candidate with fewer than 2 total entities can leave S3/S5
+        # individually undefined (no pair exists to rate) even though the
+        # overall status is "ok". Substitute the same neutral 0.5 the Neo4j
+        # path already uses for its insufficient-evidence case, and
+        # recompute the composite from these exact 5 values so the displayed
+        # signals and the displayed composite always agree (CorpusIndex's
+        # own composite silently drops None signals from the average instead
+        # of neutralizing them -- fine for its own contract, not for this
+        # one, which always shows all five).
+        raw = [
+            signals.get("S1_nearest_project_distance"),
+            signals.get("S2_feature_rarity"),
+            signals.get("S3_relationship_rarity"),
+            signals.get("S4_neighborhood_sparsity"),
+            signals.get("S5_new_connection_discovery"),
+        ]
+        signal_1, signal_2, signal_3, signal_4, signal_5 = [v if v is not None else 0.5 for v in raw]
+        composite_score = combine_signals([signal_1, signal_2, signal_3, signal_4, signal_5])
+
+        similar_projects = [
+            {"project_id": m["project_id"], "title": m["title"], "similarity_score": m["similarity_score"]}
+            for m in result.get("similar_projects", [])
+        ]
+
+        captured_at = datetime.now(timezone.utc).isoformat()
+        metadata = {
+            "method_version": SCORING_METHOD_VERSION,
+            "combiner": COMBINER_METHOD,
+            "corpus_snapshot_id": result.get("csv_snapshot_id", "unknown"),
+            "corpus_project_count": corpus_size,
+            "snapshot_captured_at": captured_at,
+            "top_k": SIMILAR_PROJECTS_TOP_K,
+            "evidence_quality": evidence_quality,
+            "candidate_preexisting_in_graph": project_id in index.projects,
+            "candidate_excluded_from_snapshot": True,
+            "graph_backend": "in-memory-corpus",
+        }
+
+        explanation_bullets = [
+            f"Nearest-project distance ({signal_1 * 100:.1f}%): closest entity-set match in the historical CSV corpus, so a near duplicate cannot be hidden by unrelated projects.",
+            f"Feature rarity ({signal_2 * 100:.1f}%): frequency of the extracted features across {corpus_size} historical corpus projects.",
+            f"Relationship rarity ({signal_3 * 100:.1f}%): historical co-occurrence frequency for the candidate's feature pairs.",
+            f"Neighborhood sparsity ({signal_4 * 100:.1f}%): inverse saturation of the candidate's domain/sub-domain neighborhood.",
+            f"New-connection discovery ({signal_5 * 100:.1f}%): unseen pairings among features that are individually established in the corpus.",
+            f"Scored via the in-memory corpus index (Neo4j unavailable or not selected) against {corpus_size} historical projects.",
+        ]
+        if result.get("flags", {}).get("s5_all_entities_novel_to_corpus"):
+            explanation_bullets.append(
+                "Every extracted feature is itself unprecedented in the corpus, so the combination is treated as maximally novel by definition."
+            )
+
+        # Grow the in-memory index immediately so the next submission scored
+        # in this same process sees this one as historical context, without
+        # waiting for a CSV reload.
+        if result["status"] == "ok":
+            try:
+                candidate_entity_keys = set()
+                for kind, names in (("algo", algorithms), ("tech", technologies), ("data", datasets)):
+                    for name in names:
+                        if str(name).strip():
+                            candidate_entity_keys.add(f"{kind}:{name.strip().lower()}")
+                if application:
+                    candidate_entity_keys.add(f"app:{application.strip().lower()}")
+                index.add_project(project_id, domain, sub_domain, candidate_entity_keys)
+            except Exception:
+                log.exception("novelty_engine: failed to grow corpus index with %s (non-fatal)", project_id)
+
+        return {
+            "signal_1_graph_distance": signal_1,
+            "signal_2_feature_rarity": signal_2,
+            "signal_3_relationship_rarity": signal_3,
+            "signal_4_graph_density": signal_4,
+            "signal_5_new_connection_discovery": signal_5,
+            "composite_novelty_score": composite_score,
+            "novelty_band": novelty_band,
+            "explanation_bullets": explanation_bullets,
+            "similar_projects": similar_projects,
             "distance_method": "nearest-neighbour-jaccard-v2",
             "density_method": "historical-neighborhood-saturation-v2",
             "scoring_metadata": metadata,

@@ -65,6 +65,25 @@ def on_startup():
     except Exception as e:
         log.warning("Neo4j constraints check skipped: %s", e)
 
+    # Eager warm-up: load the in-memory corpus index (the default novelty
+    # scoring engine, settings.NOVELTY_GRAPH_BACKEND) now, not on the first
+    # submission. A broken CSV path/format then fails loudly at boot with a
+    # clear traceback instead of surfacing as a mysterious 500 on someone's
+    # first real submission.
+    from app.services.corpus_index import get_corpus_index
+    index = get_corpus_index()
+    log.info(
+        "Corpus index warmed: %d projects loaded from %s",
+        index.n_projects, index.csv_path,
+    )
+    if index.n_projects == 0:
+        log.warning(
+            "Corpus index loaded 0 projects (csv_path=%s) -- the corpus "
+            "scoring engine will return 'insufficient_historical_evidence' "
+            "for every submission until this is fixed.",
+            index.csv_path,
+        )
+
 
 @app.on_event("shutdown")
 def on_shutdown():

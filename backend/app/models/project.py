@@ -79,6 +79,13 @@ class Project(Base):
     # Stage 5 — Step-level progress & error details for frontend live progress
     pipeline_step_detail: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
+    # Novelty-engine fix — set when this project's Postgres graph write
+    # succeeded but the Neo4j sync failed (Neo4j down/unreachable). A
+    # periodic task retries these; Neo4j visualization data for this project
+    # is stale/missing until it clears. Never blocks scoring or the pipeline
+    # reaching "Complete" -- see app/services/graph_builder.py.
+    pending_neo4j_sync: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     # Relationships
     student: Mapped["User"] = relationship(
         "User", back_populates="projects", foreign_keys=[student_id]
