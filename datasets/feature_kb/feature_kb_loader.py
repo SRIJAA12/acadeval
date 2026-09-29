@@ -10,8 +10,7 @@ import logging
 from functools import lru_cache
 from pathlib import Path
 
-import pandas as pd
-
+# pandas is imported lazily inside load_feature_dataframe if needed
 log = logging.getLogger(__name__)
 
 KB_DIR = Path(__file__).parent
@@ -29,8 +28,9 @@ def load_feature_list() -> list[dict]:
 
 
 @lru_cache(maxsize=1)
-def load_feature_dataframe() -> pd.DataFrame:
+def load_feature_dataframe():
     """Load Feature KB as a pandas DataFrame."""
+    import pandas as pd
     return pd.DataFrame(load_feature_list())
 
 

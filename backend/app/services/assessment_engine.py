@@ -87,6 +87,7 @@ def weighted_mean(parts: Iterable[tuple[float | None, float]]) -> float | None:
 
 
 def grade_for(score: float | None) -> str:
+    """Map a 0-100 composite score to a letter grade per the AcadEval+ rubric."""
     if score is None:
         return "N/A"
     if score >= 90:
@@ -95,25 +96,33 @@ def grade_for(score: float | None) -> str:
         return "A"
     if score >= 70:
         return "B"
-    if score >= 60:
-        return "C"
-    if score >= 50:
-        return "D"
-    return "Needs Work"
+    return "C / Requires Improvement"
 
 
 def overall_score(scores: Mapping[str, float | None]) -> float | None:
-    """Apply the documented rubric, treating similarity as a risk/penalty."""
+    """
+    Apply the AcadEval+ rubric v1.1 weight schedule.
+    Similarity risk is inverted to an Originality bonus.
+
+    Weight breakdown (must total 1.00):
+      Novelty               0.20
+      Technical Depth       0.20
+      Feasibility           0.15
+      Completeness          0.15
+      Clarity               0.10
+      Originality (1-risk)  0.10
+      Publication Potential 0.10
+    """
     risk = scores.get("similarity_risk")
     originality = None if risk is None else 100.0 - float(risk)
     return weighted_mean((
-        (scores.get("novelty"), 0.20),
-        (scores.get("feasibility"), 0.20),
-        (scores.get("completeness"), 0.15),
-        (scores.get("technical_depth"), 0.20),
-        (scores.get("clarity"), 0.10),
-        (originality, 0.10),
-        (scores.get("publication_potential"), 0.05),
+        (scores.get("novelty"),               0.20),
+        (scores.get("technical_depth"),        0.20),
+        (scores.get("feasibility"),            0.15),
+        (scores.get("completeness"),           0.15),
+        (scores.get("clarity"),                0.10),
+        (originality,                           0.10),
+        (scores.get("publication_potential"),  0.10),
     ))
 
 
@@ -346,7 +355,17 @@ class AssessmentEngine:
         nearest_similarity = 0.0
         if similar_projects:
             nearest_similarity = max(float(item.get("similarity_score", 0.0) or 0.0) for item in similar_projects)
-        similarity_risk = _clamp(nearest_similarity * 100.0)
+        similarity_internal = _clamp(nearest_similarity * 100.0)
+
+        # External similarity from citation analysis or external corpus search
+        similarity_external = 0.0
+        if isinstance(citation_analysis, Mapping):
+            ext_score = citation_analysis.get("external_similarity_percent") or citation_analysis.get("similarity_percent")
+            if ext_score is not None:
+                similarity_external = _clamp(float(ext_score))
+
+        # Specification: 70% Internal + 30% External
+        similarity_risk = _clamp(round(0.70 * similarity_internal + 0.30 * similarity_external, 2))
         originality = 100.0 - similarity_risk
 
         citation_quality = _citation_quality(citation_analysis)
@@ -421,6 +440,8 @@ class AssessmentEngine:
                 "technical_depth": technical["score"],
                 "clarity": _clamp(clarity) if clarity is not None else None,
                 "similarity_risk": similarity_risk,
+                "similarity_internal": similarity_internal,
+                "similarity_external": similarity_external,
                 "publication_potential": publication_potential,
                 "overall": overall,
             },
@@ -437,6 +458,9 @@ class AssessmentEngine:
                 "status": citation_analysis.get("status", "no_data"),
             },
             "similarity": {
+                "similarity_risk": similarity_risk,
+                "similarity_internal": similarity_internal,
+                "similarity_external": similarity_external,
                 "nearest_similarity_percent": similarity_risk,
                 "nearest_projects": similar_projects[:5],
             },

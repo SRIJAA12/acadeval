@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from app.dependencies import DB, CurrentFaculty, CurrentHOD
 from app.models.project import Project, PipelineStatus
-from app.models.evaluation import EvaluationReport, HistoricalScore
+from app.models.evaluation import EvaluationReport, HistoricalScore, ScoreOverrideHistory
 from app.models.user import User, UserRole
 from app.schemas.dashboard import FacultyDashboardStats, HODDeptStats, SemesterBenchmark, ActivityItem
 
@@ -60,17 +60,68 @@ def hod_dashboard(current_user: CurrentHOD, db: DB):
 
     # Domain distribution
     domain_rows = db.query(Project.domain, func.count(Project.id)).group_by(Project.domain).all()
-    domain_dist = {row[0]: row[1] for row in domain_rows}
+    domain_dist = {row[0]: row[1] for row in domain_rows if row[0]}
 
-    # Trend (stub — real trend in Phase 2 from historical_scores)
-    trend_data = [
-        {"month": "Jan", "avgScore": avg_score * 0.92},
-        {"month": "Feb", "avgScore": avg_score * 0.95},
-        {"month": "Mar", "avgScore": avg_score * 0.97},
-        {"month": "Apr", "avgScore": avg_score * 0.98},
-        {"month": "May", "avgScore": avg_score * 0.99},
-        {"month": "Jun", "avgScore": avg_score},
-    ]
+    # Real trend data from project submissions
+    try:
+        monthly_rows = (
+            db.query(
+                func.to_char(Project.submitted_on, 'Mon').label("month"),
+                func.date_trunc('month', Project.submitted_on).label("month_date"),
+                func.avg(EvaluationReport.overall_score).label("avg_score")
+            )
+            .join(EvaluationReport, EvaluationReport.project_id == Project.id)
+            .filter(EvaluationReport.overall_score > 0)
+            .group_by(func.to_char(Project.submitted_on, 'Mon'), func.date_trunc('month', Project.submitted_on))
+            .order_by(func.date_trunc('month', Project.submitted_on))
+            .all()
+        )
+        if monthly_rows:
+            trend_data = [
+                {"month": row.month, "avgScore": round(float(row.avg_score), 1)}
+                for row in monthly_rows
+            ]
+        else:
+            # Fallback to historical_scores if available
+            hist_rows = (
+                db.query(
+                    HistoricalScore.semester,
+                    func.avg(HistoricalScore.score).label("avg_score")
+                )
+                .filter(HistoricalScore.dimension == "overall")
+                .group_by(HistoricalScore.semester)
+                .all()
+            )
+            trend_data = [
+                {"month": row.semester, "avgScore": round(float(row.avg_score), 1)}
+                for row in hist_rows
+            ]
+    except Exception:
+        trend_data = []
+
+    # Recent score overrides across all projects for audit oversight
+    try:
+        overrides = (
+            db.query(ScoreOverrideHistory)
+            .order_by(ScoreOverrideHistory.timestamp.desc())
+            .limit(10)
+            .all()
+        )
+        recent_overrides = [
+            {
+                "id": str(ov.id),
+                "projectId": str(ov.project_id),
+                "dimension": ov.dimension,
+                "oldValue": ov.old_value,
+                "newValue": ov.new_value,
+                "changedByName": ov.changed_by_name,
+                "comment": ov.comment,
+                "timestamp": ov.timestamp.isoformat() if ov.timestamp else "",
+            }
+            for ov in overrides
+        ]
+    except Exception:
+        recent_overrides = []
 
     return HODDeptStats(
         totalStudents=total_students,
@@ -80,6 +131,7 @@ def hod_dashboard(current_user: CurrentHOD, db: DB):
         avgScore=avg_score,
         domainDistribution=domain_dist,
         trendData=trend_data,
+        recentOverrides=recent_overrides,
     )
 
 

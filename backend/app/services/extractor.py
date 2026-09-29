@@ -21,9 +21,15 @@ import sys
 from pathlib import Path
 
 from app.services.llm_client import call_gemini_json
+from app.services.entity_normalizer import canonicalize_extracted_entities
 
-# Add feature_kb directory to sys.path
-FEATURE_KB_DIR = Path(__file__).resolve().parents[3] / "datasets" / "feature_kb"
+# Robustly find feature_kb directory in Docker (/datasets/feature_kb) or local host
+_possible_kb_dirs = [
+    Path("/datasets/feature_kb"),
+    Path(__file__).resolve().parents[3] / "datasets" / "feature_kb",
+    Path(__file__).resolve().parents[2] / "datasets" / "feature_kb",
+]
+FEATURE_KB_DIR = next((p for p in _possible_kb_dirs if p.exists()), _possible_kb_dirs[0])
 if str(FEATURE_KB_DIR) not in sys.path:
     sys.path.insert(0, str(FEATURE_KB_DIR))
 
@@ -85,23 +91,7 @@ class FeatureExtractorService:
                 log.warning("Failed to initialize spaCy EntityRuler (%s). Using regex extractor fallback.", e)
                 self.nlp = None
 
-        # Pre-compute FeatureKB BERT embeddings for the similarity pass (Step 4)
-        if _SBERT_AVAILABLE and load_feature_list:
-            try:
-                self._sbert_model = SentenceTransformer("all-MiniLM-L6-v2")
-                feats = load_feature_list()
-                self._kb_names = [f["name"] for f in feats]
-                # Build one embedding per KB entry (name + aliases joined)
-                texts = [
-                    " ".join([f["name"]] + f.get("aliases", []))
-                    for f in feats
-                ]
-                self._kb_embeddings = self._sbert_model.encode(texts, convert_to_tensor=True)
-                log.info("Pre-computed BERT embeddings for %d FeatureKB entries.", len(feats))
-            except Exception as e:
-                log.warning("BERT similarity pass disabled — failed to load SentenceTransformer: %s", e)
-                self._sbert_model = None
-
+        # SBERT is loaded lazily on demand for unmatched spans (avoids blocking startup)
         self._initialized = True
 
     def extract_from_full_proposal(self, title: str, abstract: str, body: str = "") -> dict:
@@ -183,21 +173,40 @@ class FeatureExtractorService:
             text_lower = text.lower()
             for feat in feats:
                 name = feat["name"]
+                name_l = name.lower()
                 cat = feat["category"].lower()
                 cat_key = f"{cat}s" if not cat.endswith("s") else cat
 
-                # Check main name and aliases
+                # Fast substring pre-check before regex boundary search
                 matched = False
-                if re.search(r'\b' + re.escape(name.lower()) + r'\b', text_lower):
+                if name_l in text_lower and re.search(r'\b' + re.escape(name_l) + r'\b', text_lower):
                     matched = True
                 else:
                     for alias in feat.get("aliases", []):
-                        if alias and re.search(r'\b' + re.escape(alias.lower()) + r'\b', text_lower):
-                            matched = True
-                            break
+                        if alias:
+                            alias_l = alias.lower()
+                            if alias_l in text_lower and re.search(r'\b' + re.escape(alias_l) + r'\b', text_lower):
+                                matched = True
+                                break
 
                 if matched and cat_key in extracted_by_cat:
                     extracted_by_cat[cat_key].add(name)
+
+        # ── Step 2b: Dedicated Dataset & Benchmark Discovery ─────────────────────
+        dataset_patterns = [
+            r"\b(AcadEval[_\s]*(?:Corpus(?:_MASTER)?|Historical[_\s]*Corpus|Master[_\s]*Corpus|Domain[_\s]*Taxonomy|Feature[_\s]*Knowledge[_\s]*Base|SimBench|Trend[_\s]*Base))\b",
+            r"\b(Historical[_\s]+Corpus)\b",
+            r"\b(Domain[_\s]+Taxonomy)\b",
+            r"\b(Feature[_\s]+Knowledge[_\s]*Base)\b",
+            r"\b(SimBench(?:[_\s]+Benchmark)?)\b",
+            r"\b(Trend[_\s]*Base)\b",
+            r"\b([A-Z][a-zA-Z0-9_\-]+(?:\s+[A-Z][a-zA-Z0-9_\-]+)*\s+(?:Dataset|Corpus|Benchmark|Knowledge[_\s]+Base|Data[_\s]+Bank))\b",
+        ]
+        for pat in dataset_patterns:
+            for match in re.finditer(pat, text, flags=re.IGNORECASE):
+                cand = re.sub(r"\s+", " ", match.group(1)).strip()
+                if len(cand) >= 4 and not re.search(r"\b(Project|Section|Module|System|Architecture|Evaluation)\b", cand, re.I):
+                    extracted_by_cat["datasets"].add(cand)
 
         # De-dup unmatched candidates and drop any that a known feature already covers
         known_names_lower = {n.lower() for cat in extracted_by_cat.values() for n in cat}
@@ -217,7 +226,7 @@ class FeatureExtractorService:
         # ── Step 4: LLM verification for spans still unresolved after BERT ───────
         still_unmatched = self._verify_unmatched_spans(after_bert, extracted_by_cat)
 
-        return {
+        raw_result = {
             "algorithms": sorted(list(extracted_by_cat["algorithms"])),
             "technologies": sorted(list(extracted_by_cat["technologies"])),
             "frameworks": sorted(list(extracted_by_cat["frameworks"])),
@@ -229,6 +238,9 @@ class FeatureExtractorService:
             "unmatched_spans": still_unmatched,
             "all_extracted": all_extracted
         }
+        cleaned_result = canonicalize_extracted_entities(raw_result)
+        cleaned_result["all_extracted"] = all_extracted
+        return cleaned_result
 
     def _bert_similarity_pass(self, spans: list[str], extracted_by_cat: dict) -> tuple[list[str], int]:
         """

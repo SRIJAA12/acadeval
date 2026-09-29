@@ -26,6 +26,7 @@ class HODDeptStats(BaseModel):
     avgScore: float
     domainDistribution: dict[str, int]
     trendData: list[dict]
+    recentOverrides: list[dict] = []
 
 
 class SemesterBenchmark(BaseModel):

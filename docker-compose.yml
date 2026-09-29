@@ -40,7 +40,6 @@ services:
     restart: unless-stopped
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
       NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
       NEO4J_dbms_security_procedures_unrestricted: "apoc.*,gds.*"
       NEO4J_dbms_security_procedures_allowlist: "apoc.*,gds.*"
@@ -53,7 +52,7 @@ services:
       - neo4j_data:/data
       - neo4j_logs:/logs
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$$NEO4J_PASSWORD\" 'RETURN 1' || exit 1"]
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p '${NEO4J_PASSWORD}' 'RETURN 1' || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 15
@@ -75,6 +74,7 @@ services:
   api:
     build:
       context: ./backend
+    image: acadeval_backend:latest
     container_name: acadeval_api
     restart: unless-stopped
     command: sh -c "alembic upgrade head && python scripts/seed.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
@@ -116,8 +116,7 @@ services:
       start_period: 20s
 
   worker:
-    build:
-      context: ./backend
+    image: acadeval_backend:latest
     container_name: acadeval_worker
     restart: unless-stopped
     command: celery -A app.worker worker --loglevel=info --queues=pipeline,periodic --concurrency=2
@@ -140,8 +139,7 @@ services:
         condition: service_healthy
 
   beat:
-    build:
-      context: ./backend
+    image: acadeval_backend:latest
     container_name: acadeval_beat
     restart: unless-stopped
     command: celery -A app.worker beat --loglevel=info

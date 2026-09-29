@@ -16,14 +16,17 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, Response
 from app.dependencies import DB, CurrentUser, CurrentFacultyOrHOD
+from app.models.project import Project
 from app.services.graph_networkx import (
     get_cached_graph,
     get_graph_metrics,
     export_d3_graph,
     get_node_neighborhood,
     invalidate_graph_cache,
+    export_project_d3_graph,
+    export_comparison_d3_graph,
 )
-from app.services.graph_builder import bulk_rebuild_graph
+from app.services.graph_builder import bulk_rebuild_graph, ingest_project_to_relational_graph
 
 log = logging.getLogger(__name__)
 
@@ -131,3 +134,84 @@ def export_graph_data(current_user: CurrentUser, db: DB):
     except Exception as e:
         log.error("Graph export failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Export failed: {e}")
+
+
+@router.get("/project/{project_id}", summary="Get isolated Knowledge Graph for a single project")
+def get_project_graph(project_id: str, current_user: CurrentUser, db: DB):
+    """
+    Returns the project-scoped graph: Project node, Domain/Subdomain,
+    extracted entity nodes (Algorithms, Technologies, Frameworks, etc.),
+    and their intra-project relationships.
+    """
+    try:
+        data = export_project_d3_graph(db, project_id)
+        if "error" in data:
+            raise HTTPException(status_code=404, detail=data["error"])
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Failed to export project graph for %s: %s", project_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to load project graph: {e}")
+
+
+@router.get("/comparison/{project_id}", summary="Get comparison Knowledge Graph between project and related projects")
+def get_comparison_graph(
+    project_id: str,
+    current_user: CurrentUser,
+    db: DB,
+    distance_threshold: float = Query(0.5, ge=0.0, le=1.0, description="Max Jaccard distance threshold for related projects"),
+):
+    """
+    Returns a unified comparison graph highlighting:
+    - Target project nodes and links
+    - Similar/related project nodes and links
+    - Overlapping/shared entities between projects
+    - Sets related_project_available=False if no project meets distance threshold
+    """
+    try:
+        data = export_comparison_d3_graph(db, project_id, distance_threshold=distance_threshold)
+        return data
+    except Exception as e:
+        log.error("Failed to export comparison graph for %s: %s", project_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to load comparison graph: {e}")
+
+
+@router.post("/rebuild/{project_id}", summary="Reconstruct Knowledge Graph for a single project")
+def rebuild_project_graph(project_id: str, current_user: CurrentFacultyOrHOD, db: DB):
+    """
+    Reconstructs the PostgreSQL and Neo4j graph nodes and edges specifically
+    for the selected project.
+    """
+    proj = db.query(Project).filter(Project.id == project_id).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
+
+    from app.services.entity_normalizer import canonicalize_extracted_entities
+    entities = canonicalize_extracted_entities(proj.extracted_entities or {})
+    proj.extracted_entities = entities
+    db.add(proj)
+    db.commit()
+
+    domain = entities.get("domain", proj.domain or "General CSE")
+    sub_domain = entities.get("sub_domain", "Machine Learning")
+
+    try:
+        res = ingest_project_to_relational_graph(
+            db=db,
+            project_id=str(proj.id),
+            title=proj.title or "",
+            domain=domain,
+            sub_domain=sub_domain,
+            extracted_entities=entities,
+        )
+        invalidate_graph_cache()
+        return {
+            "status": "rebuilt",
+            "project_id": str(proj.id),
+            "result": res,
+        }
+    except Exception as e:
+        log.error("Single project graph rebuild failed for %s: %s", project_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Graph rebuild failed: {e}")
+

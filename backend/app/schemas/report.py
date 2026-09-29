@@ -1,5 +1,5 @@
 from typing import Optional, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.models.project import SubmissionType, PipelineStatus
 
 
@@ -51,8 +51,10 @@ class PublicEvaluationReport(BaseModel):
     submissionType: SubmissionType
     pipelineStatus: PipelineStatus
     isPreliminary: bool
-    overallScore: float
+    overallScore: Optional[float]   # None when evaluation is not yet published
     grade: str
+    publishedAt: Optional[str] = None   # ISO timestamp of faculty publication
+    publishedBy: Optional[str] = None   # Faculty name who published
     dimensionScores: DimensionScores
     missingSections: list[str]
     similarity: SimilarityInfo
@@ -111,3 +113,8 @@ class ScoreOverrideRequest(BaseModel):
 
 class AddNoteRequest(BaseModel):
     text: str
+
+class FacultyReviewRequest(BaseModel):
+    faculty_score: float = Field(ge=1, le=10)
+    override_reason: str | None = None
+    is_confirmed: bool = True

@@ -36,6 +36,7 @@ import PublicationWorkflow from './pages/faculty/PublicationWorkflow';
 
 // HOD pages
 import DeptOverview from './pages/hod/DeptOverview';
+import HODProjectList from './pages/hod/HODProjectList';
 import RubricManagement from './pages/hod/RubricManagement';
 import LeaderboardAdmin from './pages/hod/LeaderboardAdmin';
 import UserManagement from './pages/hod/UserManagement';
@@ -150,6 +151,8 @@ const AppRoutes: React.FC = () => {
             <HODLayout>
               <Routes>
                 <Route path="overview" element={<DeptOverview />} />
+                <Route path="projects" element={<HODProjectList />} />
+                <Route path="report/:projectId" element={<ProjectReportView />} />
                 <Route path="rubrics" element={<RubricManagement />} />
                 <Route path="leaderboard" element={<LeaderboardAdmin />} />
                 <Route path="users" element={<UserManagement />} />

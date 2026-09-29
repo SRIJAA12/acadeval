@@ -22,3 +22,10 @@ build/
 
 # OS
 .DS_Store
+# Python virtual environments
+.venv/
+backend/.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]

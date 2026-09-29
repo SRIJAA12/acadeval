@@ -188,6 +188,7 @@ def get_novelty_report(
     project_id: uuid.UUID,
     current_user: CurrentUser,
     db: DB,
+    distance_threshold: float = Query(0.5, ge=0.0, le=1.0, description="Max Jaccard distance threshold for related projects"),
 ):
     """Return the persisted report produced by the async pipeline (read-only)."""
     project = _get_project_or_404(project_id, db)
@@ -198,7 +199,18 @@ def get_novelty_report(
             status_code=409,
             detail="Novelty report is not ready. Poll the project pipeline status and retry when ready=true.",
         )
-    return project.evaluation.novelty_report
+    rep = dict(project.evaluation.novelty_report)
+    sims = rep.get("most_similar_projects", [])
+    valid_sims = [
+        s for s in sims
+        if str(s.get("project_id", "")).strip() and str(s.get("project_id", "")).strip() != str(project_id)
+        and (1.0 - float(s.get("similarity_score", 0.0))) <= distance_threshold
+    ]
+    rep["distance_threshold"] = distance_threshold
+    rep["related_project_available"] = len(valid_sims) > 0
+    if not rep["related_project_available"]:
+        rep["related_project_message"] = "Related project is not available within the specified distance threshold."
+    return rep
 
 
 @router.post("/faculty-review", summary="Module 7: Faculty Review Ground Truth Submission")

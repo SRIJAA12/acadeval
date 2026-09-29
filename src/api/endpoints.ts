@@ -298,3 +298,24 @@ export const rebuildKnowledgeGraph = async () => {
   const { data } = await apiClient.post('/graph/rebuild');
   return data;
 };
+
+export const getProjectGraph = async (projectId: string) => {
+  const { data } = await apiClient.get(`/graph/project/${projectId}`);
+  return data;
+};
+
+export const getComparisonGraph = async (projectId: string, distanceThreshold = 0.5) => {
+  const { data } = await apiClient.get(`/graph/comparison/${projectId}?distance_threshold=${distanceThreshold}`);
+  return data;
+};
+
+export const rebuildProjectGraph = async (projectId: string) => {
+  const { data } = await apiClient.post(`/graph/rebuild/${projectId}`);
+  return data;
+};
+
+export const getProjectNoveltyReport = async (projectId: string, distanceThreshold = 0.5) => {
+  const { data } = await apiClient.get(`/v1/acadeval/report/${projectId}?distance_threshold=${distanceThreshold}`);
+  return data;
+};
+

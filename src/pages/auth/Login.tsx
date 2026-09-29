@@ -197,8 +197,10 @@ const Login: React.FC = () => {
           </form>
 
           <div className="mt-6 bg-slate-50 rounded-xl p-4 border border-slate-100">
-            <p className="text-xs text-slate-500 font-medium mb-2">Demo credentials (auto-filled):</p>
-            <p className="text-xs text-slate-400">Select a role above — credentials are pre-filled automatically.</p>
+            <p className="text-xs text-slate-500 font-medium mb-1">Demo credentials (auto-filled):</p>
+            <p className="text-xs text-slate-700 font-mono font-medium">
+              {email || 'Select a role above'} <span className="text-slate-400">/</span> demo123
+            </p>
           </div>
         </div>
       </div>
