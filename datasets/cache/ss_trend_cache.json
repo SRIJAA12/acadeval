@@ -33,24 +33,24 @@
     "topic": "machine learning",
     "growth_rate_pct": -71.4,
     "paper_count_3yr": 240,
-    "citation_velocity": 2462.0,
+    "citation_velocity": 2554.0,
     "trend_status": "Steady",
     "top_papers": [
       {
         "title": "TRIPOD+AI statement: updated guidance for reporting clinical prediction models that use regression or machine learning methods",
         "year": 2024,
-        "citations": 3531,
+        "citations": 3699,
         "url": "https://doi.org/10.1136/bmj-2023-078378"
       },
       {
         "title": "Evaluation metrics and statistical tests for machine learning",
         "year": 2024,
-        "citations": 1393,
+        "citations": 1409,
         "url": "https://doi.org/10.1038/s41598-024-56706-x"
       }
     ],
     "data_source": "semantic_scholar",
-    "cached_at": "2026-09-21T10:43:44.858993+00:00",
+    "cached_at": "2026-09-29T02:51:18.488622+00:00",
     "_topic_label": "machine learning"
   },
   "4ae35cd73aaab213": {
@@ -87,30 +87,30 @@
     "topic": "federated learning",
     "growth_rate_pct": -81.2,
     "paper_count_3yr": 360,
-    "citation_velocity": 426.0,
+    "citation_velocity": 414.7,
     "trend_status": "Steady",
     "top_papers": [
       {
         "title": "Edge-IIoTset: A New Comprehensive Realistic Cyber Security Dataset of IoT and IIoT Applications for Centralized and Federated Learning",
         "year": 2022,
-        "citations": 1006,
+        "citations": 1023,
         "url": "https://doi.org/10.1109/ACCESS.2022.3165809"
-      },
-      {
-        "title": "Federated Learning for IoT: A Survey of Techniques, Challenges, and Applications",
-        "year": 2025,
-        "citations": 158,
-        "url": "https://doi.org/10.3390/jsan14010009"
       },
       {
         "title": "Federated learning framework based on trimmed mean aggregation rules",
         "year": 2025,
-        "citations": 114,
+        "citations": 116,
         "url": "https://doi.org/10.2139/ssrn.4181353"
+      },
+      {
+        "title": "An optimal federated learning-based intrusion detection for IoT environment",
+        "year": 2025,
+        "citations": 105,
+        "url": "https://doi.org/10.1038/s41598-025-93501-8"
       }
     ],
     "data_source": "semantic_scholar",
-    "cached_at": "2026-09-21T10:43:49.106538+00:00",
+    "cached_at": "2026-09-29T02:51:21.654537+00:00",
     "_topic_label": "federated learning"
   },
   "05e56c60b1c8f7b6": {
@@ -177,30 +177,30 @@
     "topic": "object detection",
     "growth_rate_pct": -14.3,
     "paper_count_3yr": 720,
-    "citation_velocity": 3973.5,
+    "citation_velocity": 4019.8,
     "trend_status": "Steady",
     "top_papers": [
       {
         "title": "YOLOv10: Real-Time End-to-End Object Detection",
         "year": 2024,
-        "citations": 5922,
+        "citations": 6017,
         "url": "https://doi.org/10.48550/arXiv.2405.14458"
       },
       {
         "title": "Grounding DINO: Marrying DINO with Grounded Pre-Training for Open-Set Object Detection",
         "year": 2023,
-        "citations": 5001,
+        "citations": 5052,
         "url": "https://doi.org/10.48550/arXiv.2303.05499"
       },
       {
         "title": "DETRs Beat YOLOs on Real-time Object Detection",
         "year": 2023,
-        "citations": 4434,
+        "citations": 4507,
         "url": "https://doi.org/10.1109/CVPR52733.2024.01605"
       }
     ],
     "data_source": "semantic_scholar",
-    "cached_at": "2026-09-21T10:43:58.275113+00:00",
+    "cached_at": "2026-09-29T02:51:27.174417+00:00",
     "_topic_label": "object detection"
   },
   "a969375cfab044a3": {
@@ -267,30 +267,30 @@
     "topic": "time series forecasting",
     "growth_rate_pct": 100.0,
     "paper_count_3yr": 1440,
-    "citation_velocity": 1656.2,
+    "citation_velocity": 1693.4,
     "trend_status": "Emerging",
     "top_papers": [
       {
-        "title": "Are Transformers Effective for Time Series Forecasting?",
-        "year": 2022,
-        "citations": 4652,
-        "url": "https://doi.org/10.48550/arXiv.2205.13504"
-      },
-      {
         "title": "A Time Series is Worth 64 Words: Long-term Forecasting with Transformers",
         "year": 2022,
-        "citations": 4644,
+        "citations": 4749,
         "url": "https://doi.org/10.48550/arXiv.2211.14730"
+      },
+      {
+        "title": "Are Transformers Effective for Time Series Forecasting?",
+        "year": 2022,
+        "citations": 4739,
+        "url": "https://doi.org/10.48550/arXiv.2205.13504"
       },
       {
         "title": "iTransformer: Inverted Transformers Are Effective for Time Series Forecasting",
         "year": 2023,
-        "citations": 2405,
+        "citations": 2464,
         "url": "https://doi.org/10.48550/arXiv.2310.06625"
       }
     ],
     "data_source": "semantic_scholar",
-    "cached_at": "2026-09-21T10:44:05.325646+00:00",
+    "cached_at": "2026-09-29T02:51:29.766325+00:00",
     "_topic_label": "time series forecasting"
   },
   "99e230b759b69c26": {
@@ -355,21 +355,21 @@
   },
   "2b415bd1a30e62b8": {
     "topic": "bioinformatics genomics",
-    "growth_rate_pct": -11.1,
+    "growth_rate_pct": 0.0,
     "paper_count_3yr": 960,
-    "citation_velocity": 435.5,
+    "citation_velocity": 440.5,
     "trend_status": "Steady",
     "top_papers": [
       {
         "title": "TBtools-II: A \"One for All, All for One\" Bioinformatics Platform for Biological Big-data Mining.",
         "year": 2023,
-        "citations": 3226,
+        "citations": 3264,
         "url": "https://doi.org/10.1016/j.molp.2023.09.010"
       },
       {
         "title": "The role and application of bioinformatics techniques and tools in drug discovery",
         "year": 2025,
-        "citations": 70,
+        "citations": 72,
         "url": "https://doi.org/10.3389/fphar.2025.1547131"
       },
       {
@@ -380,7 +380,7 @@
       }
     ],
     "data_source": "semantic_scholar",
-    "cached_at": "2026-09-21T10:44:12.286045+00:00",
+    "cached_at": "2026-09-29T02:51:34.343343+00:00",
     "_topic_label": "bioinformatics genomics"
   },
   "b3cee507174ff1b7": {
@@ -417,90 +417,90 @@
     "topic": "drug discovery AI",
     "growth_rate_pct": 25.0,
     "paper_count_3yr": 2400,
-    "citation_velocity": 31.1,
+    "citation_velocity": 32.1,
     "trend_status": "Hot",
     "top_papers": [
       {
         "title": "AI-Driven Drug Discovery: A Comprehensive Review",
         "year": 2025,
-        "citations": 155,
+        "citations": 157,
         "url": "https://doi.org/10.1021/acsomega.5c00549"
       },
       {
         "title": "Graph Neural Networks in Modern AI-aided Drug Discovery",
         "year": 2025,
-        "citations": 91,
+        "citations": 94,
         "url": "https://doi.org/10.48550/arXiv.2506.06915"
       },
       {
         "title": "Recent advances in AI-based toxicity prediction for drug discovery",
         "year": 2025,
-        "citations": 62,
+        "citations": 63,
         "url": "https://doi.org/10.3389/fchem.2025.1632046"
       }
     ],
     "data_source": "semantic_scholar",
-    "cached_at": "2026-09-21T10:44:18.081278+00:00",
+    "cached_at": "2026-09-29T02:51:37.526807+00:00",
     "_topic_label": "drug discovery AI"
   },
   "3f07c0296b6963d4": {
     "topic": "augmented reality",
     "growth_rate_pct": 1700.0,
     "paper_count_3yr": 2160,
-    "citation_velocity": 253.2,
+    "citation_velocity": 255.8,
     "trend_status": "Emerging",
     "top_papers": [
       {
         "title": "What is XR? Towards a Framework for Augmented and Virtual Reality",
         "year": 2022,
-        "citations": 751,
+        "citations": 755,
         "url": "https://doi.org/10.1016/j.chb.2022.107289"
       },
       {
         "title": "Analyzing augmented reality (AR) and virtual reality (VR) recent development in education",
         "year": 2023,
-        "citations": 652,
+        "citations": 655,
         "url": "https://doi.org/10.1016/j.ssaho.2023.100532"
       },
       {
         "title": "Unlocking the Potential: A Comprehensive Evaluation of Augmented Reality and Virtual Reality in Education",
         "year": 2023,
-        "citations": 386,
+        "citations": 394,
         "url": "https://doi.org/10.3390/electronics12183953"
       }
     ],
     "data_source": "semantic_scholar",
-    "cached_at": "2026-09-21T10:44:21.003161+00:00",
+    "cached_at": "2026-09-29T02:51:40.929911+00:00",
     "_topic_label": "augmented reality"
   },
   "a8697365d2147c07": {
     "topic": "explainable AI",
     "growth_rate_pct": 466.7,
     "paper_count_3yr": 2040,
-    "citation_velocity": 200.3,
+    "citation_velocity": 204.5,
     "trend_status": "Emerging",
     "top_papers": [
       {
         "title": "Explainable AI (XAI): Core Ideas, Techniques, and Solutions",
         "year": 2022,
-        "citations": 1329,
+        "citations": 1349,
         "url": "https://doi.org/10.1145/3561048"
       },
       {
         "title": "From Anecdotal Evidence to Quantitative Evaluation Methods: A Systematic Review on Evaluating Explainable AI",
         "year": 2022,
-        "citations": 767,
+        "citations": 775,
         "url": "https://doi.org/10.1145/3583558"
       },
       {
         "title": "Explainable AI in Clinical Decision Support Systems: A Meta-Analysis of Methods, Applications, and Usability Challenges",
         "year": 2025,
-        "citations": 239,
+        "citations": 247,
         "url": "https://doi.org/10.3390/healthcare13172154"
       }
     ],
     "data_source": "semantic_scholar",
-    "cached_at": "2026-09-21T10:44:24.803372+00:00",
+    "cached_at": "2026-09-29T02:51:49.624345+00:00",
     "_topic_label": "explainable AI"
   },
   "249ab03a6f1f0972": {
@@ -592,5 +592,113 @@
     "data_source": "semantic_scholar",
     "cached_at": "2026-09-28T09:35:21.833981+00:00",
     "_topic_label": "natural language processing"
+  },
+  "de0fe23816b140b4": {
+    "topic": "deep learning",
+    "growth_rate_pct": -90.9,
+    "paper_count_3yr": 120,
+    "citation_velocity": 2119.0,
+    "trend_status": "Steady",
+    "top_papers": [
+      {
+        "title": "Robust deep learning based protein sequence design using ProteinMPNN",
+        "year": 2022,
+        "citations": 2119,
+        "url": "https://doi.org/10.1126/science.add2187"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-29T02:51:16.419402+00:00",
+    "_topic_label": "deep learning"
+  },
+  "2aaac31a2a41a611": {
+    "topic": "transformer attention",
+    "growth_rate_pct": 133.3,
+    "paper_count_3yr": 1680,
+    "citation_velocity": 101.7,
+    "trend_status": "Emerging",
+    "top_papers": [
+      {
+        "title": "EfficientViT: Memory Efficient Vision Transformer with Cascaded Group Attention",
+        "year": 2023,
+        "citations": 893,
+        "url": "https://doi.org/10.1109/CVPR52729.2023.01386"
+      },
+      {
+        "title": "AttentionViz: A Global View of Transformer Attention",
+        "year": 2023,
+        "citations": 117,
+        "url": "https://doi.org/10.1109/TVCG.2023.3327163"
+      },
+      {
+        "title": "META-Unet: Multi-Scale Efficient Transformer Attention Unet for Fast and High-Accuracy Polyp Segmentation",
+        "year": 2024,
+        "citations": 107,
+        "url": "https://doi.org/10.1109/TASE.2023.3292373"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-29T02:51:24.022063+00:00",
+    "_topic_label": "transformer attention"
+  },
+  "5419589e0cc5027a": {
+    "topic": "robotics autonomous systems",
+    "growth_rate_pct": 66.7,
+    "paper_count_3yr": 1200,
+    "citation_velocity": 57.9,
+    "trend_status": "Emerging",
+    "top_papers": [
+      {
+        "title": "The Safety Filter: A Unified View of Safety-Critical Control in Autonomous Systems",
+        "year": 2023,
+        "citations": 230,
+        "url": "https://doi.org/10.48550/arXiv.2309.05837"
+      },
+      {
+        "title": "Safety-Critical Control for Autonomous Systems: Control Barrier Functions via Reduced-Order Models",
+        "year": 2024,
+        "citations": 112,
+        "url": "https://doi.org/10.1016/j.arcontrol.2024.100947"
+      },
+      {
+        "title": "Meeting sustainable development goals via robotics and autonomous systems",
+        "year": 2022,
+        "citations": 80,
+        "url": "https://doi.org/10.1038/s41467-022-31150-5"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-29T02:51:30.919957+00:00",
+    "_topic_label": "robotics autonomous systems"
+  },
+  "eb35e43aff96f6ad": {
+    "topic": "knowledge graph",
+    "growth_rate_pct": 600.0,
+    "paper_count_3yr": 1680,
+    "citation_velocity": 234.3,
+    "trend_status": "Emerging",
+    "top_papers": [
+      {
+        "title": "Building a knowledge graph to enable precision medicine",
+        "year": 2022,
+        "citations": 647,
+        "url": "https://doi.org/10.1038/s41597-023-01960-3"
+      },
+      {
+        "title": "Think-on-Graph: Deep and Responsible Reasoning of Large Language Model with Knowledge Graph",
+        "year": 2023,
+        "citations": 558,
+        "url": "https://doi.org/10.48550/arXiv.2307.07697"
+      },
+      {
+        "title": "Zep: A Temporal Knowledge Graph Architecture for Agent Memory",
+        "year": 2025,
+        "citations": 371,
+        "url": "https://doi.org/10.48550/arXiv.2501.13956"
+      }
+    ],
+    "data_source": "semantic_scholar",
+    "cached_at": "2026-09-29T02:51:47.028076+00:00",
+    "_topic_label": "knowledge graph"
   }
 }

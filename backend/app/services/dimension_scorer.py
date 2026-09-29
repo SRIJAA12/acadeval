@@ -23,26 +23,30 @@ import pandas as pd
 
 log = logging.getLogger(__name__)
 
+from pathlib import Path
+
+def _find_dataset_file(filename: str) -> str:
+    candidate_dirs = [Path("/datasets"), Path("D:/acadeval-1/datasets"), Path("./datasets")]
+    curr = Path(__file__).resolve()
+    for parent in curr.parents:
+        candidate_dirs.append(parent / "datasets")
+    for d in candidate_dirs:
+        try:
+            p = d / filename
+            if p.exists():
+                return str(p.resolve())
+        except Exception:
+            continue
+    return filename
+
 # Master Corpus path
-CORPUS_CSV_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "datasets",
-    "AcadEval_Corpus_MASTER.csv"
-)
+CORPUS_CSV_PATH = _find_dataset_file("AcadEval_Corpus_MASTER.csv")
 
 # Feature Knowledge Base path
-FEATURE_KB_CSV_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "datasets",
-    "AcadEval_FeatureKnowledgeBase.csv"
-)
+FEATURE_KB_CSV_PATH = _find_dataset_file("AcadEval_FeatureKnowledgeBase.csv")
 
 # Trend Base path
-TREND_BASE_CSV_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "datasets",
-    "AcadEval_TrendBase.csv"
-)
+TREND_BASE_CSV_PATH = _find_dataset_file("AcadEval_TrendBase.csv")
 
 # Algorithmic Complexity Tiers for Technical Depth
 ALGO_COMPLEXITY_TIERS = {

@@ -254,7 +254,11 @@ class SemanticScholarClient:
     def _cache_file_path(cls):
         if cls._CACHE_FILE is None:
             from pathlib import Path
-            cache_dir = Path(__file__).resolve().parents[3] / "datasets" / "cache"
+            cache_candidates = [Path("/datasets/cache"), Path("D:/acadeval-1/datasets/cache")]
+            curr = Path(__file__).resolve()
+            for parent in curr.parents:
+                cache_candidates.append(parent / "datasets" / "cache")
+            cache_dir = next((p for p in cache_candidates if p.parent.exists()), Path("/tmp/cache"))
             cache_dir.mkdir(parents=True, exist_ok=True)
             cls._CACHE_FILE = cache_dir / "ss_trend_cache.json"
         return cls._CACHE_FILE

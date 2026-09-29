@@ -168,8 +168,11 @@ def ingest_project_to_relational_graph(
                 )
                 edges_created += 1
 
-    # 5. Neo4j sync must succeed before the relational transaction commits.
-    neo4j_status = "synced"
+    # 5. Neo4j sync is best-effort — PostgreSQL relational graph is committed
+    # regardless. Neo4j failures are logged as warnings (not blocking errors)
+    # since the comparison graph and novelty engine now read from PostgreSQL.
+    neo4j_status = "skipped"
+    neo4j_content_hash = ""
     try:
         neo4j_result = graph_service.build_project_graph(
             project_id=str(project_id),
@@ -180,13 +183,15 @@ def ingest_project_to_relational_graph(
             source_type="submission",
             source_version=GRAPH_INGESTION_VERSION,
         )
+        neo4j_status = "synced"
+        neo4j_content_hash = neo4j_result.get("content_hash", "")
     except Exception as e:
-        log.error("Neo4j sync failed for project %s: %s", project_id, e)
-        raise
+        log.warning("Neo4j sync failed for project %s (non-blocking): %s", project_id, e)
 
+    # Commit PostgreSQL graph nodes/edges regardless of Neo4j status
     db.commit()
 
-    # Invalidate NetworkX cache only after both graph stores are ready.
+    # Invalidate NetworkX cache after PostgreSQL commit.
     try:
         from app.services.graph_networkx import invalidate_graph_cache
         invalidate_graph_cache()
@@ -200,7 +205,7 @@ def ingest_project_to_relational_graph(
         "relational_nodes_ingested": nodes_created,
         "relational_edges_ingested": edges_created,
         "neo4j_sync": neo4j_status,
-        "neo4j_content_hash": neo4j_result["content_hash"],
+        "neo4j_content_hash": neo4j_content_hash,
     }
 
 

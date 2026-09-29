@@ -11,7 +11,11 @@ import sys
 from pathlib import Path
 
 # Add datasets taxonomy directory to path for taxonomy_loader / taxonomy_search imports
-TAXONOMY_DIR = Path(__file__).resolve().parents[3] / "datasets" / "taxonomy"
+TAXONOMY_CANDIDATES = [Path("/datasets/taxonomy"), Path("D:/acadeval-1/datasets/taxonomy")]
+curr = Path(__file__).resolve()
+for parent in curr.parents:
+    TAXONOMY_CANDIDATES.append(parent / "datasets" / "taxonomy")
+TAXONOMY_DIR = next((p for p in TAXONOMY_CANDIDATES if p.exists()), TAXONOMY_CANDIDATES[0])
 if str(TAXONOMY_DIR) not in sys.path:
     sys.path.insert(0, str(TAXONOMY_DIR))
 

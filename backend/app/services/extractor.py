@@ -24,11 +24,10 @@ from app.services.llm_client import call_gemini_json
 from app.services.entity_normalizer import canonicalize_extracted_entities
 
 # Robustly find feature_kb directory in Docker (/datasets/feature_kb) or local host
-_possible_kb_dirs = [
-    Path("/datasets/feature_kb"),
-    Path(__file__).resolve().parents[3] / "datasets" / "feature_kb",
-    Path(__file__).resolve().parents[2] / "datasets" / "feature_kb",
-]
+_possible_kb_dirs = [Path("/datasets/feature_kb"), Path("D:/acadeval-1/datasets/feature_kb")]
+curr = Path(__file__).resolve()
+for parent in curr.parents:
+    _possible_kb_dirs.append(parent / "datasets" / "feature_kb")
 FEATURE_KB_DIR = next((p for p in _possible_kb_dirs if p.exists()), _possible_kb_dirs[0])
 if str(FEATURE_KB_DIR) not in sys.path:
     sys.path.insert(0, str(FEATURE_KB_DIR))

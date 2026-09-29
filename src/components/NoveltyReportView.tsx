@@ -68,6 +68,35 @@ export interface NoveltyReportData {
   scoring_metadata?: ScoringMetadata;
 }
 
+export interface ComparisonGraphPayload {
+  status: string;
+  project_id: string;
+  target_title: string;
+  comparison_title: string;
+  comparison_project_id?: string;
+  comparison_domain?: string;
+  comparison_sub_domain?: string;
+  related_project_available: boolean;
+  similarity_score: number;
+  distance?: number;
+  shared_entities_count?: number;
+  shared_entities?: string[];
+  message: string;
+  similar_projects: Array<{
+    project_id: string;
+    title: string;
+    similarity_score: number;
+    distance?: number;
+    domain?: string;
+    sub_domain?: string;
+    shared_entities?: string[];
+  }>;
+  nodes: GraphNodeData[];
+  links: GraphLinkData[];
+  target_graph?: { nodes: GraphNodeData[]; links: GraphLinkData[]; title?: string };
+  comparison_graph?: { nodes: GraphNodeData[]; links: GraphLinkData[]; title?: string };
+}
+
 interface Props {
   report: NoveltyReportData;
   onFacultyScoreSubmit?: (facultyScore: number, reason: string) => void;
@@ -105,33 +134,34 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
     }
   };
 
-interface ComparisonGraphPayload {
-  status: string;
-  project_id: string;
-  target_title: string;
-  comparison_title: string;
-  related_project_available: boolean;
-  similarity_score: number;
-  message: string;
-  similar_projects: Array<{ project_id: string; title: string; similarity_score: number }>;
-  nodes: GraphNodeData[];
-  links: GraphLinkData[];
-  target_graph?: { nodes: GraphNodeData[]; links: GraphLinkData[]; title?: string };
-  comparison_graph?: { nodes: GraphNodeData[]; links: GraphLinkData[]; title?: string };
-}
-
   // Fetch project-scoped graph and comparison graph directly from the backend
   const [fullGraph, setFullGraph] = useState<{ nodes: GraphNodeData[]; links: GraphLinkData[] }>({ nodes: [], links: [] });
   const [graphLoading, setGraphLoading] = useState(false);
   const [compLoading, setCompLoading] = useState(false);
   const [comparisonPayload, setComparisonPayload] = useState<ComparisonGraphPayload | null>(null);
   const [graphViewMode, setGraphViewMode] = useState<'dual' | 'unified' | 'uploaded'>('dual');
-  const [selectedDatasetName, setSelectedDatasetName] = useState<string>('AcadEval Feature Knowledge Base');
+  const [selectedCompProjectId, setSelectedCompProjectId] = useState<string>('');
+
+  const fetchComparison = (targetId: string, candidateId?: string) => {
+    setCompLoading(true);
+    getComparisonGraph(targetId, candidateId)
+      .then(res => {
+        if (res && res.status === 'ok') {
+          setComparisonPayload(res);
+          if (res.comparison_project_id) {
+            setSelectedCompProjectId(res.comparison_project_id);
+          }
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to fetch comparison graph:', err);
+      })
+      .finally(() => setCompLoading(false));
+  };
 
   useEffect(() => {
     if (!report?.project_id) return;
     setGraphLoading(true);
-    setCompLoading(true);
 
     getProjectGraph(report.project_id)
       .then(res => {
@@ -144,17 +174,15 @@ interface ComparisonGraphPayload {
       })
       .finally(() => setGraphLoading(false));
 
-    getComparisonGraph(report.project_id)
-      .then(res => {
-        if (res && res.status === 'ok') {
-          setComparisonPayload(res);
-        }
-      })
-      .catch(err => {
-        console.warn('Failed to fetch comparison graph:', err);
-      })
-      .finally(() => setCompLoading(false));
+    fetchComparison(report.project_id);
   }, [report?.project_id]);
+
+  const handleComparisonProjectChange = (candidateId: string) => {
+    setSelectedCompProjectId(candidateId);
+    if (report?.project_id) {
+      fetchComparison(report.project_id, candidateId);
+    }
+  };
 
   // If backend graph loaded successfully, use it directly.
   // Otherwise fall back to local entity-based subgraph builder.
@@ -263,10 +291,15 @@ interface ComparisonGraphPayload {
   // Comparison Reference Title
   const comparisonTitle = useMemo(() => {
     if (comparisonPayload?.comparison_title) return comparisonPayload.comparison_title;
-    return 'AcadEval Reference Datasets (7 Benchmark Corpora in /datasets)';
+    return 'Related Research Project from Dataset Corpus';
   }, [comparisonPayload]);
 
-  // Resolved Comparison Graph (Graph 2: The 7 AcadEval Reference Datasets collected in /datasets)
+  const isRelatedAvailable = useMemo(() => {
+    if (!comparisonPayload) return true; // loading or initial
+    return comparisonPayload.related_project_available !== false && (comparisonPayload.comparison_graph?.nodes?.length ?? 0) > 0;
+  }, [comparisonPayload]);
+
+  // Resolved Comparison Graph (Graph 2: Real matched research project from AcadEval Corpus dataset)
   const { compGraphNodes, compGraphLinks } = useMemo(() => {
     if (comparisonPayload?.comparison_graph?.nodes && comparisonPayload.comparison_graph.nodes.length > 0) {
       return {
@@ -274,113 +307,12 @@ interface ComparisonGraphPayload {
         compGraphLinks: comparisonPayload.comparison_graph.links,
       };
     }
-
-    // Fallback: generate the 7 AcadEval Reference Datasets Knowledge Graph
-    const cNodes: GraphNodeData[] = [];
-    const cLinks: GraphLinkData[] = [];
-    let idGen = 1000;
-
-    // 7 Reference Datasets Hubs
-    const d1 = idGen++;
-    cNodes.push({ id: d1, name: 'AcadEval Domain Taxonomy', type: 'Dataset', degree: 8 });
-    const d2 = idGen++;
-    cNodes.push({ id: d2, name: 'AcadEval Feature Knowledge Base', type: 'Dataset', degree: 14 });
-    const d3 = idGen++;
-    cNodes.push({ id: d3, name: 'AcadEval Historical Corpus', type: 'Dataset', degree: 6 });
-    const d4 = idGen++;
-    cNodes.push({ id: d4, name: 'AcadEval SimBench', type: 'Dataset', degree: 6 });
-    const d5 = idGen++;
-    cNodes.push({ id: d5, name: 'AcadEval TrendBase', type: 'Dataset', degree: 6 });
-    const d6 = idGen++;
-    cNodes.push({ id: d6, name: 'AcadEval Project Graph Bank', type: 'Dataset', degree: 6 });
-    const d7 = idGen++;
-    cNodes.push({ id: d7, name: 'AcadEval Benchmark Controls', type: 'Dataset', degree: 6 });
-
-    // Architectural interconnects
-    cLinks.push({ source: d1, target: d2, relationship: 'STRUCTURES_FEATURES', confidence: 1.0 });
-    cLinks.push({ source: d2, target: d6, relationship: 'MAPS_TO_GRAPH', confidence: 1.0 });
-    cLinks.push({ source: d3, target: d4, relationship: 'CALIBRATES_SIMILARITY', confidence: 1.0 });
-    cLinks.push({ source: d5, target: d1, relationship: 'MONITORS_DOMAIN_VELOCITY', confidence: 1.0 });
-    cLinks.push({ source: d7, target: d3, relationship: 'BENCHMARKS_CORPUS', confidence: 1.0 });
-
-    // Entities from AcadEval_FeatureKnowledgeBase.csv
-    const kbItems = [
-      { name: 'Transformer Architecture', type: 'Algorithm' },
-      { name: 'Convolutional Neural Network', type: 'Algorithm' },
-      { name: 'BERT', type: 'Algorithm' },
-      { name: 'RoBERTa', type: 'Algorithm' },
-      { name: 'Vision Transformer', type: 'Algorithm' },
-      { name: 'PyTorch', type: 'Framework' },
-      { name: 'TensorFlow', type: 'Framework' },
-      { name: 'Python', type: 'Technology' },
-      { name: 'PostgreSQL', type: 'Technology' },
-      { name: 'Neo4j', type: 'Technology' },
-      { name: 'GPU Server', type: 'Hardware' },
-      { name: 'Cloud VM / Workstation', type: 'Hardware' },
-      { name: 'Accuracy', type: 'Metric' },
-      { name: 'F1-Score', type: 'Metric' },
-      { name: 'Cosine Similarity', type: 'Metric' },
-    ];
-
-    kbItems.forEach(item => {
-      const eid = idGen++;
-      cNodes.push({ id: eid, name: item.name, type: item.type, degree: 2 });
-      cLinks.push({ source: d2, target: eid, relationship: 'CATALOGS_ENTITY', confidence: 1.0 });
-    });
-
-    // Domain taxonomy branches
-    const domAi = idGen++;
-    cNodes.push({ id: domAi, name: 'Artificial Intelligence', type: 'Domain', degree: 6 });
-    cLinks.push({ source: d1, target: domAi, relationship: 'DEFINES_DOMAIN', confidence: 1.0 });
-
-    const subMl = idGen++;
-    cNodes.push({ id: subMl, name: 'Machine Learning', type: 'Subdomain', degree: 4 });
-    cLinks.push({ source: domAi, target: subMl, relationship: 'HAS_SUBDOMAIN', confidence: 1.0 });
-
-    const subNlp = idGen++;
-    cNodes.push({ id: subNlp, name: 'Natural Language Processing', type: 'Subdomain', degree: 4 });
-    cLinks.push({ source: domAi, target: subNlp, relationship: 'HAS_SUBDOMAIN', confidence: 1.0 });
-
-    return { compGraphNodes: cNodes, compGraphLinks: cLinks };
+    return { compGraphNodes: [], compGraphLinks: [] };
   }, [comparisonPayload]);
 
-  const ACADEVAL_DATASETS = useMemo(() => [
-    'AcadEval Feature Knowledge Base',
-    'AcadEval Domain Taxonomy',
-    'AcadEval Historical Corpus',
-    'AcadEval SimBench',
-    'AcadEval TrendBase',
-    'AcadEval Project Graph Bank',
-    'AcadEval Benchmark Controls',
-    'All 7 Datasets (Combined View)',
-  ], []);
-
-  // Dynamically filter comparison nodes based on selected dataset from /datasets
-  const { filteredCompNodes, filteredCompLinks } = useMemo(() => {
-    if (!compGraphNodes.length) return { filteredCompNodes: [], filteredCompLinks: [] };
-    if (selectedDatasetName === 'All 7 Datasets (Combined View)') {
-      return { filteredCompNodes: compGraphNodes, filteredCompLinks: compGraphLinks };
-    }
-
-    const hubNode = compGraphNodes.find(n => n.name.trim().toLowerCase() === selectedDatasetName.trim().toLowerCase());
-    if (!hubNode) {
-      return { filteredCompNodes: compGraphNodes, filteredCompLinks: compGraphLinks };
-    }
-
-    const hubId = hubNode.id;
-    const relatedLinks = compGraphLinks.filter(l => l.source === hubId || l.target === hubId);
-    const relatedNodeIds = new Set<string | number>([hubId]);
-    relatedLinks.forEach(l => {
-      relatedNodeIds.add(l.source);
-      relatedNodeIds.add(l.target);
-    });
-
-    const relatedNodes = compGraphNodes.filter(n => relatedNodeIds.has(n.id));
-    return {
-      filteredCompNodes: relatedNodes.length > 0 ? relatedNodes : compGraphNodes,
-      filteredCompLinks: relatedLinks.length > 0 ? relatedLinks : compGraphLinks,
-    };
-  }, [compGraphNodes, compGraphLinks, selectedDatasetName]);
+  const similarProjects = useMemo(() => {
+    return comparisonPayload?.similar_projects || [];
+  }, [comparisonPayload]);
 
   // Unified Merged Graph (Target + Comparison + Cross-Graph Bridge)
   const { unifiedNodes, unifiedLinks } = useMemo(() => {
@@ -391,47 +323,31 @@ interface ComparisonGraphPayload {
       };
     }
 
-    // Merge target and comp graphs with bridge
     const uNodes = [...targetGraphNodes, ...compGraphNodes];
     const uLinks = [...targetGraphLinks, ...compGraphLinks];
-    const targetRoot = targetGraphNodes.find(n => n.type === 'Project');
-    const compRoot = compGraphNodes.find(n => n.type === 'Project');
-    if (targetRoot && compRoot && targetRoot.id !== compRoot.id) {
-      uLinks.push({
-        source: targetRoot.id,
-        target: compRoot.id,
-        relationship: 'BENCHMARKED_AGAINST',
-        confidence: comparisonPayload?.similarity_score || 0.65,
-      });
-    }
     return { unifiedNodes: uNodes, unifiedLinks: uLinks };
   }, [comparisonPayload, targetGraphNodes, targetGraphLinks, compGraphNodes, compGraphLinks]);
 
   // Shared entity names (for golden glow highlight)
   const sharedEntityNames = useMemo(() => {
     const set = new Set<string>();
-    if (comparisonPayload?.nodes) {
+    if (comparisonPayload?.shared_entities && comparisonPayload.shared_entities.length > 0) {
+      comparisonPayload.shared_entities.forEach(name => set.add(name.toLowerCase()));
+    } else if (comparisonPayload?.nodes) {
       comparisonPayload.nodes.forEach(n => {
         if ((n as any).is_shared || (n as any).group === 'shared') {
           set.add(n.name.toLowerCase());
         }
       });
     }
-    if (set.size === 0) {
-      const targetNames = new Set(targetGraphNodes.filter(n => n.type !== 'Project').map(n => n.name.toLowerCase()));
-      compGraphNodes.forEach(n => {
-        if (n.type !== 'Project' && targetNames.has(n.name.toLowerCase())) {
-          set.add(n.name.toLowerCase());
-        }
-      });
-    }
     return set;
-  }, [comparisonPayload, targetGraphNodes, compGraphNodes]);
+  }, [comparisonPayload]);
 
   const similarityPercentage = useMemo(() => {
-    const raw = comparisonPayload?.similarity_score ?? report.most_similar_projects?.[0]?.similarity_score ?? 0.65;
+    if (!isRelatedAvailable) return 0;
+    const raw = comparisonPayload?.similarity_score ?? report.most_similar_projects?.[0]?.similarity_score ?? 0;
     return Math.round(raw * 100);
-  }, [comparisonPayload, report]);
+  }, [comparisonPayload, report, isRelatedAvailable]);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto p-2">
@@ -461,7 +377,7 @@ interface ComparisonGraphPayload {
         </div>
       </div>
 
-      {/* SECTION 1: Dual-Graph Architecture: Current vs. Comparison Projects */}
+      {/* SECTION 1: Dual-Graph Architecture: Current vs. Benchmark Corpus Projects */}
       <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-5">
         {/* Header and View Mode Switcher */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
@@ -469,11 +385,11 @@ interface ComparisonGraphPayload {
             <div className="flex items-center gap-2">
               <GitCompare className="w-5 h-5 text-indigo-400" />
               <h3 className="text-lg font-bold text-slate-100">
-                Graph Architecture: Current Implementation vs. Benchmark Target
+                Graph Architecture: Current Implementation vs. Corpus Baseline
               </h3>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              Dual-graph structural comparison: inspect the uploaded project implementation alongside its target comparison project/dataset from the database.
+              Dual-graph structural comparison: inspect the uploaded implementation alongside similar research projects from the 4,191+ AcadEval dataset corpus.
             </p>
           </div>
 
@@ -523,21 +439,41 @@ interface ComparisonGraphPayload {
                 <span className="text-[10px] font-mono uppercase tracking-wider bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-800">
                   Explicit Relationship: BENCHMARKED_AGAINST
                 </span>
-                <span className="text-[10px] font-mono uppercase tracking-wider bg-amber-950 text-amber-300 px-2 py-0.5 rounded border border-amber-800">
-                  USES_DATASET
-                </span>
+                {isRelatedAvailable && (
+                  <span className="text-[10px] font-mono uppercase tracking-wider bg-amber-950 text-amber-300 px-2 py-0.5 rounded border border-amber-800">
+                    CORPUS_MATCH (Distance &le; 0.50)
+                  </span>
+                )}
+                {!isRelatedAvailable && (
+                  <span className="text-[10px] font-mono uppercase tracking-wider bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800">
+                    NOVEL (Distance &gt; 0.50)
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-300 mt-1">
-                Comparing <strong className="text-white">{report.title}</strong> against dataset reference{' '}
-                <strong className="text-amber-300">{selectedDatasetName}</strong>
+                {isRelatedAvailable ? (
+                  <>
+                    Comparing <strong className="text-white">{report.title}</strong> against dataset project{' '}
+                    <strong className="text-amber-300">{comparisonPayload?.comparison_title || 'Corpus Baseline'}</strong>
+                    {comparisonPayload?.comparison_domain && (
+                      <span className="text-slate-400"> ({comparisonPayload.comparison_domain})</span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <strong className="text-white">{report.title}</strong> has no close duplicate in the dataset corpus (Distance &gt; 0.50).
+                  </>
+                )}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-4 shrink-0">
             <div className="text-right">
-              <div className="text-xs text-slate-400">Entity Set Similarity</div>
-              <div className="text-xl font-bold font-mono text-amber-400">{similarityPercentage}%</div>
+              <div className="text-xs text-slate-400">Corpus Similarity</div>
+              <div className="text-xl font-bold font-mono text-amber-400">
+                {isRelatedAvailable ? `${similarityPercentage}%` : 'N/A'}
+              </div>
             </div>
             <div className="h-8 w-px bg-slate-800" />
             <div className="text-right">
@@ -551,15 +487,15 @@ interface ComparisonGraphPayload {
         {sharedEntityNames.size > 0 && (
           <div className="flex flex-wrap items-center gap-2 text-xs bg-slate-950/50 p-3 rounded-xl border border-slate-800/80">
             <span className="text-slate-400 font-semibold flex items-center gap-1 shrink-0">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Shared Overlap (Golden Glow in Graph):
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Shared Overlap with Corpus Match (Golden Glow in Graph):
             </span>
-            {Array.from(sharedEntityNames).slice(0, 8).map(name => (
+            {Array.from(sharedEntityNames).slice(0, 10).map(name => (
               <span key={name} className="px-2 py-0.5 bg-amber-950/60 text-amber-200 border border-amber-800/70 rounded-md font-mono text-[11px]">
                 {name}
               </span>
             ))}
-            {sharedEntityNames.size > 8 && (
-              <span className="text-slate-500 text-[11px]">+{sharedEntityNames.size - 8} more</span>
+            {sharedEntityNames.size > 10 && (
+              <span className="text-slate-500 text-[11px]">+{sharedEntityNames.size - 10} more</span>
             )}
           </div>
         )}
@@ -591,7 +527,7 @@ interface ComparisonGraphPayload {
               />
             </div>
 
-            {/* Graph 2: Reference Dataset Header & Visualizer */}
+            {/* Graph 2: Corpus Dataset Project Header & Visualizer */}
             <div className="space-y-2">
               <div className="flex items-center justify-between bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800 gap-2">
                 <div className="flex items-center gap-2 min-w-0">
@@ -599,82 +535,116 @@ interface ComparisonGraphPayload {
                   <span className="text-xs font-bold text-slate-100 shrink-0">
                     Graph 2:
                   </span>
-                  <select
-                    value={selectedDatasetName}
-                    onChange={(e) => setSelectedDatasetName(e.target.value)}
-                    className="bg-slate-900 text-amber-300 font-bold text-xs px-2.5 py-1 rounded-lg border border-amber-800/80 focus:outline-none focus:border-amber-400 cursor-pointer min-w-0 max-w-[260px] truncate"
-                    title="Select any reference dataset from /datasets to view in Graph 2"
-                  >
-                    {ACADEVAL_DATASETS.map((ds) => (
-                      <option key={ds} value={ds} className="bg-slate-950 text-slate-200 font-medium">
-                        {ds}
-                      </option>
-                    ))}
-                  </select>
+                  {isRelatedAvailable && similarProjects.length > 0 ? (
+                    <select
+                      value={selectedCompProjectId || comparisonPayload?.comparison_project_id || ''}
+                      onChange={(e) => handleComparisonProjectChange(e.target.value)}
+                      className="bg-slate-900 text-amber-300 font-bold text-xs px-2.5 py-1 rounded-lg border border-amber-800/80 focus:outline-none focus:border-amber-400 cursor-pointer min-w-0 max-w-[280px] truncate"
+                      title="Select any related research project from the dataset corpus to compare in Graph 2"
+                    >
+                      {similarProjects.map((p) => (
+                        <option key={p.project_id} value={p.project_id} className="bg-slate-950 text-slate-200 font-medium">
+                          {p.title} ({Math.round((p.similarity_score || 0) * 100)}% Match)
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-xs text-amber-300 font-medium truncate">
+                      {comparisonTitle}
+                    </span>
+                  )}
                 </div>
                 <span className="text-[10px] font-mono text-amber-400 bg-amber-950/80 border border-amber-800/80 px-2 py-0.5 rounded shrink-0">
-                  {filteredCompNodes.length} Nodes · {filteredCompLinks.length} Edges
+                  {compGraphNodes.length} Nodes · {compGraphLinks.length} Edges
                 </span>
               </div>
-              <ProjectGraphViewer
-                nodes={filteredCompNodes}
-                links={filteredCompLinks}
-                isLoading={compLoading}
-                height="h-[540px]"
-                compact={true}
-                accentColor="#f59e0b"
-                highlightNames={sharedEntityNames}
-              />
+
+              {isRelatedAvailable ? (
+                <ProjectGraphViewer
+                  nodes={compGraphNodes}
+                  links={compGraphLinks}
+                  isLoading={compLoading}
+                  height="h-[540px]"
+                  compact={true}
+                  accentColor="#f59e0b"
+                  highlightNames={sharedEntityNames}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-[540px] bg-slate-950/80 rounded-xl border border-slate-800 p-8 text-center space-y-4">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-950/60 border border-emerald-800/80 flex items-center justify-center text-emerald-400">
+                    <ShieldCheck className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-1.5 max-w-md">
+                    <div className="text-base font-bold text-slate-100">Related Project is Not Available</div>
+                    <div className="text-xs font-mono text-amber-400 bg-amber-950/80 border border-amber-800/60 px-2.5 py-1 rounded-full inline-block">
+                      Distance &gt; 0.50 (Distinct Architecture)
+                    </div>
+                    <p className="text-xs text-slate-400 mt-2">
+                      No candidate research project in the 4,191+ AcadEval Corpus Dataset exceeded the 50% similarity threshold.
+                      This submission represents a distinct architectural configuration with no close duplicates.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* 7 Datasets Mapping Matrix */}
+        {/* Dataset Corpus Match Candidates Matrix */}
         <div className="p-4 bg-slate-950/90 rounded-xl border border-slate-800 space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-              <Database className="w-3.5 h-3.5 text-amber-400" /> Ground Truth: 7 AcadEval Reference Datasets in <code className="text-indigo-300 font-mono">/datasets</code>
+              <Database className="w-3.5 h-3.5 text-amber-400" /> AcadEval Research Corpus Ground Truth (4,191+ Indexed Projects in <code className="text-indigo-300 font-mono">AcadEval_Corpus_MASTER.csv</code>)
             </span>
-            <span className="text-[10px] text-slate-400 font-mono">Click any dataset to view its graph above</span>
+            <span className="text-[10px] text-slate-400 font-mono">
+              {similarProjects.length > 0 ? 'Click any matched project to view in Graph 2' : 'Distance > 0.50'}
+            </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
-            {[
-              { name: 'AcadEval Domain Taxonomy', rel: 'TAXONOMY_MAPPED_TO', role: 'Domain hierarchy & taxonomy path' },
-              { name: 'AcadEval Feature Knowledge Base', rel: 'EXTRACTED_FROM_KB', role: '28,500+ curated CS entities' },
-              { name: 'AcadEval Historical Corpus', rel: 'BENCHMARKED_AGAINST', role: '40,000+ past student submissions' },
-              { name: 'AcadEval SimBench', rel: 'ORIGINALITY_EVALUATED_BY', role: 'Pairwise similarity & duplicate controls' },
-              { name: 'AcadEval TrendBase', rel: 'TREND_ALIGNED_WITH', role: 'Topic growth rates & citation CAGR' },
-              { name: 'AcadEval Project Graph Bank', rel: 'TOPOLOGY_INDEXED_IN', role: '77 project repos & graph topologies' },
-              { name: 'AcadEval Benchmark Controls', rel: 'ACCREDITATION_AUDITED_BY', role: 'Rubric standards & quality controls' },
-            ].map((ds, idx) => (
-              <div
-                key={idx}
-                onClick={() => setSelectedDatasetName(ds.name)}
-                className={`p-2.5 rounded-lg border flex flex-col justify-between cursor-pointer transition ${
-                  selectedDatasetName === ds.name
-                    ? 'bg-amber-950/50 border-amber-500 ring-1 ring-amber-500/50'
-                    : 'bg-slate-900/90 border-slate-800 hover:border-amber-700/60'
-                }`}
-                title={`Click to switch Graph 2 to ${ds.name}`}
-              >
-                <div>
-                  <div className="font-semibold text-slate-200 text-[11px] leading-tight flex items-center justify-between">
-                    <span>{ds.name}</span>
-                    {selectedDatasetName === ds.name && (
-                      <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Active in Graph 2" />
-                    )}
+
+          {similarProjects.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+              {similarProjects.slice(0, 6).map((proj) => {
+                const isSelected = (selectedCompProjectId || comparisonPayload?.comparison_project_id) === proj.project_id;
+                return (
+                  <div
+                    key={proj.project_id}
+                    onClick={() => handleComparisonProjectChange(proj.project_id)}
+                    className={`p-3 rounded-lg border flex flex-col justify-between cursor-pointer transition ${
+                      isSelected
+                        ? 'bg-amber-950/50 border-amber-500 ring-1 ring-amber-500/50'
+                        : 'bg-slate-900/90 border-slate-800 hover:border-amber-700/60'
+                    }`}
+                    title={`Click to switch Graph 2 to ${proj.title}`}
+                  >
+                    <div>
+                      <div className="font-semibold text-slate-200 text-xs leading-tight flex items-center justify-between gap-2">
+                        <span className="truncate">{proj.title}</span>
+                        {isSelected && (
+                          <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Active in Graph 2" />
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1.5">
+                        <span className="text-slate-300">{proj.domain || 'CSE'}</span>
+                        {proj.sub_domain && <span>&rarr; {proj.sub_domain}</span>}
+                      </div>
+                    </div>
+                    <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+                      <span className="font-mono text-amber-300 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-900/50">
+                        {Math.round((proj.similarity_score || 0) * 100)}% Similarity
+                      </span>
+                      <span className="font-mono text-slate-400">
+                        Dist: {proj.distance !== undefined ? proj.distance : (1 - (proj.similarity_score || 0)).toFixed(2)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-[9px] text-slate-400 mt-0.5">{ds.role}</div>
-                </div>
-                <div className="mt-2 pt-1.5 border-t border-slate-800/80 flex items-center justify-between">
-                  <span className="text-[9px] font-mono text-amber-300 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-900/50">
-                    {ds.rel}
-                  </span>
-                  <span className="text-[9px] font-bold text-emerald-400">✓ Linked</span>
-                </div>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-4 bg-slate-900/60 rounded-lg border border-slate-800 text-center text-xs text-slate-400">
+              No dataset projects in <code className="text-indigo-300 font-mono">AcadEval_Corpus_MASTER.csv</code> met the &le; 0.50 distance threshold for this submission.
+            </div>
+          )}
         </div>
 
         {graphViewMode === 'unified' && (

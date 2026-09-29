@@ -279,8 +279,13 @@ export const getProjectGraph = async (projectId: string) => {
   return data;
 };
 
-export const getComparisonGraph = async (projectId: string, distanceThreshold = 0.5) => {
-  const { data } = await apiClient.get(`/graph/comparison/${projectId}?distance_threshold=${distanceThreshold}`);
+export const getComparisonGraph = async (projectId: string, compareProjectId?: string, distanceThreshold = 0.5) => {
+  const params = new URLSearchParams();
+  params.append('distance_threshold', distanceThreshold.toString());
+  if (compareProjectId) {
+    params.append('compare_project_id', compareProjectId);
+  }
+  const { data } = await apiClient.get(`/graph/comparison/${projectId}?${params.toString()}`);
   return data;
 };
 

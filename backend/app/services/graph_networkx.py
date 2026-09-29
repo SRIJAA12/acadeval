@@ -6,9 +6,13 @@ MultiDiGraph (`G`) for fast Graph Analytics, Centrality, and path algorithms.
 Maintains a thread-safe in-memory cache refreshed on new project ingestion.
 """
 
+import os
+import re
+import csv
+import json
 import logging
 import networkx as nx
-from typing import Optional
+from typing import Optional, Dict, List, Any, Set, Tuple
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -249,7 +253,108 @@ def get_node_neighborhood(G: nx.MultiDiGraph, query: str, radius: int = 1) -> di
     }
 
 
+def _build_synthetic_d3_graph_from_entities(pid_str: str, proj: Any) -> dict:
+    """
+    Builds a complete D3-compatible project knowledge graph purely from a
+    project's extracted_entities dict — no PostgreSQL graph_nodes needed.
+    Used as a fallback when graph ingestion fails (e.g., Neo4j unavailable).
+    """
+    entities = proj.extracted_entities or {}
+    if isinstance(entities, str):
+        try:
+            entities = json.loads(entities)
+        except Exception:
+            entities = {}
+    if not isinstance(entities, dict):
+        entities = {}
+
+    nodes: list[dict] = []
+    links: list[dict] = []
+    curr_id = 1
+
+    # Project root node
+    proj_node_id = curr_id
+    curr_id += 1
+    proj_name = proj.title or f"Project {pid_str}"
+    nodes.append({
+        "id": proj_node_id,
+        "name": proj_name,
+        "type": "Project",
+        "degree": 10,
+        "is_target": True,
+        "group": "target",
+    })
+
+    seen_nodes: dict[tuple, int] = {}
+
+    def get_or_add(name: str, ntype: str, degree: int = 3) -> int:
+        nonlocal curr_id
+        key = (ntype, name.strip().lower())
+        if key in seen_nodes:
+            return seen_nodes[key]
+        nid = curr_id
+        curr_id += 1
+        seen_nodes[key] = nid
+        nodes.append({
+            "id": nid,
+            "name": name.strip(),
+            "type": ntype,
+            "degree": degree,
+            "is_target": False,
+            "group": "target",
+        })
+        return nid
+
+    # Domain & Subdomain
+    domain_val = entities.get("domain", proj.domain or "General CSE")
+    subdom_val = entities.get("sub_domain", getattr(proj, "sub_domain", "") or "")
+    if domain_val:
+        dom_id = get_or_add(domain_val, "Domain", degree=5)
+        links.append({"source": proj_node_id, "target": dom_id, "relationship": "HAS_DOMAIN", "confidence": 1.0})
+        if subdom_val and subdom_val.lower() != domain_val.lower():
+            sub_id = get_or_add(subdom_val, "Subdomain", degree=4)
+            links.append({"source": proj_node_id, "target": sub_id, "relationship": "HAS_SUBDOMAIN", "confidence": 1.0})
+            links.append({"source": sub_id, "target": dom_id, "relationship": "SUBDOMAIN_OF", "confidence": 1.0})
+
+    # Entity categories
+    category_map = [
+        ("algorithms", "Algorithm", "USES_ALGORITHM"),
+        ("technologies", "Technology", "USES_TECHNOLOGY"),
+        ("frameworks", "Framework", "USES_FRAMEWORK"),
+        ("libraries", "Library", "USES_LIBRARY"),
+        ("datasets", "Dataset", "USES_DATASET"),
+        ("applications", "Application", "TARGETS_APPLICATION"),
+        ("hardware", "Hardware", "RUNS_ON"),
+        ("metrics", "Metric", "EVALUATED_BY"),
+    ]
+    for cat_key, node_label, rel_type in category_map:
+        items = entities.get(cat_key, [])
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not item or not str(item).strip():
+                continue
+            ent_id = get_or_add(str(item).strip(), node_label)
+            links.append({
+                "source": proj_node_id,
+                "target": ent_id,
+                "relationship": rel_type,
+                "confidence": 1.0,
+            })
+
+    return {
+        "status": "ok",
+        "project_id": pid_str,
+        "title": proj_name,
+        "nodes": nodes,
+        "links": links,
+        "nodes_count": len(nodes),
+        "links_count": len(links),
+    }
+
+
 def export_project_d3_graph(db: Session, project_id: str) -> dict:
+
     """
     Exports a project-scoped D3 graph containing:
     - Target Project node
@@ -269,33 +374,41 @@ def export_project_d3_graph(db: Session, project_id: str) -> dict:
     ).fetchone()
 
     if not proj_row:
-        # Fallback: check if project exists in DB and ingest on the fly if extracted_entities present
+        # Fallback: build a synthetic D3 graph directly from extracted_entities
+        # (avoids re-triggering graph ingestion which may fail if Neo4j is down)
         proj = db.query(Project).filter(Project.id == project_id).first()
         if not proj:
             return {"error": f"Project {project_id} not found", "nodes": [], "links": []}
-        if proj.extracted_entities:
-            from app.services.graph_builder import ingest_project_to_relational_graph
-            entities = proj.extracted_entities or {}
-            domain = entities.get("domain", proj.domain or "General CSE")
-            sub_domain = entities.get("sub_domain", "Machine Learning")
-            ingest_project_to_relational_graph(
-                db, pid_str, proj.title or "", domain, sub_domain, entities
-            )
-            proj_row = db.execute(
-                text("SELECT id, node_type, name FROM graph_nodes WHERE node_type = 'Project' AND source_key = :pid"),
-                {"pid": pid_str}
-            ).fetchone()
 
-    if not proj_row:
-        return {
-            "status": "ok",
-            "project_id": pid_str,
-            "title": "Unprocessed Project",
-            "nodes": [],
-            "links": [],
-            "nodes_count": 0,
-            "links_count": 0,
-        }
+        entities = proj.extracted_entities or {}
+        if isinstance(entities, str):
+            try:
+                entities = json.loads(entities)
+            except Exception:
+                entities = {}
+        if not isinstance(entities, dict):
+            entities = {}
+
+        if entities:
+            # Try to ingest into graph_nodes (best-effort, non-blocking)
+            try:
+                from app.services.graph_builder import ingest_project_to_relational_graph
+                domain_val = entities.get("domain", proj.domain or "General CSE")
+                sub_domain_val = entities.get("sub_domain", "Machine Learning")
+                ingest_project_to_relational_graph(
+                    db, pid_str, proj.title or "", domain_val, sub_domain_val, entities
+                )
+                proj_row = db.execute(
+                    text("SELECT id, node_type, name FROM graph_nodes WHERE node_type = 'Project' AND source_key = :pid"),
+                    {"pid": pid_str}
+                ).fetchone()
+            except Exception as ingest_err:
+                log.warning("Graph ingestion fallback failed for %s (will use synthetic graph): %s", pid_str, ingest_err)
+
+        if not proj_row:
+            # Build pure synthetic in-memory D3 graph from extracted_entities
+            return _build_synthetic_d3_graph_from_entities(pid_str, proj)
+
 
     proj_id_int, _, proj_name = proj_row
 
@@ -384,356 +497,751 @@ def export_project_d3_graph(db: Session, project_id: str) -> dict:
     }
 
 
-def export_datasets_reference_graph(db: Session, project_id: Optional[str] = None) -> dict:
+# Global in-memory cache for corpus research projects catalog
+_CORPUS_PROJECTS_CACHE: Optional[List[Dict[str, Any]]] = None
+
+STOPWORDS: Set[str] = {
+    "a", "an", "the", "in", "on", "of", "for", "to", "with", "and", "or", "is",
+    "are", "was", "were", "by", "at", "from", "as", "into", "using", "based",
+    "via", "through", "system", "project", "approach", "framework", "model",
+    "evaluation", "analysis", "application", "development", "implementation"
+}
+
+
+def _split_clean_field(val: Any) -> list[str]:
+    """Splits comma/semicolon/newline separated string into clean items."""
+    if not val or val is None:
+        return []
+    s = str(val).strip()
+    if not s or s.lower() in ["nan", "none", "null", "n/a", "[]", "{}"]:
+        return []
+    items = re.split(r"[,;\n\t|]+", s)
+    res = []
+    seen = set()
+    for item in items:
+        cleaned = item.strip().strip('"\'`')
+        if cleaned and cleaned.lower() not in ["none", "nan", "null", "n/a"] and cleaned.lower() not in seen:
+            seen.add(cleaned.lower())
+            res.append(cleaned)
+    return res
+
+
+def _resolve_dataset_filepaths() -> List[str]:
+    """Finds all candidate corpus CSV files across Docker (/datasets) and host environments safely."""
+    from pathlib import Path
+    candidate_dirs = [Path("/datasets"), Path("D:/acadeval-1/datasets"), Path("./datasets")]
+    curr = Path(__file__).resolve()
+    for parent in curr.parents:
+        candidate_dirs.append(parent / "datasets")
+
+    relative_files = [
+        "AcadEval_Corpus_MASTER.csv",
+        "corpus/new_AcadEval_Corpus.csv",
+        "corpus/AcadEval_Corpus.csv",
+        "corpus/AcadEval_Corpus_250_Projects.csv",
+    ]
+    found_paths = []
+    seen = set()
+    for d in candidate_dirs:
+        try:
+            if not d.exists():
+                continue
+            for rel in relative_files:
+                p = d / rel
+                if p.exists():
+                    str_p = str(p.resolve())
+                    if str_p not in seen:
+                        seen.add(str_p)
+                        found_paths.append(str_p)
+        except Exception:
+            continue
+    return found_paths
+
+
+def load_corpus_projects_catalog(db: Optional[Session] = None) -> List[Dict[str, Any]]:
     """
-    Constructs the knowledge graph for the 7 AcadEval Reference Datasets collected in /datasets:
-    1. AcadEval Domain Taxonomy (AcadEval_DomainTaxonomy.csv)
-    2. AcadEval Feature Knowledge Base (AcadEval_FeatureKnowledgeBase.csv)
-    3. AcadEval Historical Corpus (AcadEval_Corpus_MASTER.csv)
-    4. AcadEval SimBench (AcadEval_SimBench.csv)
-    5. AcadEval TrendBase (AcadEval_TrendBase.csv)
-    6. AcadEval Project Graph Bank (datasets/PROJECTS - 77 projects)
-    7. AcadEval Benchmark Controls (curated accreditation rubrics)
+    Loads research projects from AcadEval_Corpus_MASTER.csv (and fallback corpus CSVs)
+    into memory for instant similarity search and comparative graph generation.
+    """
+    global _CORPUS_PROJECTS_CACHE
+    if _CORPUS_PROJECTS_CACHE is not None and len(_CORPUS_PROJECTS_CACHE) > 100:
+        return _CORPUS_PROJECTS_CACHE
+
+    candidate_paths = _resolve_dataset_filepaths()
+    corpus_projects = []
+    seen_ids = set()
+
+    for csv_path in candidate_paths:
+        try:
+            with open(csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
+                reader = csv.DictReader(f)
+                for idx, row in enumerate(reader):
+                    pid = str(row.get("Project_ID") or f"CORPUS_{idx+1}").strip()
+                    if pid in seen_ids:
+                        continue
+                    seen_ids.add(pid)
+
+                    title = str(row.get("Title") or "").strip()
+                    if not title:
+                        continue
+
+                    domain = str(row.get("Domain") or "General CSE").strip()
+                    sub_domain = str(row.get("Sub_Domain") or "Machine Learning").strip()
+                    abstract = str(row.get("Abstract") or "").strip()
+
+                    algos = _split_clean_field(row.get("Algorithms"))
+                    techs = _split_clean_field(row.get("Technologies"))
+                    frameworks = _split_clean_field(row.get("Frameworks"))
+                    tools = _split_clean_field(row.get("Tools"))
+                    hardware = _split_clean_field(row.get("Hardware"))
+                    datasets = _split_clean_field(row.get("Dataset_Used"))
+                    languages = _split_clean_field(row.get("Programming_Languages"))
+                    keywords = _split_clean_field(row.get("Keywords"))
+
+                    # Combine into clean entity set
+                    entity_set = set()
+                    for item in algos + techs + frameworks + tools + hardware + datasets + languages:
+                        entity_set.add(item.strip().lower())
+
+                    # Text tokens for keyword matching
+                    text_blob = f"{title} {domain} {sub_domain} {row.get('Keywords', '')} {' '.join(algos)} {' '.join(techs)}"
+                    raw_tokens = set(re.findall(r"[a-zA-Z0-9]+", text_blob.lower()))
+                    clean_tokens = raw_tokens - STOPWORDS
+
+                    corpus_projects.append({
+                        "id": pid,
+                        "title": title,
+                        "domain": domain,
+                        "sub_domain": sub_domain,
+                        "abstract": abstract,
+                        "algorithms": algos,
+                        "technologies": techs,
+                        "frameworks": frameworks,
+                        "tools": tools,
+                        "hardware": hardware,
+                        "datasets": datasets,
+                        "languages": languages,
+                        "keywords": keywords,
+                        "entity_set": entity_set,
+                        "tokens": clean_tokens,
+                        "source": "corpus_dataset",
+                    })
+        except Exception as e:
+            log.warning("Could not read corpus file %s: %s", csv_path, e)
+
+    # Also load from PostgreSQL Project table if db provided
+    if db:
+        try:
+            from app.models.project import Project
+            db_projects = db.query(Project).all()
+            for p in db_projects:
+                pid = str(p.id)
+                if pid in seen_ids:
+                    continue
+                seen_ids.add(pid)
+                extracted = p.extracted_entities or {}
+                if isinstance(extracted, str):
+                    try:
+                        extracted = json.loads(extracted)
+                    except Exception:
+                        extracted = {}
+                if not isinstance(extracted, dict):
+                    extracted = {}
+
+                algos = extracted.get("algorithms", [])
+                techs = extracted.get("technologies", [])
+                frameworks = extracted.get("frameworks", [])
+                libraries = extracted.get("libraries", [])
+                hardware = extracted.get("hardware", [])
+                datasets = extracted.get("datasets", [])
+                applications = extracted.get("applications", [])
+
+                entity_set = set()
+                for cat in [algos, techs, frameworks, libraries, hardware, datasets, applications]:
+                    if isinstance(cat, list):
+                        for item in cat:
+                            if item:
+                                entity_set.add(str(item).strip().lower())
+
+                db_sub_domain = extracted.get("sub_domain", "")
+                text_blob = f"{p.title or ''} {p.domain or ''} {db_sub_domain} {' '.join(entity_set)}"
+                clean_tokens = set(re.findall(r"[a-zA-Z0-9]+", text_blob.lower())) - STOPWORDS
+
+                corpus_projects.append({
+                    "id": pid,
+                    "title": p.title or "Submitted Project",
+                    "domain": p.domain or "General CSE",
+                    "sub_domain": extracted.get("sub_domain", "") or "Machine Learning",
+                    "abstract": p.abstract or "",
+                    "algorithms": algos if isinstance(algos, list) else [],
+                    "technologies": techs if isinstance(techs, list) else [],
+                    "frameworks": frameworks if isinstance(frameworks, list) else [],
+                    "tools": libraries if isinstance(libraries, list) else [],
+                    "hardware": hardware if isinstance(hardware, list) else [],
+                    "datasets": datasets if isinstance(datasets, list) else [],
+                    "languages": [],
+                    "keywords": [],
+                    "entity_set": entity_set,
+                    "tokens": clean_tokens,
+                    "source": "database",
+                })
+        except Exception as e:
+            log.warning("Could not load database projects into corpus catalog: %s", e)
+
+    _CORPUS_PROJECTS_CACHE = corpus_projects
+    log.info("Loaded %d projects into corpus comparison catalog.", len(corpus_projects))
+    return _CORPUS_PROJECTS_CACHE
+
+
+def find_similar_corpus_projects(
+    target_id: str,
+    target_title: str,
+    target_domain: str,
+    target_sub_domain: str,
+    target_entities: Any,
+    db: Optional[Session] = None,
+    distance_threshold: float = 0.50,
+    top_k: int = 15,
+) -> List[Dict[str, Any]]:
+    """
+    Finds truly related academic research projects from the AcadEval corpus dataset
+    using multi-signal keyword anchor matching, entity overlap, and topic alignment.
+    """
+    catalog = load_corpus_projects_catalog(db)
+    if not catalog:
+        return []
+
+    # Clean target title (strip file extensions, numbers, etc.)
+    cleaned_target_title = re.sub(r"\(\d+\)|\.pdf|\.docx|\.pptx|\.txt", "", target_title or "", flags=re.IGNORECASE).strip()
+
+    # Build target entity set
+    if isinstance(target_entities, str):
+        try:
+            target_entities = json.loads(target_entities)
+        except Exception:
+            target_entities = {}
+    if not isinstance(target_entities, dict):
+        target_entities = {}
+
+    target_entity_set = set()
+    for cat, items in target_entities.items():
+        if isinstance(items, list):
+            for item in items:
+                if item:
+                    target_entity_set.add(str(item).strip().lower())
+        elif isinstance(items, str) and items:
+            target_entity_set.add(items.strip().lower())
+
+    # Build target tokens
+    target_text = f"{cleaned_target_title} {target_domain or ''} {target_sub_domain or ''} {' '.join(target_entity_set)}"
+    target_tokens = set(re.findall(r"[a-zA-Z0-9]+", target_text.lower())) - STOPWORDS
+
+    scored_candidates = []
+    target_dom_lower = (target_domain or "").strip().lower()
+    target_subdom_lower = (target_sub_domain or "").strip().lower()
+
+    # High-impact anchor keywords for specialized topic matching
+    SPECIALIZED_ANCHORS = {
+        "dysgraphia", "rehabilitation", "handwriting", "vr", "virtual", "reality",
+        "kinematics", "motor", "autism", "eeg", "ecg", "cardiac", "steganography",
+        "ransomware", "intrusion", "yolo", "drone", "robotics", "nlp", "bert",
+        "transformer", "gan", "diffusion", "segmentation", "quantum", "blockchain"
+    }
+
+    target_anchors = target_tokens & SPECIALIZED_ANCHORS
+
+    for cand in catalog:
+        if cand["id"] == target_id:
+            continue
+
+        cand_title_clean = re.sub(r"\(\d+\)|\.pdf|\.docx|\.pptx", "", cand.get("title", ""), flags=re.IGNORECASE).strip()
+        cand_entity_set = cand["entity_set"]
+        cand_tokens = cand["tokens"]
+        cand_anchors = cand_tokens & SPECIALIZED_ANCHORS
+
+        # 1. Specialized Anchor Word Overlap (Highest thematic weight)
+        shared_anchors = target_anchors & cand_anchors
+        if target_anchors and cand_anchors:
+            anchor_overlap = len(shared_anchors) / max(len(target_anchors), 1)
+        else:
+            anchor_overlap = 0.0
+
+        # 2. General Token Overlap (Overlap Coefficient: avoids penalizing different document lengths)
+        shared_tokens = target_tokens & cand_tokens
+        min_tokens_len = min(len(target_tokens), len(cand_tokens)) if (target_tokens and cand_tokens) else 1
+        token_overlap_coeff = len(shared_tokens) / min_tokens_len if min_tokens_len > 0 else 0.0
+
+        # 3. Technical Entity Overlap
+        shared_entities = set()
+        if target_entity_set and cand_entity_set:
+            shared_entities = target_entity_set & cand_entity_set
+            # Also check partial/substring entity matching
+            for te in target_entity_set:
+                for ce in cand_entity_set:
+                    if len(te) >= 3 and len(ce) >= 3 and (te in ce or ce in te):
+                        shared_entities.add(te)
+            min_ent_len = min(len(target_entity_set), len(cand_entity_set))
+            entity_overlap_coeff = len(shared_entities) / max(min_ent_len, 1)
+        else:
+            entity_overlap_coeff = 0.0
+
+        # 4. Domain & Subdomain Alignment
+        cand_dom_lower = (cand.get("domain") or "").strip().lower()
+        cand_subdom_lower = (cand.get("sub_domain") or "").strip().lower()
+
+        domain_match = 0.0
+        if target_dom_lower and cand_dom_lower:
+            if target_dom_lower == cand_dom_lower or target_dom_lower in cand_dom_lower or cand_dom_lower in target_dom_lower:
+                domain_match = 1.0
+            elif target_subdom_lower and (target_subdom_lower == cand_subdom_lower or target_subdom_lower in cand_subdom_lower):
+                domain_match = 0.85
+            elif any(w in cand_dom_lower for w in target_dom_lower.split() if len(w) > 3):
+                domain_match = 0.60
+            elif any(w in cand_subdom_lower for w in target_subdom_lower.split() if len(w) > 3):
+                domain_match = 0.60
+
+        # ── Weighted Multi-Signal Similarity ──
+        if len(shared_anchors) >= 1:
+            # Strong thematic match (e.g. both share "dysgraphia", "rehabilitation", "vr")
+            base_sim = 0.55 + 0.25 * min(len(shared_anchors), 3) / 3.0
+            bonus_ent = 0.15 * min(len(shared_entities), 3) / 3.0
+            bonus_tok = 0.10 * min(token_overlap_coeff, 1.0)
+            sim = min(0.96, base_sim + bonus_ent + bonus_tok)
+        elif len(shared_entities) >= 2:
+            sim = 0.40 * entity_overlap_coeff + 0.35 * token_overlap_coeff + 0.25 * domain_match
+            sim = min(0.85, sim + 0.10)
+        else:
+            sim = 0.50 * token_overlap_coeff + 0.30 * domain_match + 0.20 * entity_overlap_coeff
+            sim = min(0.70, sim)
+
+        dist = round(max(0.04, 1.0 - sim), 4)
+
+        scored_candidates.append({
+            **cand,
+            "similarity": round(sim, 4),
+            "distance": dist,
+            "shared_entities": sorted(list(shared_entities)),
+            "shared_tokens": sorted(list(shared_tokens)),
+            "shared_anchors": sorted(list(shared_anchors)),
+        })
+
+    # Sort candidates by similarity descending (distance ascending)
+    scored_candidates.sort(
+        key=lambda x: (len(x.get("shared_anchors", [])), x["similarity"], len(x.get("shared_entities", []))),
+        reverse=True
+    )
+
+    # Return top K candidates
+    return scored_candidates[:top_k]
+
+
+def build_corpus_project_d3_graph(candidate: Dict[str, Any], id_offset: int = 10000) -> Dict[str, Any]:
+    """
+    Builds a complete, interactive D3-compatible project knowledge graph
+    from a real research project in the dataset corpus.
     """
     nodes: list[dict] = []
     links: list[dict] = []
-    seen_nodes: set[str] = set()
-    seen_edges: set[tuple] = set()
+    seen_nodes: dict[tuple[str, str], int] = {}
 
-    next_id = 1000
+    curr_id = id_offset + 1
 
-    def add_node(name: str, node_type: str, degree: int = 3, is_dataset_hub: bool = False) -> int:
-        nonlocal next_id
-        key = (node_type, name.strip().lower())
+    # 1. Project Root Node
+    proj_id = curr_id
+    curr_id += 1
+    proj_name = candidate.get("title") or "Corpus Research Project"
+    nodes.append({
+        "id": proj_id,
+        "name": proj_name,
+        "type": "Project",
+        "degree": 10,
+        "group": "comparison",
+        "is_comparison": True,
+    })
+
+    def get_or_add_node(name: str, ntype: str, degree: int = 3) -> int:
+        nonlocal curr_id
+        key = (ntype, name.strip().lower())
         if key in seen_nodes:
-            # find existing
-            for n in nodes:
-                if n["type"] == node_type and n["name"].strip().lower() == name.strip().lower():
-                    return n["id"]
-        nid = next_id
-        next_id += 1
-        seen_nodes.add(key)
+            return seen_nodes[key]
+        nid = curr_id
+        curr_id += 1
+        seen_nodes[key] = nid
         nodes.append({
             "id": nid,
-            "name": name,
-            "type": node_type,
+            "name": name.strip(),
+            "type": ntype,
             "degree": degree,
-            "is_dataset_hub": is_dataset_hub,
             "group": "comparison",
+            "is_comparison": True,
         })
         return nid
 
-    def add_link(source_id: int, target_id: int, relationship: str, confidence: float = 1.0):
-        key = (source_id, target_id, relationship)
-        if key not in seen_edges and source_id != target_id:
-            seen_edges.add(key)
+    # 2. Domain and Subdomain
+    dom_name = candidate.get("domain")
+    if dom_name:
+        dom_id = get_or_add_node(dom_name, "Domain", degree=5)
+        links.append({
+            "source": proj_id,
+            "target": dom_id,
+            "relationship": "HAS_DOMAIN",
+            "confidence": 1.0,
+            "group": "comparison",
+        })
+
+        subdom_name = candidate.get("sub_domain")
+        if subdom_name and subdom_name.lower() != dom_name.lower():
+            subdom_id = get_or_add_node(subdom_name, "Subdomain", degree=4)
             links.append({
-                "source": source_id,
-                "target": target_id,
-                "relationship": relationship,
-                "confidence": confidence,
+                "source": proj_id,
+                "target": subdom_id,
+                "relationship": "HAS_SUBDOMAIN",
+                "confidence": 1.0,
+                "group": "comparison",
+            })
+            links.append({
+                "source": subdom_id,
+                "target": dom_id,
+                "relationship": "SUBDOMAIN_OF",
+                "confidence": 1.0,
                 "group": "comparison",
             })
 
-    # ── 1. The 7 Core Reference Datasets Hubs ──
-    d1_taxonomy = add_node("AcadEval Domain Taxonomy", "Dataset", degree=10, is_dataset_hub=True)
-    d2_feature_kb = add_node("AcadEval Feature Knowledge Base", "Dataset", degree=18, is_dataset_hub=True)
-    d3_historical = add_node("AcadEval Historical Corpus", "Dataset", degree=8, is_dataset_hub=True)
-    d4_simbench = add_node("AcadEval SimBench", "Dataset", degree=8, is_dataset_hub=True)
-    d5_trendbase = add_node("AcadEval TrendBase", "Dataset", degree=8, is_dataset_hub=True)
-    d6_graph_bank = add_node("AcadEval Project Graph Bank", "Dataset", degree=8, is_dataset_hub=True)
-    d7_controls = add_node("AcadEval Benchmark Controls", "Dataset", degree=8, is_dataset_hub=True)
-
-    # Cross-dataset architectural links
-    add_link(d1_taxonomy, d2_feature_kb, "STRUCTURES_FEATURES", 1.0)
-    add_link(d2_feature_kb, d6_graph_bank, "MAPS_TO_GRAPH", 1.0)
-    add_link(d3_historical, d4_simbench, "CALIBRATES_SIMILARITY", 1.0)
-    add_link(d5_trendbase, d1_taxonomy, "MONITORS_DOMAIN_VELOCITY", 1.0)
-    add_link(d7_controls, d3_historical, "BENCHMARKS_CORPUS", 1.0)
-    add_link(d6_graph_bank, d7_controls, "VALIDATES_TOPOLOGY", 1.0)
-
-    # ── 2. Domain & Subdomain Hierarchy (from AcadEval_DomainTaxonomy.csv) ──
-    dom_ai = add_node("Artificial Intelligence", "Domain", degree=8)
-    dom_ds = add_node("Data Science", "Domain", degree=5)
-    dom_sec = add_node("Cybersecurity", "Domain", degree=4)
-
-    add_link(d1_taxonomy, dom_ai, "DEFINES_DOMAIN", 1.0)
-    add_link(d1_taxonomy, dom_ds, "DEFINES_DOMAIN", 1.0)
-    add_link(d1_taxonomy, dom_sec, "DEFINES_DOMAIN", 1.0)
-
-    sub_ml = add_node("Machine Learning", "Subdomain", degree=8)
-    sub_nlp = add_node("Natural Language Processing", "Subdomain", degree=6)
-    sub_cv = add_node("Computer Vision", "Subdomain", degree=5)
-    sub_dl = add_node("Deep Learning", "Subdomain", degree=6)
-    sub_xai = add_node("Explainable AI", "Subdomain", degree=4)
-
-    add_link(dom_ai, sub_ml, "HAS_SUBDOMAIN", 1.0)
-    add_link(dom_ai, sub_nlp, "HAS_SUBDOMAIN", 1.0)
-    add_link(dom_ai, sub_cv, "HAS_SUBDOMAIN", 1.0)
-    add_link(sub_ml, sub_dl, "SUBDOMAIN_OF", 1.0)
-    add_link(sub_ml, sub_xai, "SUBDOMAIN_OF", 1.0)
-
-    # ── 3. Feature Knowledge Base Entities (from AcadEval_FeatureKnowledgeBase.csv) ──
-    kb_algorithms = [
-        "Transformer Architecture", "Convolutional Neural Network", "BERT",
-        "RoBERTa", "Vision Transformer", "SHAP", "LIME", "Sentence-BERT",
-        "Node2Vec", "TF-IDF"
+    # 3. Categorized Technical Entities from Corpus
+    entity_mappings = [
+        ("algorithms", "Algorithm", "USES_ALGORITHM"),
+        ("technologies", "Technology", "USES_TECHNOLOGY"),
+        ("frameworks", "Framework", "USES_FRAMEWORK"),
+        ("tools", "Library", "USES_LIBRARY"),
+        ("datasets", "Dataset", "USES_DATASET"),
+        ("hardware", "Hardware", "RUNS_ON"),
+        ("languages", "Technology", "USES_LANGUAGE"),
+        ("applications", "Application", "TARGETS_APPLICATION"),
+        ("metrics", "Metric", "EVALUATED_BY"),
     ]
-    for alg in kb_algorithms:
-        anid = add_node(alg, "Algorithm", degree=4)
-        add_link(d2_feature_kb, anid, "CATALOGS_ALGORITHM", 1.0)
-        add_link(anid, sub_ml, "ALIGNED_WITH", 0.9)
 
-    kb_frameworks = ["PyTorch", "TensorFlow", "Hugging Face Transformers", "FastAPI"]
-    for fw in kb_frameworks:
-        fnid = add_node(fw, "Framework", degree=4)
-        add_link(d2_feature_kb, fnid, "CATALOGS_FRAMEWORK", 1.0)
-
-    kb_technologies = ["Python", "PostgreSQL", "Neo4j", "Redis", "React"]
-    for tech in kb_technologies:
-        tnid = add_node(tech, "Technology", degree=4)
-        add_link(d2_feature_kb, tnid, "CATALOGS_TECHNOLOGY", 1.0)
-
-    kb_libraries = ["spaCy", "NumPy", "Scikit-Learn", "NetworkX"]
-    for lib in kb_libraries:
-        lnid = add_node(lib, "Library", degree=3)
-        add_link(d2_feature_kb, lnid, "CATALOGS_LIBRARY", 1.0)
-
-    kb_hardware = ["GPU Server", "Cloud VM / Workstation", "Edge AI Hardware"]
-    for hw in kb_hardware:
-        hnid = add_node(hw, "Hardware", degree=3)
-        add_link(d2_feature_kb, hnid, "CATALOGS_HARDWARE", 1.0)
-
-    kb_metrics = ["Accuracy", "F1-Score", "Cosine Similarity"]
-    for met in kb_metrics:
-        mnid = add_node(met, "Metric", degree=3)
-        add_link(d2_feature_kb, mnid, "CATALOGS_METRIC", 1.0)
-
-    kb_apps = ["Academic Project Evaluation", "Edge AI", "Explainable AI"]
-    for app in kb_apps:
-        apnid = add_node(app, "Application", degree=3)
-        add_link(d2_feature_kb, apnid, "TARGETS_APPLICATION", 1.0)
-
-    # ── 4. TrendBase Frontier Topics (from AcadEval_TrendBase.csv) ──
-    trend_topics = [
-        ("Large Language Models (+41.5% CAGR)", "large language models"),
-        ("Deep Learning Research (+66.1% CAGR)", "deep learning"),
-        ("Explainable AI Architectures", "explainable ai"),
-    ]
-    for topic_label, _ in trend_topics:
-        tnid = add_node(topic_label, "Subdomain", degree=2)
-        add_link(d5_trendbase, tnid, "TRACKS_TREND", 1.0)
-
-    # ── 5. SimBench Controls (from AcadEval_SimBench.csv) ──
-    sim_ctrl1 = add_node("Pairwise Similarity Controls", "Metric", degree=2)
-    sim_ctrl2 = add_node("Originality Threshold Baselines", "Metric", degree=2)
-    add_link(d4_simbench, sim_ctrl1, "ENFORCES_CONTROL", 1.0)
-    add_link(d4_simbench, sim_ctrl2, "ENFORCES_CONTROL", 1.0)
-
-    # ── 6. Historical Corpus Baselines (from AcadEval_Corpus_MASTER.csv) ──
-    corp_b1 = add_node("Historical Project Corpus (40k+)", "Application", degree=2)
-    add_link(d3_historical, corp_b1, "INDEXES_STUDENT_WORK", 1.0)
-
-    # ── 7. Project Graph Bank (from datasets/PROJECTS) ──
-    pgb_node = add_node("Project Graph Bank (77 Repos)", "Technology", degree=2)
-    add_link(d6_graph_bank, pgb_node, "HOUSES_TOPOLOGIES", 1.0)
-
-    # ── 8. Benchmark Controls Criteria ──
-    bench_crit = add_node("Accreditation Rubrics Criteria", "Metric", degree=2)
-    add_link(d7_controls, bench_crit, "SPECIFIES_RUBRIC", 1.0)
+    for field_key, node_type, rel_name in entity_mappings:
+        items = candidate.get(field_key, [])
+        if isinstance(items, list):
+            for item in items:
+                if not item:
+                    continue
+                ent_id = get_or_add_node(item, node_type, degree=2)
+                links.append({
+                    "source": proj_id,
+                    "target": ent_id,
+                    "relationship": rel_name,
+                    "confidence": 1.0,
+                    "group": "comparison",
+                })
 
     return {
-        "status": "ok",
-        "title": "AcadEval Reference Datasets (7 Benchmark Corpora in /datasets)",
+        "title": proj_name,
         "nodes": nodes,
         "links": links,
         "nodes_count": len(nodes),
         "links_count": len(links),
-        "datasets": [
-            "AcadEval Historical Corpus",
-            "AcadEval Domain Taxonomy",
-            "AcadEval Feature Knowledge Base",
-            "AcadEval SimBench",
-            "AcadEval TrendBase",
-            "AcadEval Project Graph Bank",
-            "AcadEval Benchmark Controls",
-        ],
+        "domain": candidate.get("domain", ""),
+        "sub_domain": candidate.get("sub_domain", ""),
+        "project_id": candidate.get("id", ""),
     }
 
 
 def export_comparison_d3_graph(
     db: Session,
     project_id: str,
-    similar_project_ids: Optional[list[str]] = None,
+    compare_project_id: Optional[str] = None,
     distance_threshold: float = 0.5,
 ) -> dict:
     """
     Exports a dual comparison D3 graph comparing:
     - Graph 1 (Target Project Implementation): Uploaded project's extracted entities & architecture
-    - Graph 2 (AcadEval Reference Datasets): The 7 Reference Datasets collected in /datasets folder
-    - Explicit cross-dataset connection links showing how the uploaded implementation is evaluated against
-      each of the 7 reference datasets.
+    - Graph 2 (Related Dataset Project): The truly matching academic research project from the dataset corpus
+    - Shared entity overlap highlighted in golden glow
+    - Explicit cross-project benchmark bridge link
     """
     pid_str = str(project_id)
-    target_graph = export_project_d3_graph(db, pid_str)
+    try:
+        target_graph = export_project_d3_graph(db, pid_str)
+        if not isinstance(target_graph, dict):
+            target_graph = {"nodes": [], "links": [], "title": "Target Project"}
 
-    # Build Graph 2 from the 7 reference datasets collected in /datasets
-    ref_datasets_graph = export_datasets_reference_graph(db, project_id=pid_str)
+        # Get target project details from DB
+        from app.models.project import Project
+        target_proj = None
+        try:
+            target_proj = db.query(Project).filter(Project.id == project_id).first()
+        except Exception as qe:
+            log.warning("Could not fetch project from DB for comparison: %s", qe)
 
-    # Map target nodes and reference nodes for overlap detection
-    target_nodes = target_graph.get("nodes", [])
-    ref_nodes = ref_datasets_graph.get("nodes", [])
+        target_title = target_proj.title if target_proj and target_proj.title else target_graph.get("title", "Target Project")
+        target_domain = target_proj.domain if target_proj and target_proj.domain else "General CSE"
 
-    target_proj_node = next((n["id"] for n in target_nodes if n.get("type") == "Project"), None)
+        target_entities = target_proj.extracted_entities if target_proj and target_proj.extracted_entities else {}
+        if isinstance(target_entities, str):
+            try:
+                target_entities = json.loads(target_entities)
+            except Exception:
+                target_entities = {}
+        if not isinstance(target_entities, dict):
+            target_entities = {}
 
-    # Build lowercase names map for reference nodes
-    ref_names_map: dict[tuple[str, str], int] = {}
-    for n in ref_nodes:
-        ref_names_map[(n["type"], n["name"].strip().lower())] = n["id"]
+        # sub_domain lives inside extracted_entities (not a direct Project column)
+        target_sub_domain = target_entities.get("sub_domain", "") or "Machine Learning"
 
-    shared_entity_names = set()
-    shared_ref_node_ids = set()
-    shared_target_node_ids = set()
+        # Enrich title with abstract text for better keyword matching (e.g. Dysgraphia)
+        abstract_text = getattr(target_proj, "abstract", "") or ""
+        if abstract_text and len(abstract_text) > 20:
+            # Add abstract keywords to target_entities for richer matching
+            abs_lower = abstract_text.lower()
+            # Inject important domain keywords found in abstract as synthetic "applications"
+            DOMAIN_KEYWORDS = [
+                "dysgraphia", "handwriting", "rehabilitation", "motor", "spatial",
+                "autism", "eeg", "ecg", "steganography", "ransomware", "intrusion",
+                "drone", "robotics", "quantum", "blockchain", "cardiac", "stroke",
+                "parkinson", "dementia", "gesture", "sign language", "ocr",
+            ]
+            found_in_abstract = [kw for kw in DOMAIN_KEYWORDS if kw in abs_lower]
+            if found_in_abstract:
+                existing_apps = target_entities.get("applications", [])
+                if not isinstance(existing_apps, list):
+                    existing_apps = []
+                combined = list(set(existing_apps + found_in_abstract))
+                target_entities = {**target_entities, "applications": combined}
 
-    for n in target_nodes:
-        if n.get("type") == "Project":
-            continue
-        key = (n.get("type"), n.get("name", "").strip().lower())
-        if key in ref_names_map:
-            shared_entity_names.add(n["name"].strip().lower())
-            shared_target_node_ids.add(n["id"])
-            shared_ref_node_ids.add(ref_names_map[key])
+        # If target_entities empty, extract entity names from target_graph nodes
+        if not target_entities and target_graph.get("nodes"):
+            extracted_from_graph: dict[str, list[str]] = {
+                "algorithms": [],
+                "technologies": [],
+                "frameworks": [],
+                "libraries": [],
+                "datasets": [],
+                "hardware": [],
+                "applications": [],
+                "metrics": [],
+            }
+            for n in target_graph.get("nodes", []):
+                ntype = n.get("type", "")
+                nname = n.get("name", "")
+                if ntype == "Algorithm":
+                    extracted_from_graph["algorithms"].append(nname)
+                elif ntype == "Technology":
+                    extracted_from_graph["technologies"].append(nname)
+                elif ntype == "Framework":
+                    extracted_from_graph["frameworks"].append(nname)
+                elif ntype == "Library":
+                    extracted_from_graph["libraries"].append(nname)
+                elif ntype == "Dataset":
+                    extracted_from_graph["datasets"].append(nname)
+                elif ntype == "Hardware":
+                    extracted_from_graph["hardware"].append(nname)
+                elif ntype == "Application":
+                    extracted_from_graph["applications"].append(nname)
+                elif ntype == "Metric":
+                    extracted_from_graph["metrics"].append(nname)
+            target_entities = extracted_from_graph
 
-    # Tag merged nodes
-    merged_nodes = []
-    seen_node_keys = set()
+        # Find candidate research projects from the AcadEval corpus dataset
+        similar_candidates = find_similar_corpus_projects(
+            target_id=pid_str,
+            target_title=target_title,
+            target_domain=target_domain,
+            target_sub_domain=target_sub_domain,
+            target_entities=target_entities,
+            db=db,
+            distance_threshold=distance_threshold,
+            top_k=20,
+        )
 
-    # 1. Target project nodes
-    for n in target_nodes:
-        nid = n["id"]
-        is_shared = nid in shared_target_node_ids
-        seen_node_keys.add(("target", nid))
-        merged_nodes.append({
-            **n,
-            "group": "shared" if is_shared else "target",
-            "is_shared": is_shared,
-            "project": "target",
-        })
+        # Check if a qualified candidate exists
+        if not similar_candidates:
+            return {
+                "status": "ok",
+                "project_id": pid_str,
+                "target_title": target_title,
+                "comparison_title": "Related project is not available (Distance > 0.50)",
+                "related_project_available": False,
+                "similarity_score": 0.0,
+                "distance": 1.0,
+                "shared_entities_count": 0,
+                "shared_entities": [],
+                "message": "Related project is not available in the dataset corpus (Distance > 0.50).",
+                "similar_projects": [],
+                "nodes": target_graph.get("nodes", []),
+                "links": target_graph.get("links", []),
+                "nodes_count": target_graph.get("nodes_count", len(target_graph.get("nodes", []))),
+                "links_count": target_graph.get("links_count", len(target_graph.get("links", []))),
+                "target_graph": target_graph,
+                "comparison_graph": {
+                    "title": "Related project is not available (Distance > 0.50)",
+                    "nodes": [],
+                    "links": [],
+                    "nodes_count": 0,
+                    "links_count": 0,
+                },
+            }
 
-    # 2. Reference datasets nodes
-    # Offset reference node IDs to guarantee no ID collision with target nodes
-    id_offset = 10000
-    ref_id_map: dict[int, int] = {}
-    for n in ref_nodes:
-        orig_id = n["id"]
-        new_id = orig_id + id_offset
-        ref_id_map[orig_id] = new_id
-        is_shared = orig_id in shared_ref_node_ids
-        merged_nodes.append({
-            **n,
-            "id": new_id,
-            "group": "shared" if is_shared else "comparison",
-            "is_shared": is_shared,
-            "project": "comparison",
-        })
+        # If user passed compare_project_id, select that candidate; else top candidate
+        selected_candidate = similar_candidates[0]
+        if compare_project_id:
+            for cand in similar_candidates:
+                if str(cand.get("id")) == str(compare_project_id):
+                    selected_candidate = cand
+                    break
 
-    # Merged links
-    merged_links = []
-    seen_links = set()
+        # Build Graph 2 from the selected dataset research project
+        comp_graph = build_corpus_project_d3_graph(selected_candidate, id_offset=10000)
 
-    for l in target_graph.get("links", []):
-        key = (l["source"], l["target"], l["relationship"])
-        if key not in seen_links:
-            seen_links.add(key)
-            merged_links.append({**l, "group": "target"})
+        target_nodes = target_graph.get("nodes", [])
+        comp_nodes = comp_graph.get("nodes", [])
 
-    for l in ref_datasets_graph.get("links", []):
-        src = ref_id_map.get(l["source"], l["source"])
-        tgt = ref_id_map.get(l["target"], l["target"])
-        key = (src, tgt, l["relationship"])
-        if key not in seen_links:
-            seen_links.add(key)
-            merged_links.append({
-                "source": src,
-                "target": tgt,
-                "relationship": l["relationship"],
-                "confidence": l.get("confidence", 1.0),
-                "group": "comparison",
+        target_proj_node = next((n["id"] for n in target_nodes if n.get("type") == "Project"), None)
+        comp_proj_node = next((n["id"] for n in comp_nodes if n.get("type") == "Project"), None)
+
+        # Compute shared entities between target and candidate
+        target_names_map = {
+            (n.get("type"), str(n.get("name", "")).strip().lower()): n.get("id")
+            for n in target_nodes
+            if n.get("type") != "Project"
+        }
+
+        comp_names_map = {
+            (n.get("type"), str(n.get("name", "")).strip().lower()): n.get("id")
+            for n in comp_nodes
+            if n.get("type") != "Project"
+        }
+
+        shared_entity_names = set()
+        shared_target_node_ids = set()
+        shared_comp_node_ids = set()
+
+        for key, tid in target_names_map.items():
+            if key in comp_names_map:
+                shared_entity_names.add(key[1])
+                shared_target_node_ids.add(tid)
+                shared_comp_node_ids.add(comp_names_map[key])
+
+        # Tag nodes for golden glow highlight
+        merged_nodes = []
+        for n in target_nodes:
+            nid = n.get("id")
+            is_shared = nid in shared_target_node_ids
+            merged_nodes.append({
+                **n,
+                "group": "shared" if is_shared else "target",
+                "is_shared": is_shared,
+                "project": "target",
             })
 
-    # ── 3. Explicit Cross-Graph Links from Uploaded Project to the 7 Reference Datasets ──
-    if target_proj_node:
-        dataset_relationships = [
-            ("AcadEval Domain Taxonomy", "TAXONOMY_MAPPED_TO"),
-            ("AcadEval Feature Knowledge Base", "EXTRACTED_FROM_KB"),
-            ("AcadEval Historical Corpus", "BENCHMARKED_AGAINST"),
-            ("AcadEval SimBench", "ORIGINALITY_EVALUATED_BY"),
-            ("AcadEval TrendBase", "TREND_ALIGNED_WITH"),
-            ("AcadEval Project Graph Bank", "TOPOLOGY_INDEXED_IN"),
-            ("AcadEval Benchmark Controls", "ACCREDITATION_AUDITED_BY"),
+        for n in comp_nodes:
+            nid = n.get("id")
+            is_shared = nid in shared_comp_node_ids
+            merged_nodes.append({
+                **n,
+                "group": "shared" if is_shared else "comparison",
+                "is_shared": is_shared,
+                "project": "comparison",
+            })
+
+        # Merged links
+        merged_links = []
+        seen_links = set()
+
+        for l in target_graph.get("links", []):
+            key = (l.get("source"), l.get("target"), l.get("relationship"))
+            if key not in seen_links:
+                seen_links.add(key)
+                merged_links.append({**l, "group": "target"})
+
+        for l in comp_graph.get("links", []):
+            key = (l.get("source"), l.get("target"), l.get("relationship"))
+            if key not in seen_links:
+                seen_links.add(key)
+                merged_links.append({**l, "group": "comparison"})
+
+        # Cross-project benchmark link
+        sim_score = float(selected_candidate.get("similarity", 0.85))
+        if target_proj_node and comp_proj_node:
+            bridge_key = (target_proj_node, comp_proj_node, "BENCHMARKED_AGAINST")
+            if bridge_key not in seen_links:
+                seen_links.add(bridge_key)
+                merged_links.append({
+                    "source": target_proj_node,
+                    "target": comp_proj_node,
+                    "relationship": "BENCHMARKED_AGAINST",
+                    "confidence": sim_score,
+                    "group": "bridge",
+                })
+
+        # Format similar projects for UI dropdown selector
+        similar_projects_list = [
+            {
+                "project_id": str(c.get("id", "")),
+                "title": c.get("title", "Dataset Project"),
+                "similarity_score": round(float(c.get("similarity", 0.0)), 2),
+                "distance": round(float(c.get("distance", 1.0)), 2),
+                "domain": c.get("domain", ""),
+                "sub_domain": c.get("sub_domain", ""),
+                "shared_entities": c.get("shared_entities", []),
+            }
+            for c in similar_candidates
         ]
 
-        for ds_name, rel in dataset_relationships:
-            # Find the new ID of this dataset hub in reference graph
-            orig_ds_node = next((n for n in ref_nodes if n.get("name") == ds_name and n.get("type") == "Dataset"), None)
-            if orig_ds_node:
-                comp_ds_id = ref_id_map.get(orig_ds_node["id"])
-                if comp_ds_id:
-                    bridge_key = (target_proj_node, comp_ds_id, rel)
-                    if bridge_key not in seen_links:
-                        seen_links.add(bridge_key)
-                        merged_links.append({
-                            "source": target_proj_node,
-                            "target": comp_ds_id,
-                            "relationship": rel,
-                            "confidence": 1.0,
-                            "group": "bridge",
-                        })
-
-    similarity_score = 0.88  # Verified knowledge base alignment against the 7 reference datasets
-
-    # Reference graph for Graph 2 with mapped IDs
-    comparison_graph_clean = {
-        "title": "AcadEval Reference Datasets (7 Benchmark Corpora in /datasets)",
-        "nodes": [
-            {**n, "id": ref_id_map.get(n["id"], n["id"])}
-            for n in ref_nodes
-        ],
-        "links": [
-            {
-                **l,
-                "source": ref_id_map.get(l["source"], l["source"]),
-                "target": ref_id_map.get(l["target"], l["target"]),
-            }
-            for l in ref_datasets_graph.get("links", [])
-        ],
-        "nodes_count": len(ref_nodes),
-        "links_count": len(ref_datasets_graph.get("links", [])),
-    }
-
-    return {
-        "status": "ok",
-        "project_id": pid_str,
-        "target_title": target_graph.get("title", "Target Project"),
-        "comparison_title": "AcadEval Reference Datasets (7 Benchmark Corpora in /datasets)",
-        "related_project_available": True,
-        "similarity_score": similarity_score,
-        "shared_entities_count": len(shared_entity_names),
-        "message": "Project implementation benchmarked against all 7 AcadEval reference datasets.",
-        "similar_projects": [
-            {"project_id": "ds_corpus", "title": "AcadEval Historical Corpus", "similarity_score": 0.85},
-            {"project_id": "ds_taxonomy", "title": "AcadEval Domain Taxonomy", "similarity_score": 0.95},
-            {"project_id": "ds_feature_kb", "title": "AcadEval Feature Knowledge Base", "similarity_score": 0.92},
-            {"project_id": "ds_simbench", "title": "AcadEval SimBench", "similarity_score": 0.82},
-            {"project_id": "ds_trendbase", "title": "AcadEval TrendBase", "similarity_score": 0.88},
-            {"project_id": "ds_graph_bank", "title": "AcadEval Project Graph Bank", "similarity_score": 0.90},
-            {"project_id": "ds_bench_ctrl", "title": "AcadEval Benchmark Controls", "similarity_score": 0.87},
-        ],
-        "nodes": merged_nodes,
-        "links": merged_links,
-        "nodes_count": len(merged_nodes),
-        "links_count": len(merged_links),
-        "target_graph": target_graph,
-        "comparison_graph": comparison_graph_clean,
-    }
+        return {
+            "status": "ok",
+            "project_id": pid_str,
+            "target_title": target_title,
+            "comparison_title": selected_candidate.get("title", "Related Research Project"),
+            "comparison_project_id": str(selected_candidate.get("id", "")),
+            "comparison_domain": selected_candidate.get("domain", ""),
+            "comparison_sub_domain": selected_candidate.get("sub_domain", ""),
+            "related_project_available": True,
+            "similarity_score": round(sim_score, 2),
+            "distance": round(float(selected_candidate.get("distance", 0.15)), 2),
+            "shared_entities_count": len(shared_entity_names),
+            "shared_entities": sorted(list(shared_entity_names)),
+            "message": f"Successfully matched against related dataset project '{selected_candidate.get('title')}'.",
+            "similar_projects": similar_projects_list,
+            "nodes": merged_nodes,
+            "links": merged_links,
+            "nodes_count": len(merged_nodes),
+            "links_count": len(merged_links),
+            "target_graph": {
+                **target_graph,
+                "nodes": [
+                    {**n, "is_shared": (n.get("id") in shared_target_node_ids)}
+                    for n in target_graph.get("nodes", [])
+                ],
+            },
+            "comparison_graph": {
+                **comp_graph,
+                "nodes": [
+                    {**n, "is_shared": (n.get("id") in shared_comp_node_ids)}
+                    for n in comp_graph.get("nodes", [])
+                ],
+            },
+        }
+    except Exception as e:
+        log.error("Failed to build comparison graph for %s: %s", pid_str, e, exc_info=True)
+        # Safe fallback response that prevents 500 error on client
+        return {
+            "status": "ok",
+            "project_id": pid_str,
+            "target_title": "Uploaded Project",
+            "comparison_title": "Related project is not available",
+            "related_project_available": False,
+            "similarity_score": 0.0,
+            "distance": 1.0,
+            "shared_entities_count": 0,
+            "shared_entities": [],
+            "message": f"Error building comparison graph: {e}",
+            "similar_projects": [],
+            "nodes": [],
+            "links": [],
+            "nodes_count": 0,
+            "links_count": 0,
+            "target_graph": {"nodes": [], "links": []},
+            "comparison_graph": {"nodes": [], "links": []},
+        }
 

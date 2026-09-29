@@ -160,17 +160,23 @@ def get_comparison_graph(
     project_id: str,
     current_user: CurrentUser,
     db: DB,
+    compare_project_id: Optional[str] = Query(None, description="Optional ID of candidate dataset project to compare against"),
     distance_threshold: float = Query(0.5, ge=0.0, le=1.0, description="Max Jaccard distance threshold for related projects"),
 ):
     """
     Returns a unified comparison graph highlighting:
     - Target project nodes and links
-    - Similar/related project nodes and links
+    - Similar/related project nodes and links from the AcadEval corpus dataset
     - Overlapping/shared entities between projects
     - Sets related_project_available=False if no project meets distance threshold
     """
     try:
-        data = export_comparison_d3_graph(db, project_id, distance_threshold=distance_threshold)
+        data = export_comparison_d3_graph(
+            db,
+            project_id,
+            compare_project_id=compare_project_id,
+            distance_threshold=distance_threshold,
+        )
         return data
     except Exception as e:
         log.error("Failed to export comparison graph for %s: %s", project_id, e, exc_info=True)
