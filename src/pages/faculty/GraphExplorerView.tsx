@@ -95,7 +95,7 @@ export const GraphExplorerView: React.FC = () => {
       const compPromise = compId && compId !== targetId ? getProjectGraph(compId) : null;
 
       // Also try the comparison endpoint to get similarity score
-      const compEndpointPromise = getComparisonGraph(targetId, distanceThreshold).catch(() => null);
+      const compEndpointPromise = getComparisonGraph(targetId, compId || undefined, distanceThreshold).catch(() => null);
 
       const [targetData, compData, compEndpointData] = await Promise.all([
         targetPromise,

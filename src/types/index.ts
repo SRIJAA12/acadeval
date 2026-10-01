@@ -145,11 +145,19 @@ export interface FacultyNote {
 export interface ExplainabilitySignal {
   signal_key: string;
   signal_name: string;
+  plain_name?: string;
+  question?: string;
+  plain_meaning?: string;
+  analogy?: string;
+  high_meaning?: string;
+  low_meaning?: string;
   raw_value: number;
   weight: number;
   weighted_contribution: number;
   max_possible_contribution: number;
   percentage_of_max: number;
+  dataset_source?: string;
+  method?: string;
   explanation: string;
 }
 

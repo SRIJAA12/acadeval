@@ -731,28 +731,88 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
 
       {/* SECTION 2: 5 Explainable Graph Novelty Signals */}
       <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
-        <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-indigo-400" /> 5 Explainable Graph Novelty Signals
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-indigo-400" /> 5 Explainable Graph Novelty Signals
+          </h3>
+          <span className="text-xs text-slate-400">
+            Click on the <strong>AI Explainability</strong> tab above for step-by-step mathematical derivations
+          </span>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           {[
-            { label: 'Graph Distance', score: report.signals_breakdown.graph_distance, icon: Network, color: 'bg-indigo-500', desc: 'Distance from the nearest historical entity set' },
-            { label: 'Feature Rarity', score: report.signals_breakdown.feature_rarity, icon: Cpu, color: 'bg-emerald-500', desc: 'Uniqueness of algorithms & tech' },
-            { label: 'Rel. Rarity', score: report.signals_breakdown.relationship_rarity, icon: Layers, color: 'bg-amber-500', desc: 'Uniqueness of entity pairs' },
-            { label: 'Graph Density', score: report.signals_breakdown.graph_density, icon: Grid, color: 'bg-cyan-500', desc: 'Domain neighborhood sparsity' },
-            { label: 'Discovery', score: report.signals_breakdown.new_connection_discovery, icon: Sparkles, color: 'bg-purple-500', desc: 'Unseen pairings among known features' },
+            {
+              num: 1,
+              title: 'Idea Uniqueness',
+              tech: 'Graph Distance',
+              question: 'Is this a duplicate idea?',
+              score: report.signals_breakdown.graph_distance,
+              icon: Network,
+              color: 'bg-indigo-500',
+              desc: 'Checks if past students already built a nearly identical system.',
+            },
+            {
+              num: 2,
+              title: 'Tool & Tech Rarity',
+              tech: 'Feature Rarity',
+              question: 'Are tools rare or standard?',
+              score: report.signals_breakdown.feature_rarity,
+              icon: Cpu,
+              color: 'bg-emerald-500',
+              desc: 'Checks if libraries & models are cutting-edge vs classroom defaults.',
+            },
+            {
+              num: 3,
+              title: 'Novel Combos',
+              tech: 'Relationship Rarity',
+              question: 'Unconventional pairing?',
+              score: report.signals_breakdown.relationship_rarity,
+              icon: Layers,
+              color: 'bg-amber-500',
+              desc: 'Evaluates if known tools are paired in unexpected, creative ways.',
+            },
+            {
+              num: 4,
+              title: 'Unexplored Area',
+              tech: 'Graph Density',
+              question: 'Overcrowded topic?',
+              score: report.signals_breakdown.graph_density,
+              icon: Grid,
+              color: 'bg-cyan-500',
+              desc: 'Checks if the sub-domain is saturated or greenfield research.',
+            },
+            {
+              num: 5,
+              title: 'Cross-Field Bridge',
+              tech: 'Adamic-Adar Discovery',
+              question: 'Interdisciplinary link?',
+              score: report.signals_breakdown.new_connection_discovery,
+              icon: Sparkles,
+              color: 'bg-purple-500',
+              desc: 'Tests if this proposal bridges two previously isolated fields.',
+            },
           ].map((signal, idx) => (
-            <div key={idx} className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
-                <span>{signal.label}</span>
-                <signal.icon className="w-4 h-4 text-slate-400" />
+            <div key={idx} className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-2.5 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                  <span className="text-indigo-400 font-bold">Signal {signal.num}</span>
+                  <signal.icon className="w-4 h-4 text-slate-400" />
+                </div>
+                <h4 className="font-bold text-slate-100 text-sm mt-0.5">{signal.title}</h4>
+                <div className="text-[10px] text-slate-500 font-mono">({signal.tech})</div>
+                <div className="mt-1 text-[11px] text-indigo-300 font-medium italic">
+                  &ldquo;{signal.question}&rdquo;
+                </div>
               </div>
-              <div className="text-2xl font-bold text-slate-100 font-mono">{(signal.score * 100).toFixed(1)}%</div>
-              <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                <div className={`h-full ${signal.color}`} style={{ width: `${Math.min(100, signal.score * 100)}%` }} />
+
+              <div>
+                <div className="text-2xl font-bold text-slate-100 font-mono">{(signal.score * 100).toFixed(1)}%</div>
+                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
+                  <div className={`h-full ${signal.color}`} style={{ width: `${Math.min(100, signal.score * 100)}%` }} />
+                </div>
+                <p className="text-[11px] text-slate-400 leading-tight pt-2 mt-1 border-t border-slate-900">{signal.desc}</p>
               </div>
-              <p className="text-[10px] text-slate-400 leading-tight pt-1 border-t border-slate-900">{signal.desc}</p>
             </div>
           ))}
         </div>
@@ -762,11 +822,11 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
           <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
             <Info className="w-3.5 h-3.5 text-indigo-400" /> System Explanations & Signals Details
           </h4>
-          <ul className="space-y-1.5 text-xs text-slate-300">
+          <ul className="space-y-2 text-xs text-slate-300">
             {report.explanation_lines.map((line, idx) => (
-              <li key={idx} className="flex items-start gap-2">
-                <span className="text-indigo-400 font-bold mt-0.5">•</span>
-                <span>{line}</span>
+              <li key={idx} className="flex items-start gap-2 bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80">
+                <span className="text-indigo-400 font-bold mt-0.5 shrink-0">•</span>
+                <span className="leading-relaxed">{line}</span>
               </li>
             ))}
           </ul>

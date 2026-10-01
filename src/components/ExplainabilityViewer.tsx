@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   ChevronDown, ChevronUp, Info, Calculator, Database, Sparkles,
   Layers, CheckCircle, ShieldCheck, ArrowRight, Activity, TrendingUp,
-  Cpu, Award, BookOpen, AlertCircle
+  Cpu, Award, BookOpen, AlertCircle, HelpCircle, Lightbulb, Target, Compass
 } from 'lucide-react';
 import type {
   ExplainabilityResult,
@@ -10,6 +10,86 @@ import type {
   ExplainabilityDimensionScore,
   ExplainabilityDatasetComparison,
 } from '../types';
+
+interface SignalGuide {
+  num: number;
+  plain_name: string;
+  tech_name: string;
+  question: string;
+  plain_meaning: string;
+  analogy: string;
+  high_meaning: string;
+  low_meaning: string;
+  how_to_improve: string;
+}
+
+const SIGNAL_GUIDE_MAP: Record<string, SignalGuide> = {
+  signal_1_graph_distance: {
+    num: 1,
+    plain_name: 'Overall Project Uniqueness',
+    tech_name: 'Graph Distance (Nearest-Neighbor Jaccard)',
+    question: 'Has anyone in our college records done almost this exact same project before?',
+    plain_meaning:
+      'We compare this proposal\'s entire blueprint, objectives, and methodologies against all past student proposals in our knowledge graph. It verifies whether someone has already built an identical or nearly identical system in previous semesters.',
+    analogy:
+      'Like an originality audit for the whole project blueprint — confirming that earlier student batches haven\'t already solved this exact problem using this same pipeline.',
+    high_meaning: 'Truly fresh concept; no duplicate or near-clone exists in past college submissions.',
+    low_meaning: 'Heavy structural overlap with an existing proposal in the database (potential duplicate or rehash).',
+    how_to_improve: 'Tackle a fundamentally distinct problem or introduce a completely new technical pipeline.',
+  },
+  signal_2_feature_rarity: {
+    num: 2,
+    plain_name: 'Tool & Technology Rarity',
+    tech_name: 'Feature Rarity (Corpus Frequency)',
+    question: 'Are the algorithms, models, and libraries being used cutting-edge or standard classroom tools?',
+    plain_meaning:
+      'We inspect every algorithm, AI architecture, library, and tool mentioned (like YOLOv8, PyTorch, LoRA, OpenCV, Docker) against ~28,000 reference entries to check how frequently students choose them.',
+    analogy:
+      'Building an app with standard SQLite and HTML gets a low rarity score; building it with Vector Databases, LoRA fine-tuning, and WebAssembly gets a high rarity score.',
+    high_meaning: 'Uses specialized, modern, or cutting-edge research algorithms and technologies rarely attempted by peers.',
+    low_meaning: 'Relies strictly on standard, ubiquitous textbook algorithms (e.g. basic linear regression, Haar cascades, standard k-means).',
+    how_to_improve: 'Adopt modern, specialized frameworks, state-of-the-art models, or advanced architectures instead of routine defaults.',
+  },
+  signal_3_relationship_rarity: {
+    num: 3,
+    plain_name: 'Unconventional Tech Combinations',
+    tech_name: 'Relationship Rarity (Entity Pair Co-occurrence)',
+    question: 'Has anyone paired these specific technologies or concepts together before?',
+    plain_meaning:
+      'Even if two technologies are well-known individually (e.g. "Virtual Reality" + "Stroke Rehabilitation", or "Blockchain" + "Soil Moisture"), using them together can be innovative. This evaluates pairs of concepts to see if they rarely appear together in historical work.',
+    analogy:
+      'Peanut butter is common and chili oil is common, but pairing them creates a novel fusion recipe. This signal rewards creative, unconventional pairings of tools and ideas.',
+    high_meaning: 'Creative, unexpected combination of technologies solving a new problem.',
+    low_meaning: 'Predictable, standard combination that is routinely paired together (e.g. CNN + MNIST, or React + MySQL).',
+    how_to_improve: 'Cross-pollinate techniques — apply an algorithm or architecture from one domain to solve a problem in another.',
+  },
+  signal_4_graph_density: {
+    num: 4,
+    plain_name: 'Unexplored Domain Territory',
+    tech_name: 'Graph Density / Sparsity (Neighborhood Saturation)',
+    question: 'Is this domain overcrowded with projects, or is it an unexplored area?',
+    plain_meaning:
+      'Examines the project\'s sub-domain in the college knowledge graph. If 50 students previously did "Face Recognition Attendance", that cluster is crowded (high density, low novelty score). If few or no students have explored this specific niche, it is rewarded as greenfield territory.',
+    analogy:
+      'Opening a pizza shop on a street with 20 existing pizza shops (crowded area) vs. opening the very first specialty bakery in an underserved neighborhood (unexplored territory).',
+    high_meaning: 'Pioneering work in an untouched or rarely explored niche with few prior attempts.',
+    low_meaning: 'Saturated topic where dozens of past student batches have already worked.',
+    how_to_improve: 'Pivot slightly into an underserved sub-domain or emerging specialty where few student projects have ventured.',
+  },
+  signal_5_new_connection_discovery: {
+    num: 5,
+    plain_name: 'Cross-Disciplinary Bridge',
+    tech_name: 'New-Connection Discovery (Adamic-Adar Link Prediction)',
+    question: 'Does this project bridge two separate fields that rarely talk to each other?',
+    plain_meaning:
+      'Using link-prediction algorithms (Adamic-Adar), we test whether the project builds a brand-new bridge between two established but previously disconnected fields or concepts, representing an interdisciplinary breakthrough.',
+    analogy:
+      'Applying fluid dynamics algorithms from aerospace engineering to predict financial market volatility — linking two distinct disciplines together.',
+    high_meaning: 'Breakthrough interdisciplinary synthesis connecting isolated academic fields.',
+    low_meaning: 'Confined strictly within traditional, isolated disciplinary boundaries.',
+    how_to_improve: 'Synthesize concepts across departmental or disciplinary boundaries to build interdisciplinary bridges.',
+  },
+};
 
 interface ExplainabilityViewerProps {
   explainability?: ExplainabilityResult;
@@ -203,13 +283,37 @@ const ExplainabilityViewer: React.FC<ExplainabilityViewerProps> = ({
                   </button>
 
                   {isOpen && (
-                    <div className="border-t border-slate-100 bg-slate-50/80 p-4 text-xs space-y-2">
-                      <p className="text-slate-700 leading-relaxed font-medium">
-                        {dim.explanation}
-                      </p>
-                      <p className="text-slate-500 leading-relaxed">
-                        <strong>Dimension Scope:</strong> {dim.description}
-                      </p>
+                    <div className="border-t border-slate-100 bg-slate-50/80 p-4 space-y-3">
+                      {/* Step-by-step derivation — multiline rendering */}
+                      <div className="space-y-2">
+                        {dim.explanation.split('\n').map((line, i) => {
+                          const trimmed = line.trim();
+                          if (!trimmed) return null;
+                          const isStep = trimmed.startsWith('Step ');
+                          const isIndented = line.startsWith('  ');
+                          const isFormula = trimmed.startsWith('→') || trimmed.startsWith('Score =') || trimmed.startsWith('Combined') || trimmed.startsWith('Originality') || trimmed.startsWith('Rubric');
+                          return (
+                            <p
+                              key={i}
+                              className={`text-xs leading-relaxed ${
+                                isStep
+                                  ? 'font-bold text-slate-900 pt-1 border-t border-slate-200 first:border-0 first:pt-0'
+                                  : isIndented
+                                    ? 'font-mono text-[11px] text-slate-600 pl-3 border-l-2 border-indigo-200'
+                                    : isFormula
+                                      ? 'font-semibold text-indigo-800 bg-indigo-50 rounded px-2 py-1'
+                                      : 'text-slate-500 text-[11px]'
+                              }`}
+                            >
+                              {trimmed}
+                            </p>
+                          );
+                        })}
+                      </div>
+                      {/* Dimension scope */}
+                      <div className="rounded-lg bg-slate-100 px-3 py-2 text-[11px] text-slate-500">
+                        <strong className="text-slate-700">Dimension scope: </strong>{dim.description}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -218,6 +322,7 @@ const ExplainabilityViewer: React.FC<ExplainabilityViewerProps> = ({
           </div>
         </div>
       )}
+
 
       {/* ── TAB 2: 7 Datasets Comparative Analysis Layer ──────────────────── */}
       {activeTab === 'datasets' && (
@@ -285,72 +390,206 @@ const ExplainabilityViewer: React.FC<ExplainabilityViewerProps> = ({
       {/* ── TAB 3: 5 Novelty Graph Signals ─────────────────────────────────── */}
       {activeTab === 'signals' && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-purple-100 bg-purple-50/70 p-4 text-xs text-purple-900 space-y-1">
-            <div className="font-bold flex items-center gap-1.5 text-purple-950">
-              <Sparkles size={15} /> Graph Feature Attribution (Module 9 Explainer)
+          {/* Top Educational Guide: What do these signals mean? */}
+          <div className="rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 p-4 text-xs text-purple-950 space-y-2 shadow-sm">
+            <div className="font-bold flex items-center gap-2 text-purple-950 text-sm">
+              <Sparkles size={16} className="text-purple-600" /> What Do These 5 Signals Mean?
             </div>
-            <p className="text-purple-800 text-[11px] leading-relaxed">
-              Feature attribution breakdown showing how topological distance, rarity of entities and relationships, domain neighborhood sparsity, and new graph bridges combine to form the composite novelty score.
+            <p className="text-slate-700 text-xs leading-relaxed">
+              Instead of a single vague number, AcadEval+ calculates novelty across <strong>5 distinct dimensions of innovation</strong>. 
+              Each signal answers a specific, practical question about how this proposal compares against historical submissions in our college database.
             </p>
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 pt-1">
+              <div className="bg-white/90 rounded-lg p-2 border border-purple-100 text-[11px] shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Signal 1</span>
+                <strong className="text-slate-900 block font-semibold">Idea Uniqueness</strong>
+                <span className="text-slate-500 text-[10px] leading-tight block mt-0.5">Is someone else already doing this exact project?</span>
+              </div>
+              <div className="bg-white/90 rounded-lg p-2 border border-purple-100 text-[11px] shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Signal 2</span>
+                <strong className="text-slate-900 block font-semibold">Tool Rarity</strong>
+                <span className="text-slate-500 text-[10px] leading-tight block mt-0.5">Are the models/tools modern or classroom standard?</span>
+              </div>
+              <div className="bg-white/90 rounded-lg p-2 border border-purple-100 text-[11px] shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Signal 3</span>
+                <strong className="text-slate-900 block font-semibold">Novel Combos</strong>
+                <span className="text-slate-500 text-[10px] leading-tight block mt-0.5">Are known tools combined in unexpected ways?</span>
+              </div>
+              <div className="bg-white/90 rounded-lg p-2 border border-purple-100 text-[11px] shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-600">Signal 4</span>
+                <strong className="text-slate-900 block font-semibold">Unexplored Area</strong>
+                <span className="text-slate-500 text-[10px] leading-tight block mt-0.5">Is the sub-domain overcrowded or greenfield?</span>
+              </div>
+              <div className="bg-white/90 rounded-lg p-2 border border-purple-100 text-[11px] shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600">Signal 5</span>
+                <strong className="text-slate-900 block font-semibold">Cross-Field Bridge</strong>
+                <span className="text-slate-500 text-[10px] leading-tight block mt-0.5">Does it link two previously separated fields?</span>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-3">
-            {signals.map((signal) => {
+            {signals.map((signal, idx) => {
+              const guide = SIGNAL_GUIDE_MAP[signal.signal_key] || {
+                num: idx + 1,
+                plain_name: signal.plain_name || signal.signal_name,
+                tech_name: signal.signal_name,
+                question: signal.question || 'How novel is this dimension compared to historical submissions?',
+                plain_meaning: signal.plain_meaning || signal.explanation,
+                analogy: signal.analogy || 'Measures divergence from past student projects.',
+                high_meaning: signal.high_meaning || 'High differentiation from prior student work.',
+                low_meaning: signal.low_meaning || 'Substantial overlap with prior student work.',
+                how_to_improve: 'Explore less common techniques or less crowded sub-domains.',
+              };
+
               const isOpen = activeSignal?.signal_key === signal.signal_key;
-              const contributionWidth = Math.min(
-                Math.max(signal.percentage_of_max, 0),
-                100,
-              );
+              const pct = Math.min(Math.max(signal.percentage_of_max, 0), 100);
+              const tier = signal.raw_value >= 0.65 ? 'high' : signal.raw_value >= 0.40 ? 'moderate' : 'low';
+              const tierStyle: Record<string, string> = {
+                high:     'bg-emerald-50 text-emerald-700 border-emerald-200',
+                moderate: 'bg-amber-50 text-amber-700 border-amber-200',
+                low:      'bg-rose-50 text-rose-700 border-rose-200',
+              };
+              const tierText: Record<string, string> = {
+                high: '● Highly Novel', moderate: '● Moderately Novel', low: '● Incremental / Overlapping',
+              };
+              const barColor: Record<string, string> = {
+                high: 'bg-emerald-500', moderate: 'bg-amber-500', low: 'bg-rose-400',
+              };
 
               return (
                 <div
                   key={signal.signal_key}
-                  className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                  className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-slate-300"
                 >
                   <button
                     type="button"
                     onClick={() => setActiveSignal(isOpen ? null : signal)}
-                    className="w-full p-4 text-left transition hover:bg-slate-50"
+                    className="w-full p-4 text-left transition hover:bg-slate-50/70"
                   >
                     <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        {/* Header: Signal Number + Plain English Name + Badges */}
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-semibold text-slate-900">
-                            {signal.signal_name}
+                          <span className="rounded-md bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-xs font-bold text-indigo-700">
+                            Signal {guide.num}
+                          </span>
+                          <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                            {guide.plain_name}
                           </h3>
-
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                          <span className="text-xs text-slate-400 font-mono hidden sm:inline">
+                            ({guide.tech_name})
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 font-semibold ml-auto sm:ml-0">
                             Weight {(signal.weight * 100).toFixed(0)}%
+                          </span>
+                          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tierStyle[tier]}`}>
+                            {tierText[tier]}
                           </span>
                         </div>
 
-                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="h-full rounded-full bg-teal-500"
-                            style={{ width: `${contributionWidth}%` }}
-                          />
+                        {/* Plain English Core Question */}
+                        <div className="flex items-center gap-2 text-xs text-indigo-900 bg-indigo-50/80 rounded-lg px-3 py-1.5 border border-indigo-100 font-medium">
+                          <HelpCircle size={14} className="shrink-0 text-indigo-600" />
+                          <span>&ldquo;{guide.question}&rdquo;</span>
                         </div>
 
-                        <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-slate-500">
-                          <span>Raw value: {signal.raw_value.toFixed(4)}</span>
+                        {/* Progress Bar */}
+                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                          <div className={`h-full rounded-full transition-all duration-300 ${barColor[tier]}`} style={{ width: `${pct}%` }} />
+                        </div>
+
+                        {/* Metrics Bar */}
+                        <div className="flex flex-wrap justify-between gap-2 text-xs text-slate-500 pt-0.5">
+                          <span>Raw score: <strong className="text-slate-800 font-mono">{(signal.raw_value * 100).toFixed(1)}%</strong></span>
                           <span>
-                            Contribution: {signal.weighted_contribution.toFixed(2)} /{' '}
-                            {signal.max_possible_contribution.toFixed(2)} pts
+                            Points contributed: <strong className="text-slate-800 font-mono">{signal.weighted_contribution.toFixed(2)}</strong>{' '}
+                            / {signal.max_possible_contribution.toFixed(2)} pts
                           </span>
                         </div>
                       </div>
 
-                      <div className="pt-1 text-slate-400">
-                        {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      <div className="pt-2 text-slate-400 shrink-0">
+                        {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                       </div>
                     </div>
                   </button>
 
                   {isOpen && (
-                    <div className="border-t border-slate-100 bg-slate-50 px-4 py-4">
-                      <p className="text-sm leading-relaxed text-slate-700">
-                        {signal.explanation}
-                      </p>
+                    <div className="border-t border-slate-100 bg-slate-50/90 p-4 sm:p-5 space-y-4">
+                      {/* Section 1: Plain English Meaning */}
+                      <div className="rounded-xl border border-indigo-100 bg-white p-3.5 space-y-1.5 shadow-2xs">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950 uppercase tracking-wider">
+                          <Target size={14} className="text-indigo-600" /> What this measures in plain English:
+                        </div>
+                        <p className="text-xs text-slate-700 leading-relaxed font-normal">
+                          {guide.plain_meaning}
+                        </p>
+                      </div>
+
+                      {/* Section 2: Real-World Analogy */}
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 space-y-1 shadow-2xs">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
+                          <Lightbulb size={14} className="text-amber-600" /> Real-World Analogy:
+                        </div>
+                        <p className="text-xs text-amber-900 leading-relaxed italic">
+                          {guide.analogy}
+                        </p>
+                      </div>
+
+                      {/* Section 3: Score Interpretation & Improvement Guide */}
+                      <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2 text-xs shadow-2xs">
+                        <div className="font-bold text-slate-800 flex items-center justify-between">
+                          <span>Current Result: {(signal.raw_value * 100).toFixed(1)}% ({tierText[tier]})</span>
+                          <span className="text-[11px] font-normal text-slate-500">
+                            {signal.weighted_contribution.toFixed(2)} pts toward final score
+                          </span>
+                        </div>
+                        <p className="text-slate-600 leading-relaxed">
+                          {tier === 'high' ? guide.high_meaning : tier === 'moderate' ? 'This submission shows solid differentiation, but shares some common frameworks or problem parameters with existing projects.' : guide.low_meaning}
+                        </p>
+                        <div className="pt-2 border-t border-slate-100 flex items-start gap-1.5 text-[11px] text-slate-600">
+                          <strong className="text-indigo-700 shrink-0">💡 How to raise this score:</strong>
+                          <span>{guide.how_to_improve}</span>
+                        </div>
+                      </div>
+
+                      {/* Section 4: Audit & Benchmark Data Source */}
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {((signal as any).dataset_source || (signal as any).dataset_source === undefined) && (
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-indigo-50 border border-indigo-200 px-2.5 py-1 text-[11px] font-semibold text-indigo-800">
+                              <Database size={12} /> {(signal as any).dataset_source || 'AcadEval Benchmark Corpus'}
+                            </span>
+                          )}
+                          {(signal as any).method && (
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-teal-50 border border-teal-200 px-2.5 py-1 text-[11px] font-medium text-teal-800 font-mono">
+                              <Activity size={12} /> {(signal as any).method}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Step-by-step or detailed audit lines */}
+                        <div className="rounded-lg bg-slate-100 p-3 space-y-1.5 border border-slate-200 text-xs text-slate-600">
+                          <div className="font-semibold text-slate-700 text-[11px] uppercase tracking-wider">
+                            Detailed System Evidence:
+                          </div>
+                          {signal.explanation.split('\n').filter(l => l.trim()).map((line, i) => (
+                            <p
+                              key={i}
+                              className={`text-[11px] leading-relaxed ${
+                                line.startsWith('🎯') || line.startsWith('Question:')
+                                  ? 'font-semibold text-indigo-950'
+                                  : line.startsWith('Nearest Comparison:') || line.startsWith('Nearest historical')
+                                    ? 'font-mono text-slate-800 bg-white p-1.5 rounded border border-slate-200'
+                                    : 'text-slate-600'
+                              }`}
+                            >
+                              {line.trim()}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
