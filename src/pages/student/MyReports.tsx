@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getMyProjects, deleteProject } from '../../api/endpoints';
+import { getMyProjects, deleteProject, submitToGuide, markReadyForReview } from '../../api/endpoints';
 import { LoadingState, ErrorState, EmptyState } from '../../components/States';
 import Badge from '../../components/Badge';
-import { FileText, Upload, ChevronRight, Clock, Cpu, CheckCircle, Trash2, Loader2 } from 'lucide-react';
+import {
+  FileText, Upload, ChevronRight, Clock, Cpu, CheckCircle, Trash2, Loader2, AlertTriangle,
+  ExternalLink, UserCircle, Send, Flag, Lock,
+} from 'lucide-react';
 import type { ProjectSummary } from '../../types';
 import clsx from 'clsx';
 
@@ -21,9 +24,18 @@ const ProjectCard: React.FC<{
   onClick: () => void;
   onDelete: (e: React.MouseEvent) => void;
   isDeleting: boolean;
-}> = ({ project, onClick, onDelete, isDeleting }) => {
+  onSubmitToGuide: (e: React.MouseEvent) => void;
+  onMarkReadyForReview: (e: React.MouseEvent) => void;
+  isSubmittingToGuide: boolean;
+  isMarkingReady: boolean;
+}> = ({
+  project, onClick, onDelete, isDeleting,
+  onSubmitToGuide, onMarkReadyForReview, isSubmittingToGuide, isMarkingReady,
+}) => {
   const stepIndex = statusSteps.indexOf(project.pipelineStatus);
   const isReviewed = project.pipelineStatus === 'reviewed';
+  const isFailed = project.pipelineStatus === 'failed';
+  const canSubmit = project.overallScore !== null && project.overallScore > 30;
 
   return (
     <div className="card-hover cursor-pointer relative group" onClick={onClick}>
@@ -35,6 +47,27 @@ const ProjectCard: React.FC<{
           </div>
           <h3 className="font-semibold text-slate-800 text-base leading-snug">{project.title}</h3>
           <p className="text-sm text-slate-400 mt-1">Submitted {new Date(project.submittedOn).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+            <span className="flex items-center gap-1 text-xs text-slate-500">
+              <UserCircle size={13} /> Guide: {project.guideName || 'Not assigned yet'}
+            </span>
+            {project.reviewerName && (
+              <span className="flex items-center gap-1 text-xs text-slate-500">
+                <UserCircle size={13} /> Reviewer: {project.reviewerName}
+              </span>
+            )}
+            {project.githubUrl && (
+              <a
+                href={project.githubUrl}
+                target="_blank"
+                rel="noreferrer"
+                onClick={e => e.stopPropagation()}
+                className="flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700"
+              >
+                <ExternalLink size={13} /> Repository
+              </a>
+            )}
+          </div>
         </div>
         
         <div className="flex flex-col items-end gap-2">
@@ -99,13 +132,62 @@ const ProjectCard: React.FC<{
       </div>
 
       {/* Status message */}
-      {!isReviewed && project.pipelineStatus === 'awaiting_review' && project.overallScore !== null && (
+      {isFailed && (
+        <div className="bg-red-50 border border-red-100 rounded-xl p-3 flex items-start gap-2">
+          <AlertTriangle size={14} className="text-red-600 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-red-700">
+            <strong>Evaluation Failed</strong> — Something went wrong while scoring this submission. Contact your guide or try re-submitting.
+          </p>
+        </div>
+      )}
+      {!isReviewed && !isFailed && project.pipelineStatus === 'awaiting_review' && project.overallScore !== null && (
         <div className="bg-gold-50 border border-gold-100 rounded-xl p-3 flex items-start gap-2">
           <Clock size={14} className="text-gold-600 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-gold-700">
-            <strong>AI Draft Ready</strong> — Your AI-generated report is available as a preliminary view.
-            Awaiting guide/reviewer finalization before full report is released.
+            <strong>Preliminary Score Ready</strong> — Your AI-generated score and feedback are already visible below.
+            Awaiting guide/reviewer finalization for the official grade.
           </p>
+        </div>
+      )}
+
+      {/* Submit to Guide / Mark Ready for Review — private by default until the student acts */}
+      {!isFailed && project.overallScore !== null && (
+        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100" onClick={e => e.stopPropagation()}>
+          {project.guideSubmittedAt ? (
+            <span className="flex items-center gap-1 text-xs text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-lg">
+              <CheckCircle size={11} /> Submitted to guide
+            </span>
+          ) : (
+            <button
+              onClick={onSubmitToGuide}
+              disabled={!canSubmit || isSubmittingToGuide}
+              title={!canSubmit ? 'Score must be above 30 to submit' : undefined}
+              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg border border-teal-200 text-teal-700 bg-white hover:bg-teal-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isSubmittingToGuide ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />} Submit to Guide
+            </button>
+          )}
+
+          {project.reviewerReadyAt ? (
+            <span className="flex items-center gap-1 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-lg">
+              <CheckCircle size={11} /> Ready for review
+            </span>
+          ) : (
+            <button
+              onClick={onMarkReadyForReview}
+              disabled={!canSubmit || isMarkingReady}
+              title={!canSubmit ? 'Score must be above 30 to mark ready' : undefined}
+              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg border border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isMarkingReady ? <Loader2 size={11} className="animate-spin" /> : <Flag size={11} />} Mark Ready for Review
+            </button>
+          )}
+
+          {!canSubmit && (
+            <span className="flex items-center gap-1 text-[11px] text-slate-400">
+              <Lock size={11} /> Score must be above 30 to submit
+            </span>
+          )}
         </div>
       )}
 
@@ -147,6 +229,18 @@ const MyReports: React.FC = () => {
     }
   };
 
+  const submitToGuideMutation = useMutation({
+    mutationFn: (id: string) => submitToGuide(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['myProjects'] }),
+    onError: (err: any) => alert(err.response?.data?.detail || 'Failed to submit to guide.'),
+  });
+
+  const markReadyMutation = useMutation({
+    mutationFn: (id: string) => markReadyForReview(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['myProjects'] }),
+    onError: (err: any) => alert(err.response?.data?.detail || 'Failed to mark ready for review.'),
+  });
+
   if (isLoading) return <LoadingState message="Loading your submissions..." />;
   if (isError) return <ErrorState retry={refetch} />;
 
@@ -182,6 +276,10 @@ const MyReports: React.FC = () => {
               onClick={() => navigate(`/student/report/${project.projectId}`)}
               onDelete={(e) => handleDelete(e, project.projectId)}
               isDeleting={deletingId === project.projectId}
+              onSubmitToGuide={() => submitToGuideMutation.mutate(project.projectId)}
+              onMarkReadyForReview={() => markReadyMutation.mutate(project.projectId)}
+              isSubmittingToGuide={submitToGuideMutation.isPending && submitToGuideMutation.variables === project.projectId}
+              isMarkingReady={markReadyMutation.isPending && markReadyMutation.variables === project.projectId}
             />
           ))}
         </div>

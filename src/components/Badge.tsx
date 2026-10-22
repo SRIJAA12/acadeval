@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import {
   Trophy, FileText, Video, FileSearch, Clock, Cpu,
   CheckCircle, AlertCircle, Star, Zap, Award, BookOpen,
-  TrendingUp, Shield,
+  TrendingUp, Shield, XCircle,
 } from 'lucide-react';
 import type { PipelineStatus, SubmissionType, FeasibilityRating, NoveltyVerdict, AppealStatus } from '../types';
 
@@ -28,12 +28,14 @@ const pipelineConfig: Record<PipelineStatus, { label: string; className: string;
   ai_processing: { label: 'AI Processing', className: 'badge-navy', icon: <Cpu size={11} /> },
   awaiting_review: { label: 'Awaiting Review', className: 'badge-orange', icon: <Clock size={11} /> },
   reviewed: { label: 'Reviewed', className: 'badge-teal', icon: <CheckCircle size={11} /> },
+  failed: { label: 'Failed', className: 'badge-red', icon: <XCircle size={11} /> },
 };
 
 const submissionConfig: Record<SubmissionType, { label: string; className: string; icon: React.ReactNode }> = {
   document: { label: 'Document', className: 'badge-navy', icon: <FileText size={11} /> },
-  video: { label: 'Video', className: 'badge-purple', icon: <Video size={11} /> },
+  journal: { label: 'Journal', className: 'badge-gold', icon: <BookOpen size={11} /> },
   abstract: { label: 'Abstract', className: 'badge-slate', icon: <FileSearch size={11} /> },
+  video: { label: 'Video', className: 'badge-purple', icon: <Video size={11} /> },
 };
 
 const feasibilityConfig: Record<FeasibilityRating, { className: string }> = {

@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileText, Video, FileSearch, GitBranch, AlertCircle, CheckCircle, Loader2, ChevronRight } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { FileText, BookMarked, FileSearch, GitBranch, Users, AlertCircle, CheckCircle, Loader2, ChevronRight } from 'lucide-react';
 import FileUploader from '../../components/FileUploader';
-import { uploadProject, getPipelineStatus } from '../../api/endpoints';
+import { uploadProject, getPipelineStatus, getMyTeams } from '../../api/endpoints';
 import { useAuth } from '../../auth/AuthContext';
 import clsx from 'clsx';
 
-type UploadMode = 'document' | 'video' | 'abstract';
+type UploadMode = 'document' | 'journal' | 'abstract';
 
 const abstractSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters'),
@@ -28,7 +28,7 @@ const DOMAINS = ['AI/ML', 'IoT', 'Web/App', 'Cybersecurity', 'Healthcare', 'Agri
 
 const MODES: { id: UploadMode; icon: React.ReactNode; label: string; description: string }[] = [
   { id: 'document', icon: <FileText size={20} />, label: 'Full Document', description: 'PDF, DOCX, PPTX + GitHub URL' },
-  { id: 'video', icon: <Video size={20} />, label: 'Video Presentation', description: 'MP4/MOV + optional slides' },
+  { id: 'journal', icon: <BookMarked size={20} />, label: 'Journal Paper', description: 'Published or submitted journal article (PDF/DOCX)' },
   { id: 'abstract', icon: <FileSearch size={20} />, label: 'Abstract Only', description: 'Quick pre-check (novelty, feasibility)' },
 ];
 
@@ -40,8 +40,11 @@ const Upload: React.FC = () => {
   const [projectTitle, setProjectTitle] = useState('');
   const [projectDomain, setProjectDomain] = useState('AI/ML');
   const [githubUrl, setGithubUrl] = useState('');
+  const [selectedTeamId, setSelectedTeamId] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [submitted, setSubmitted] = useState(false);
+
+  const { data: myTeams } = useQuery({ queryKey: ['myTeams'], queryFn: getMyTeams });
 
   const [submittedProjectId, setSubmittedProjectId] = useState<string | null>(null);
   const [pipelineState, setPipelineState] = useState<{
@@ -103,6 +106,7 @@ const Upload: React.FC = () => {
       if (projectTitle) fd.append('title', projectTitle);
       uploadedFiles.forEach(f => fd.append('files', f));
       if (githubUrl) fd.append('githubUrl', githubUrl);
+      if (selectedTeamId) fd.append('teamId', selectedTeamId);
       return uploadProject(fd);
     },
     onSuccess: (res) => handleSuccessfulUpload(res.projectId),
@@ -115,8 +119,26 @@ const Upload: React.FC = () => {
     fd.append('domain', data.domain);
     fd.append('teamMembers', data.teamMembers);
     fd.append('abstract', data.abstract);
+    if (selectedTeamId) fd.append('teamId', selectedTeamId);
     uploadProject(fd).then((res) => handleSuccessfulUpload(res.projectId));
   };
+
+  const TeamSelector = myTeams?.length ? (
+    <div>
+      <label className="label flex items-center gap-2"><Users size={15} /> Submit as Team (optional)</label>
+      <select value={selectedTeamId} onChange={e => setSelectedTeamId(e.target.value)} className="input">
+        <option value="">Submit individually</option>
+        {myTeams.map(t => (
+          <option key={t.teamId} value={t.teamId}>{t.teamCode}{t.name ? ` — ${t.name}` : ''}</option>
+        ))}
+      </select>
+      {selectedTeamId && (
+        <p className="text-xs text-slate-400 mt-1">
+          Tagged with team {myTeams.find(t => t.teamId === selectedTeamId)?.teamCode} — your teammates will be able to see this submission.
+        </p>
+      )}
+    </div>
+  ) : null;
 
   if (submitted) {
     const isReady = pipelineState?.ready || pipelineState?.db_status === 'awaiting_review' || pipelineState?.db_status === 'reviewed';
@@ -233,12 +255,18 @@ const Upload: React.FC = () => {
         ))}
       </div>
 
-      {/* Document Mode */}
-      {mode === 'document' && (
+      {/* Document / Journal Mode (identical handling server-side; only the labels differ) */}
+      {(mode === 'document' || mode === 'journal') && (
         <div className="card space-y-6">
           <div>
-            <h2 className="text-lg font-semibold text-navy-900 mb-1">Full Document Submission</h2>
-            <p className="text-sm text-slate-500">Upload your project report, slides, and optionally link your GitHub repository.</p>
+            <h2 className="text-lg font-semibold text-navy-900 mb-1">
+              {mode === 'journal' ? 'Journal Paper Submission' : 'Full Document Submission'}
+            </h2>
+            <p className="text-sm text-slate-500">
+              {mode === 'journal'
+                ? 'Upload your published or submitted journal paper, and optionally link your GitHub repository.'
+                : 'Upload your project report, slides, and optionally link your GitHub repository.'}
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -286,6 +314,8 @@ const Upload: React.FC = () => {
             />
           </div>
 
+          {TeamSelector}
+
           {mutation.isError && (
             <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-4 py-3 rounded-xl">
               <AlertCircle size={16} /> {(mutation.error as any)?.response?.data?.detail || 'Upload failed. Please ensure you are logged in as a student and try again.'}
@@ -299,52 +329,6 @@ const Upload: React.FC = () => {
             className="btn-primary w-full justify-center py-3"
           >
             {mutation.isPending ? <><Loader2 size={16} className="animate-spin" /> Processing...</> : 'Submit for Evaluation'}
-          </button>
-        </div>
-      )}
-
-      {/* Video Mode */}
-      {mode === 'video' && (
-        <div className="card space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold text-navy-900 mb-1">Video Presentation Submission</h2>
-            <p className="text-sm text-slate-500">Your video will be transcribed using Whisper, then evaluated through the same pipeline.</p>
-          </div>
-
-          <div className="bg-gold-50 rounded-xl p-4 border border-gold-100">
-            <p className="text-sm text-gold-700 font-medium">💡 Video tips:</p>
-            <ul className="text-xs text-gold-600 mt-1 space-y-1 list-disc list-inside">
-              <li>MP4 or MOV format, up to 500MB</li>
-              <li>Ensure audio is clear for accurate transcription</li>
-              <li>Optionally attach PPTX slides for slide analysis</li>
-            </ul>
-          </div>
-
-          <FileUploader
-            accept={['.mp4', '.mov']}
-            multiple={false}
-            maxSize={500}
-            onFilesSelected={files => setUploadedFiles(files)}
-            label="Drop your presentation video here"
-            hint="MP4 or MOV · Max 500MB · Whisper transcription will be applied"
-          />
-
-          <FileUploader
-            accept={['.pptx']}
-            multiple={false}
-            maxSize={20}
-            onFilesSelected={files => setUploadedFiles(prev => [...prev, ...files])}
-            label="Slides (optional)"
-            hint="PPTX format for slide analysis"
-          />
-
-          <button
-            type="button"
-            onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || uploadedFiles.length === 0}
-            className="btn-primary w-full justify-center py-3"
-          >
-            {mutation.isPending ? <><Loader2 size={16} className="animate-spin" /> Uploading...</> : 'Submit Video for Evaluation'}
           </button>
         </div>
       )}
@@ -381,6 +365,8 @@ const Upload: React.FC = () => {
               <input {...register('teamMembers')} className="input" placeholder="e.g. Member one, Member two" />
             </div>
           </div>
+
+          {TeamSelector}
 
           <div>
             <div className="flex items-center justify-between mb-1">

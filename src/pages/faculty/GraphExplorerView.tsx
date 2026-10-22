@@ -26,7 +26,6 @@ export const GraphExplorerView: React.FC = () => {
   const [allProjectsList, setAllProjectsList] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [comparisonProjectId, setComparisonProjectId] = useState<string>('');
-  const [distanceThreshold, setDistanceThreshold] = useState<number>(0.5);
   const [loading, setLoading] = useState<boolean>(true);
   const [rebuilding, setRebuilding] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +94,7 @@ export const GraphExplorerView: React.FC = () => {
       const compPromise = compId && compId !== targetId ? getProjectGraph(compId) : null;
 
       // Also try the comparison endpoint to get similarity score
-      const compEndpointPromise = getComparisonGraph(targetId, compId || undefined, distanceThreshold).catch(() => null);
+      const compEndpointPromise = getComparisonGraph(targetId, compId || undefined).catch(() => null);
 
       const [targetData, compData, compEndpointData] = await Promise.all([
         targetPromise,
@@ -133,7 +132,7 @@ export const GraphExplorerView: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [distanceThreshold]);
+  }, []);
 
   useEffect(() => {
     fetchGlobalData();
@@ -145,7 +144,7 @@ export const GraphExplorerView: React.FC = () => {
     } else if (activeTab === 'comparison' && selectedProjectId) {
       fetchComparisonGraphs(selectedProjectId, comparisonProjectId);
     }
-  }, [activeTab, selectedProjectId, comparisonProjectId, distanceThreshold]);
+  }, [activeTab, selectedProjectId, comparisonProjectId]);
 
   const handleGlobalRebuild = async () => {
     if (!window.confirm('Rebuild Knowledge Graph from all project submissions in PostgreSQL?')) return;

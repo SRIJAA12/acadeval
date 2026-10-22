@@ -216,18 +216,29 @@ def get_novelty_report(
     # ── Map raw signal keys → signals_breakdown sub-object ────────────────────
     # NoveltyEngineService stores: signal_1_graph_distance, signal_2_feature_rarity...
     # NoveltyReportView.tsx expects: signals_breakdown.{graph_distance, ...}
+    # The pipeline (tasks/pipeline.py) persists signals_breakdown / overall_novelty_*;
+    # the signal_N_* / composite_novelty_score keys are the engine's raw output
+    # shape. Read the persisted keys first, falling back to the raw ones, so a
+    # real stored score is never replaced by the 0.5 / 50 defaults.
+    stored_signals = raw.get("signals_breakdown") or {}
+
+    def _signal(name: str, raw_key: str) -> float:
+        value = stored_signals.get(name, raw.get(raw_key))
+        return float(value) if value is not None else 0.5
+
     signals_breakdown = {
-        "graph_distance":             float(raw.get("signal_1_graph_distance", 0.5)),
-        "feature_rarity":             float(raw.get("signal_2_feature_rarity", 0.5)),
-        "relationship_rarity":        float(raw.get("signal_3_relationship_rarity", 0.5)),
-        "graph_density":              float(raw.get("signal_4_graph_density", 0.5)),
-        "new_connection_discovery":   float(raw.get("signal_5_new_connection_discovery", 0.5)),
+        "graph_distance":             _signal("graph_distance", "signal_1_graph_distance"),
+        "feature_rarity":             _signal("feature_rarity", "signal_2_feature_rarity"),
+        "relationship_rarity":        _signal("relationship_rarity", "signal_3_relationship_rarity"),
+        "graph_density":              _signal("graph_density", "signal_4_graph_density"),
+        "new_connection_discovery":   _signal("new_connection_discovery", "signal_5_new_connection_discovery"),
     }
 
     # ── Composite score (may be stored as 0–100 or 0.0–1.0) ──────────────────
-    composite_raw = float(raw.get("composite_novelty_score", 50.0))
+    composite_value = raw.get("overall_novelty_score", raw.get("composite_novelty_score"))
+    composite_raw = float(composite_value) if composite_value is not None else 50.0
     composite_score = composite_raw if composite_raw > 1.0 else composite_raw * 100.0
-    novelty_band = raw.get("novelty_band", "Moderately Novel")
+    novelty_band = raw.get("overall_novelty_band") or raw.get("novelty_band") or "Moderately Novel"
 
     # ── Project fields ─────────────────────────────────────────────────────────
     domain = project.domain or "Artificial Intelligence"
@@ -271,7 +282,7 @@ def get_novelty_report(
             f"[Signal 1 • Idea Uniqueness (Graph Distance): {gd * 100:.1f}%] "
             f"Question: \"Has anyone in our database built almost this exact same project before?\" -- "
             f"Compared against {corpus_count} historical projects in the AcadEval Historical Corpus using Jaccard entity-set distance. "
-            f"The nearest match was '{top_sim_title}' at Jaccard distance {top_dist:.3f}, classifying this proposal as {gd_label} relative to prior work."
+            f"The nearest match was '{top_sim_title}' at Jaccard distance {top_sim_dist:.3f}, classifying this proposal as {gd_label} relative to prior work."
         ),
         (
             f"[Signal 2 • Tool & Tech Rarity (Feature Rarity): {fr * 100:.1f}%] "
@@ -373,6 +384,8 @@ def submit_faculty_review(payload: FacultyReviewInput, current_user: CurrentFacu
     system_scaled = persisted_system_score / 10.0
     delta = abs(payload.faculty_score - system_scaled)
 
+    from app.eval.versioning import compute_fingerprint
+
     evaluation = FacultyEvaluation(
         project_id=project.id,
         evaluator_id=current_user.id,
@@ -380,6 +393,7 @@ def submit_faculty_review(payload: FacultyReviewInput, current_user: CurrentFacu
         system_score=persisted_system_score,
         score_delta=round(delta, 2),
         override_reason=payload.override_reason,
+        method_fingerprint=compute_fingerprint(),
     )
     db.add(evaluation)
     db.commit()

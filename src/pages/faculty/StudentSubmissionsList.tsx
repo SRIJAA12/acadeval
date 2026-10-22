@@ -70,8 +70,9 @@ const StudentSubmissionsList: React.FC = () => {
           <select value={filterType} onChange={e => setFilterType(e.target.value as SubmissionType | '')} className="input w-auto">
             <option value="">All Types</option>
             <option value="document">Document</option>
-            <option value="video">Video</option>
+            <option value="journal">Journal</option>
             <option value="abstract">Abstract</option>
+            <option value="video">Video (legacy)</option>
           </select>
 
           <select value={filterDomain} onChange={e => setFilterDomain(e.target.value)} className="input w-auto">

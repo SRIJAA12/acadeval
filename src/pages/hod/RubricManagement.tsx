@@ -34,8 +34,13 @@ const RubricManagement: React.FC = () => {
             <div key={r.rubricId} className="card">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="font-semibold text-navy-900">{r.name}</h3>
-                  <p className="text-sm text-slate-500 mt-1">Department: {r.department} · Created by {r.createdBy}</p>
+                  <h3 className="font-semibold text-navy-900">
+                    {r.name} <span className="text-xs font-normal text-slate-400">v{r.version}</span>
+                  </h3>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Department: {r.department} · Created by {r.createdBy}
+                    {r.academicYear && ` · ${r.academicYear}`}
+                  </p>
                 </div>
                 <div>
                   {r.isApproved ? (

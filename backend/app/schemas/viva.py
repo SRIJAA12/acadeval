@@ -149,3 +149,14 @@ class VivaSessionStatus(BaseModel):
     questionsAnswered: int
     currentKcs: float
     progressPct: float               # 0–100 based on concept coverage target
+
+
+class VivaHistoryItem(BaseModel):
+    sessionId: str
+    projectId: str
+    projectTitle: str
+    isComplete: bool
+    totalScore: Optional[float]
+    kcs: Optional[float]
+    questionsAnswered: int
+    createdAt: str

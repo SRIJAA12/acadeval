@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.dependencies import DB, CurrentFacultyOrHOD
+from app.dependencies import DB, CurrentFacultyOrHOD, CurrentReviewerOrHOD
 from app.models.project import Project, PipelineStatus
 from app.models.evaluation import (
     EvaluationReport,
@@ -15,6 +15,10 @@ from app.schemas.report import (
     AddNoteRequest,
     FacultyReviewRequest,
 )
+from app.utils.authz import ensure_assigned
+from app.utils.audit import log_audit
+from app.utils.notify import notify
+
 router = APIRouter(tags=["Reviews"])
 
 
@@ -29,11 +33,14 @@ def _get_project_or_404(project_id: str, db: Session) -> Project:
 def override_score(
     project_id: str,
     payload: ScoreOverrideRequest,
-    current_user: CurrentFacultyOrHOD,
+    current_user: CurrentReviewerOrHOD,
     db: DB,
 ):
-    """Override a single dimension score and record in audit history."""
+    """Override a single dimension score and record in audit history.
+    Reviewer/HOD only — this is the official score track. The guide's own
+    (informal, non-final) marks live separately in guide_feedback.py."""
     project = _get_project_or_404(project_id, db)
+    ensure_assigned(project, current_user)
     report = project.evaluation
     if not report:
         raise HTTPException(status_code=404, detail="Evaluation report not found")
@@ -98,6 +105,7 @@ def add_note(
 ):
     """Add an internal faculty note (never visible to students)."""
     project = _get_project_or_404(project_id, db)
+    ensure_assigned(project, current_user)
     note = InternalNote(
         project_id=project.id,
         author_id=current_user.id,
@@ -118,6 +126,7 @@ def submit_faculty_review(
     """Stores faculty review to validate AI evaluation."""
 
     project = _get_project_or_404(project_id, db)
+    ensure_assigned(project, current_user)
 
     if not project.evaluation:
         raise HTTPException(
@@ -127,6 +136,8 @@ def submit_faculty_review(
 
     system_score = project.evaluation.novelty_score or 0.0
 
+    from app.eval.versioning import compute_fingerprint
+
     review = FacultyEvaluation(
         project_id=project.id,
         evaluator_id=current_user.id,
@@ -135,6 +146,7 @@ def submit_faculty_review(
         score_delta=(payload.faculty_score * 10) - system_score,
         override_reason=payload.override_reason,
         is_confirmed=payload.is_confirmed,
+        method_fingerprint=compute_fingerprint(),
     )
 
     db.add(review)
@@ -148,17 +160,30 @@ def submit_faculty_review(
 @router.post("/projects/{project_id}/publish", status_code=status.HTTP_200_OK)
 def publish_review(
     project_id: str,
-    current_user: CurrentFacultyOrHOD,
+    current_user: CurrentReviewerOrHOD,
     db: DB,
 ):
-    """Publish the review — makes report visible to student as final (not preliminary)."""
+    """Publish the review — makes report visible to student as final (not
+    preliminary). Reviewer/HOD only: the reviewer gives the official grade."""
     project = _get_project_or_404(project_id, db)
+    ensure_assigned(project, current_user)
 
     project.pipeline_status = PipelineStatus.reviewed
     project.is_preliminary = False
 
     if project.evaluation:
         project.evaluation.published_at = datetime.now(timezone.utc)
+
+    log_audit(db, current_user, "publish_review", "project", str(project.id), {
+        "overall_score": project.evaluation.overall_score if project.evaluation else None,
+        "grade": project.evaluation.grade if project.evaluation else None,
+    })
+    notify(
+        db, project.student_id, "review_published",
+        f"Your final review for \"{project.title}\" has been published",
+        body=f"Published by {current_user.name}",
+        link=f"/student/report/{project.id}",
+    )
 
     db.commit()
 

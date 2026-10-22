@@ -2,16 +2,22 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import {
-  LayoutDashboard, FolderGit2, Scale, Trophy, Users, LogOut, GraduationCap, ChevronRight, Bell, Shield,
+  LayoutDashboard, FolderGit2, Scale, Trophy, Users, LogOut, GraduationCap, ChevronRight, Shield, Gauge,
+  UserCog, ScrollText, Eye,
 } from 'lucide-react';
 import clsx from 'clsx';
+import NotificationBell from '../components/NotificationBell';
 
 const navItems = [
   { to: '/hod/overview', icon: <LayoutDashboard size={18} />, label: 'Dept. Overview' },
   { to: '/hod/projects', icon: <FolderGit2 size={18} />, label: 'Project Submissions' },
+  { to: '/hod/assignments', icon: <UserCog size={18} />, label: 'Assignments' },
+  { to: '/hod/coordinator-activity', icon: <Eye size={18} />, label: 'Coordinator Activity' },
   { to: '/hod/rubrics', icon: <Scale size={18} />, label: 'Rubric Management' },
   { to: '/hod/leaderboard', icon: <Trophy size={18} />, label: 'Leaderboard Admin' },
   { to: '/hod/users', icon: <Users size={18} />, label: 'User Management' },
+  { to: '/hod/audit-log', icon: <ScrollText size={18} />, label: 'Audit Log' },
+  { to: '/hod/quality', icon: <Gauge size={18} />, label: 'Evaluation & Quality' },
 ];
 
 const HODLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -81,9 +87,7 @@ const HODLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <span className="px-3 py-1 bg-gold-50 text-gold-700 rounded-full text-xs font-semibold border border-gold-200 flex items-center gap-1">
               <Shield size={11} /> HOD
             </span>
-            <button className="relative p-2 hover:bg-slate-100 rounded-xl transition-colors">
-              <Bell size={18} className="text-slate-500" />
-            </button>
+            <NotificationBell />
           </div>
         </header>
 

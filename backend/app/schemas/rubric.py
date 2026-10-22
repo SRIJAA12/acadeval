@@ -13,6 +13,7 @@ class RubricCriteriaItem(BaseModel):
 class RubricCreate(BaseModel):
     name: str
     department: str
+    academicYear: Optional[str] = None
     criteria: list[RubricCriteriaItem]
 
 
@@ -20,6 +21,9 @@ class RubricOut(BaseModel):
     rubricId: str
     name: str
     department: str
+    academicYear: Optional[str] = None
+    version: int
+    supersedesId: Optional[str] = None
     createdBy: str
     isApproved: bool
     criteria: list[RubricCriteriaItem]

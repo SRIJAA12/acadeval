@@ -301,8 +301,9 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
       const n = nl.length;
       if (n === 0) return;
 
-      const k = Math.sqrt((width * height) / Math.max(1, n)) * 1.35;
-      const cellSize = Math.max(70, k * 1.4);
+      const k = Math.sqrt((width * height) / Math.max(1, n)) * 1.8;
+      const cellSize = Math.max(90, k * 1.4);
+      const minSeparation = Math.max(60, k * 0.55);
       const grid = new Map<string, typeof nl>();
       nl.forEach(node => {
         const cx = Math.floor((node.x ?? 0) / cellSize);
@@ -326,9 +327,9 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
               const dx = ax - (b.x ?? 0), dy = ay - (b.y ?? 0);
               const dist2 = dx * dx + dy * dy || 1;
               const dist = Math.sqrt(dist2);
-              if (dist > cellSize * 2.2) continue;
-              const softDist = Math.max(45, dist);
-              const force = ((k * k) / (softDist * softDist)) * 0.25 * alphaVal;
+              if (dist > cellSize * 2.6) continue;
+              const softDist = Math.max(60, dist);
+              const force = ((k * k) / (softDist * softDist)) * 0.32 * alphaVal;
               a.vx = (a.vx ?? 0) + (dx / dist) * force;
               a.vy = (a.vy ?? 0) + (dy / dist) * force;
             }
@@ -365,6 +366,38 @@ export const ProjectGraphViewer: React.FC<ProjectGraphViewerProps> = ({
         node.vy = Math.max(-maxV, Math.min(maxV, node.vy ?? 0));
         node.x = (node.x ?? 0) + (node.vx ?? 0);
         node.y = (node.y ?? 0) + (node.vy ?? 0);
+      });
+
+      // 4. Hard minimum-separation pass: guarantees no two nodes end up
+      // overlapping regardless of how the force simulation converges (the
+      // repulsion above is a soft force and can still leave close pairs on
+      // dense graphs). Uses the same spatial grid built above.
+      nl.forEach(a => {
+        const ax = a.x ?? 0, ay = a.y ?? 0;
+        const cx = Math.floor(ax / cellSize);
+        const cy = Math.floor(ay / cellSize);
+        for (let dcx = -1; dcx <= 1; dcx++) {
+          for (let dcy = -1; dcy <= 1; dcy++) {
+            const neighbors = grid.get(`${cx + dcx},${cy + dcy}`);
+            if (!neighbors) continue;
+            for (const b of neighbors) {
+              if (b === a) continue;
+              const dx = ax - (b.x ?? 0), dy = ay - (b.y ?? 0);
+              const dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+              if (dist >= minSeparation) continue;
+              const push = (minSeparation - dist) / 2;
+              const ux = dx / dist, uy = dy / dist;
+              if (!(draggedNodeRef.current && String(draggedNodeRef.current.id) === String(a.id))) {
+                a.x = (a.x ?? 0) + ux * push;
+                a.y = (a.y ?? 0) + uy * push;
+              }
+              if (!(draggedNodeRef.current && String(draggedNodeRef.current.id) === String(b.id))) {
+                b.x = (b.x ?? 0) - ux * push;
+                b.y = (b.y ?? 0) - uy * push;
+              }
+            }
+          }
+        }
       });
     };
 

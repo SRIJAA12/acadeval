@@ -8,6 +8,7 @@ import RoleGuard from './auth/RoleGuard';
 import StudentLayout from './layouts/StudentLayout';
 import FacultyLayout from './layouts/FacultyLayout';
 import HODLayout from './layouts/HODLayout';
+import CoordinatorLayout from './layouts/CoordinatorLayout';
 
 // Auth
 import Login from './pages/auth/Login';
@@ -17,8 +18,11 @@ import Upload from './pages/student/Upload';
 import MyReports from './pages/student/MyReports';
 import ReportDetail from './pages/student/ReportDetail';
 import VivaSimulation from './pages/student/VivaSimulation';
-import Leaderboard from './pages/student/Leaderboard';
-import Appeals from './pages/student/Appeals';
+import DiscussionProjectList from './pages/student/DiscussionProjectList';
+import ProjectDiscussion from './pages/student/ProjectDiscussion';
+import TeamProgress from './pages/student/TeamProgress';
+import TeamProgressDetail from './pages/student/TeamProgressDetail';
+import TodoList from './pages/student/TodoList';
 
 // Faculty pages
 import Dashboard from './pages/faculty/Dashboard';
@@ -27,11 +31,11 @@ import ReviewQueue from './pages/faculty/ReviewQueue';
 import ProjectReportView from './pages/faculty/ProjectReportView';
 import UploadBatch from './pages/faculty/UploadBatch';
 import ComparisonTable from './pages/faculty/ComparisonTable';
-import RubricBuilder from './pages/faculty/RubricBuilder';
-import AppealsInbox from './pages/faculty/AppealsInbox';
 import HistoricalBenchmark from './pages/faculty/HistoricalBenchmark';
 import PendingReviewQueue from './pages/faculty/PendingReviewQueue';
 import { GraphExplorerView } from './pages/faculty/GraphExplorerView';
+import FacultyDiscussionProjectList from './pages/faculty/DiscussionProjectList';
+import FacultyProjectDiscussion from './pages/faculty/ProjectDiscussion';
 
 // HOD pages
 import DeptOverview from './pages/hod/DeptOverview';
@@ -39,6 +43,18 @@ import HODProjectList from './pages/hod/HODProjectList';
 import RubricManagement from './pages/hod/RubricManagement';
 import LeaderboardAdmin from './pages/hod/LeaderboardAdmin';
 import UserManagement from './pages/hod/UserManagement';
+import QualityDashboard from './pages/hod/QualityDashboard';
+import Assignments from './pages/hod/Assignments';
+import AuditLog from './pages/hod/AuditLog';
+import CoordinatorActivity from './pages/hod/CoordinatorActivity';
+
+// Coordinator pages
+import CoordinatorOverview from './pages/coordinator/CoordinatorOverview';
+import RosterUpload from './pages/coordinator/RosterUpload';
+import ReviewerSlots from './pages/coordinator/ReviewerSlots';
+import ReviewRounds from './pages/coordinator/ReviewRounds';
+import ReviewRoundDetail from './pages/coordinator/ReviewRoundDetail';
+import CoordinatorRubricBuilder from './pages/coordinator/CoordinatorRubricBuilder';
 
 // Toast for unauthorized redirect
 const UnauthorizedToast: React.FC = () => {
@@ -89,7 +105,8 @@ const AppRoutes: React.FC = () => {
           user
             ? <Navigate to={
                 user.role === 'student' ? '/student/reports' :
-                user.role === 'hod' ? '/hod/overview' : '/faculty/dashboard'
+                user.role === 'hod' ? '/hod/overview' :
+                user.role === 'coordinator' ? '/coordinator/overview' : '/faculty/dashboard'
               } replace />
             : <Navigate to="/login" replace />
         } />
@@ -103,8 +120,11 @@ const AppRoutes: React.FC = () => {
                 <Route path="reports" element={<MyReports />} />
                 <Route path="report/:projectId" element={<ReportDetail />} />
                 <Route path="viva" element={<VivaSimulation />} />
-                <Route path="leaderboard" element={<Leaderboard />} />
-                <Route path="appeals" element={<Appeals />} />
+                <Route path="discussion" element={<DiscussionProjectList />} />
+                <Route path="discussion/:projectId" element={<ProjectDiscussion />} />
+                <Route path="team-progress" element={<TeamProgress />} />
+                <Route path="team-progress/:teamId" element={<TeamProgressDetail />} />
+                <Route path="todo" element={<TodoList />} />
                 <Route path="profile" element={
                   <div className="card max-w-md mx-auto mt-8 text-center py-10">
                     <div className="w-20 h-20 rounded-full bg-teal-500 flex items-center justify-center text-white font-bold text-3xl mx-auto mb-4">
@@ -129,11 +149,11 @@ const AppRoutes: React.FC = () => {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="submissions" element={<StudentSubmissionsList />} />
                 <Route path="queue" element={<ReviewQueue />} />
+                <Route path="discussion" element={<FacultyDiscussionProjectList />} />
+                <Route path="discussion/:projectId" element={<FacultyProjectDiscussion />} />
                 <Route path="report/:projectId" element={<ProjectReportView />} />
                 <Route path="batch" element={<UploadBatch />} />
                 <Route path="comparison" element={<ComparisonTable />} />
-                <Route path="rubric" element={<RubricBuilder />} />
-                <Route path="appeals" element={<AppealsInbox />} />
                 <Route path="benchmarks" element={<HistoricalBenchmark />} />
                 <Route path="entity-review" element={<PendingReviewQueue />} />
                 <Route path="graph-explorer" element={<GraphExplorerView />} />
@@ -154,9 +174,30 @@ const AppRoutes: React.FC = () => {
                 <Route path="rubrics" element={<RubricManagement />} />
                 <Route path="leaderboard" element={<LeaderboardAdmin />} />
                 <Route path="users" element={<UserManagement />} />
+                <Route path="quality" element={<QualityDashboard />} />
+                <Route path="assignments" element={<Assignments />} />
+                <Route path="audit-log" element={<AuditLog />} />
+                <Route path="coordinator-activity" element={<CoordinatorActivity />} />
                 <Route path="" element={<Navigate to="overview" replace />} />
               </Routes>
             </HODLayout>
+          </RoleGuard>
+        } />
+
+        {/* Coordinator Routes */}
+        <Route path="/coordinator/*" element={
+          <RoleGuard allowedRoles={['coordinator']}>
+            <CoordinatorLayout>
+              <Routes>
+                <Route path="overview" element={<CoordinatorOverview />} />
+                <Route path="roster" element={<RosterUpload />} />
+                <Route path="reviewer-slots" element={<ReviewerSlots />} />
+                <Route path="review-rounds" element={<ReviewRounds />} />
+                <Route path="review-rounds/:roundId" element={<ReviewRoundDetail />} />
+                <Route path="rubrics" element={<CoordinatorRubricBuilder />} />
+                <Route path="" element={<Navigate to="overview" replace />} />
+              </Routes>
+            </CoordinatorLayout>
           </RoleGuard>
         } />
 

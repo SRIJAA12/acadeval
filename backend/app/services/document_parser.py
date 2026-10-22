@@ -336,13 +336,6 @@ Respond with a single JSON object only:
             except Exception:
                 continue
 
-        # 5. Check repository datasets and specifications
-        local_datasets_dir = Path("/datasets")
-        if local_datasets_dir.exists():
-            ds_files = [f.name for f in local_datasets_dir.glob("*.csv")] + [f.name for f in (local_datasets_dir / "corpus").glob("*.csv") if (local_datasets_dir / "corpus").exists()]
-            if ds_files:
-                fetched_text.append("--- Repository Datasets Discovered ---\n" + "\n".join(ds_files))
-
         # Check for hardware and runtime specs in docker-compose or docs
         for b in branches:
             raw_url = f"https://raw.githubusercontent.com/{user}/{repo}/{b}/docker-compose.yml"

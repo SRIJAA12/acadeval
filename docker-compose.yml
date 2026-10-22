@@ -119,7 +119,7 @@ services:
     image: acadeval_backend:latest
     container_name: acadeval_worker
     restart: unless-stopped
-    command: celery -A app.worker worker --loglevel=info --queues=pipeline,periodic --concurrency=2
+    command: celery -A app.worker worker --loglevel=info --queues=pipeline,periodic,eval --concurrency=2
     env_file:
       - .env
     environment:

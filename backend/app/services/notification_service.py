@@ -148,6 +148,34 @@ def notify_viva_completed(guide_email: str, guide_name: str, student_name: str, 
     send_email(guide_email, subject, body_html)
 
 
+def notify_reviewer_slot_credentials(
+    staff_email: str, slot_name: str, slot_login_email: str, new_password: str,
+    round_name: str, round_date: Optional[str], project_titles: List[str],
+):
+    """Sent to the real staff member assigned to a reviewer slot for one
+    review round. The slot's login email stays fixed; only the password
+    rotates per assignment, so a past round's holder loses access the
+    moment someone else is assigned the same slot."""
+    projects_html = "".join(f"<li>{title}</li>" for title in project_titles) or "<li>(no projects listed)</li>"
+    subject = f"Reviewer Access — {slot_name} — {round_name}"
+    body_html = _email_container(
+        title="Reviewer Login Credentials",
+        content_html=f"""
+            <p>Dear Professor,</p>
+            <p>You have been assigned as <strong>{slot_name}</strong> for <strong>{round_name}</strong>{f' on {round_date}' if round_date else ''}.</p>
+            <div class="metric-box">
+                <p style="margin:0;"><strong>Login email:</strong> {slot_login_email}</p>
+                <p style="margin:5px 0 0 0;"><strong>Password:</strong> {new_password}</p>
+            </div>
+            <p>This password is valid only for this review round — log in with the role <strong>Reviewer</strong>.</p>
+            <p>Projects assigned to you this round:</p>
+            <ul>{projects_html}</ul>
+            <a href="{settings.FRONTEND_ORIGIN}/login" class="btn">Go to Login</a>
+        """
+    )
+    return send_email(staff_email, subject, body_html)
+
+
 def notify_proposal_flagged(hod_email: str, hod_name: str, project_title: str, student_name: str, flags: List[str], project_id: str):
     """Alert sent to HOD / Guide when a proposal triggers critical quality/plagiarism flags."""
     flags_list_html = "".join([f"<li>{f}</li>" for f in flags])

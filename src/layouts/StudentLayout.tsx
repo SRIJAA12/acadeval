@@ -2,17 +2,19 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import {
-  Upload, FileText, Trophy, MessageSquare,
-  BookOpen, User, LogOut, GraduationCap, ChevronRight, Bell,
+  Upload, FileText, MessageSquare,
+  BookOpen, User, LogOut, GraduationCap, ChevronRight, Users, ListChecks,
 } from 'lucide-react';
 import clsx from 'clsx';
+import NotificationBell from '../components/NotificationBell';
 
 const navItems = [
   { to: '/student/upload', icon: <Upload size={18} />, label: 'Submit Project' },
   { to: '/student/reports', icon: <FileText size={18} />, label: 'My Reports' },
+  { to: '/student/discussion', icon: <MessageSquare size={18} />, label: 'Discussion & Progress' },
+  { to: '/student/team-progress', icon: <Users size={18} />, label: 'Team Progress' },
+  { to: '/student/todo', icon: <ListChecks size={18} />, label: 'To-Do' },
   { to: '/student/viva', icon: <BookOpen size={18} />, label: 'Viva Simulation' },
-  { to: '/student/leaderboard', icon: <Trophy size={18} />, label: 'Leaderboard' },
-  { to: '/student/appeals', icon: <MessageSquare size={18} />, label: 'My Appeals' },
   { to: '/student/profile', icon: <User size={18} />, label: 'Profile' },
 ];
 
@@ -94,10 +96,7 @@ const StudentLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <ChevronRight size={18} className={clsx('text-slate-500 transition-transform', sidebarOpen && 'rotate-180')} />
           </button>
           <div className="flex items-center gap-3">
-            <button className="relative p-2 hover:bg-slate-100 rounded-xl transition-colors">
-              <Bell size={18} className="text-slate-500" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-teal-500 rounded-full" />
-            </button>
+            <NotificationBell />
           </div>
         </header>
 

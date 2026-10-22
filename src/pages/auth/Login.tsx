@@ -8,6 +8,7 @@ const ROLES: { value: UserRole; label: string; description: string; color: strin
   { value: 'student', label: 'Student', description: 'Submit projects, view feedback & viva', color: 'border-teal-500 bg-teal-50 text-teal-700' },
   { value: 'guide', label: 'Guide', description: 'Review assigned student projects', color: 'border-gold-500 bg-gold-50 text-gold-700' },
   { value: 'reviewer', label: 'Reviewer', description: 'Evaluate panel-assigned projects', color: 'border-purple-500 bg-purple-50 text-purple-700' },
+  { value: 'coordinator', label: 'Coordinator', description: 'Allocate guides, reviewers & schedules', color: 'border-indigo-500 bg-indigo-50 text-indigo-700' },
   { value: 'hod', label: 'HOD', description: 'Department-wide oversight & admin', color: 'border-navy-700 bg-navy-50 text-navy-900' },
 ];
 
@@ -16,6 +17,7 @@ const roleDashboards: Record<UserRole, string> = {
   guide: '/faculty/dashboard',
   reviewer: '/faculty/dashboard',
   hod: '/hod/overview',
+  coordinator: '/coordinator/overview',
 };
 
 const Login: React.FC = () => {
@@ -43,6 +45,7 @@ const Login: React.FC = () => {
       guide: 'meera@college.edu',
       reviewer: 'suresh@college.edu',
       hod: 'hod@college.edu',
+      coordinator: 'coordinator@college.edu',
     };
     setEmail(demoEmails[selectedRole]);
     setPassword('demo123');

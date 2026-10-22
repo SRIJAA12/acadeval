@@ -9,7 +9,10 @@ from app.routers import (
     auth, projects, reports, reviews,
     appeals, rubrics, viva,
     leaderboard, dashboard, users,
-    acadeval_plus, entities, graph, integrations
+    acadeval_plus, entities, graph, integrations,
+    quality,
+    milestones, discussion, notifications, audit,
+    progress, guide_feedback, coordinator, teams, plagiarism,
 )
 from app.database import engine, Base
 
@@ -51,6 +54,16 @@ app.include_router(acadeval_plus.router, prefix=API_PREFIX)
 app.include_router(entities.router,      prefix=API_PREFIX)  # Module 3 — entity KB & pending review
 app.include_router(graph.router,         prefix=API_PREFIX)  # Module 4 — Knowledge Graph engine
 app.include_router(integrations.router,  prefix=API_PREFIX)  # Module 13 — SS / GitHub / Moodle
+app.include_router(quality.router,       prefix=API_PREFIX)  # Live quality telemetry + continuous evaluation (HOD)
+app.include_router(milestones.router,    prefix=API_PREFIX)
+app.include_router(discussion.router,    prefix=API_PREFIX)
+app.include_router(notifications.router, prefix=API_PREFIX)
+app.include_router(audit.router,         prefix=API_PREFIX)
+app.include_router(progress.router,      prefix=API_PREFIX)
+app.include_router(guide_feedback.router, prefix=API_PREFIX)
+app.include_router(coordinator.router,   prefix=API_PREFIX)
+app.include_router(teams.router,         prefix=API_PREFIX)
+app.include_router(plagiarism.router,    prefix=API_PREFIX)
 
 
 @app.on_event("startup")

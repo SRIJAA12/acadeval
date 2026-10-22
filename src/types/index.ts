@@ -1,8 +1,8 @@
 // ─── Core Domain Types ───────────────────────────────────────────────────────
 
-export type SubmissionType = 'document' | 'video' | 'abstract';
-export type PipelineStatus = 'uploaded' | 'ai_processing' | 'awaiting_review' | 'reviewed';
-export type UserRole = 'student' | 'guide' | 'reviewer' | 'hod';
+export type SubmissionType = 'document' | 'journal' | 'abstract' | 'video';
+export type PipelineStatus = 'uploaded' | 'ai_processing' | 'awaiting_review' | 'reviewed' | 'failed';
+export type UserRole = 'student' | 'guide' | 'reviewer' | 'hod' | 'coordinator';
 export type FeasibilityRating = 'High' | 'Medium' | 'Low';
 export type NoveltyVerdict = 'Common' | 'Somewhat Novel' | 'Novel';
 
@@ -48,6 +48,256 @@ export interface ProjectSummary {
   submittedOn: string;
   pipelineStatus: PipelineStatus;
   overallScore: number | null;
+  githubUrl?: string | null;
+  guideName?: string | null;
+  reviewerName?: string | null;
+  isPreliminary?: boolean;
+  teamId?: string | null;
+  guideSubmittedAt?: string | null;
+  reviewerReadyAt?: string | null;
+}
+
+// ─── Assignment, Milestones, Discussion, Notifications, Audit ────────────────
+
+export interface AssignRequest {
+  guideId?: string;
+  reviewerId?: string;
+}
+
+export type MilestoneStatus = 'pending' | 'submitted' | 'approved' | 'revision_requested';
+
+export interface Milestone {
+  milestoneId: string;
+  orderIndex: number;
+  title: string;
+  description: string;
+  status: MilestoneStatus;
+  studentSubmission: string | null;
+  guideComment: string | null;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+}
+
+export interface DiscussionMessageItem {
+  messageId: string;
+  authorId: string;
+  authorName: string;
+  authorRole: string;
+  body: string;
+  createdAt: string;
+  unread: boolean;
+}
+
+export interface NotificationItem {
+  notificationId: string;
+  type: string;
+  title: string;
+  body: string;
+  link: string | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface AuditLogEntry {
+  auditLogId: string;
+  actorName: string;
+  actorRole: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ProgressUpdateItem {
+  updateId: string;
+  authorId: string;
+  authorName: string;
+  content: string;
+  attachmentFilename?: string | null;
+  githubUrl?: string | null;
+  createdAt: string;
+}
+
+export interface GuideFeedback {
+  guideId: string;
+  guideName: string;
+  overallScore: number;
+  comment: string;
+  updatedAt: string;
+}
+
+// ─── Plagiarism ──────────────────────────────────────────────────────────────
+
+export type PlagiarismMatchType = 'text' | 'code';
+export type PlagiarismReviewStatus = 'unreviewed' | 'confirmed' | 'acceptable_overlap' | 'uncertain' | 'no_issue';
+
+export interface PlagiarismMatchItem {
+  matchId: string;
+  matchType: PlagiarismMatchType;
+  sourceProjectId?: string | null;
+  sourceLabel: string;
+  candidatePassage: string;
+  candidateLocation?: string | null;
+  sourcePassage: string;
+  sourceLocation?: string | null;
+  score: number;
+  reviewStatus: PlagiarismReviewStatus;
+  reviewedByName?: string | null;
+  reviewedAt?: string | null;
+  reviewerComment?: string | null;
+  createdAt: string;
+}
+
+export interface PlagiarismReport {
+  projectId: string;
+  textMax: number;
+  codeMax: number;
+  textMatchCount: number;
+  codeMatchCount: number;
+  codeFetchError?: string | null;
+  matches: PlagiarismMatchItem[];
+  summaryText: string;
+}
+
+// ─── Coordinator: roster allocation, reviewer slots, review rounds ───────────
+
+export interface RosterRowResult {
+  rowNumber: number;
+  rollNo: string;
+  status: 'applied' | 'pending' | 'error';
+  message: string;
+}
+
+export interface RosterUploadResponse {
+  totalRows: number;
+  applied: number;
+  pending: number;
+  errors: number;
+  results: RosterRowResult[];
+}
+
+export interface RosterAllocationItem {
+  allocationId: string;
+  rollNo: string;
+  studentEmail?: string | null;
+  teamId?: string | null;
+  guideName?: string | null;
+  domain?: string | null;
+  isApplied: boolean;
+  error?: string | null;
+  createdAt: string;
+}
+
+export interface ReviewerSlot {
+  slotId: string;
+  name: string;
+  email: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface ReviewRound {
+  roundId: string;
+  name: string;
+  description?: string | null;
+  scheduledDate?: string | null;
+  isFinal: boolean;
+  createdAt: string;
+  assignmentCount: number;
+  publishedCount: number;
+}
+
+export interface ReviewSlotAssignmentItem {
+  assignmentId: string;
+  roundId: string;
+  projectId: string;
+  projectTitle: string;
+  studentName: string;
+  reviewerSlotId: string;
+  reviewerSlotName: string;
+  staffEmail: string;
+  scheduledAt?: string | null;
+  credentialEmailSent: boolean;
+  createdAt: string;
+}
+
+export interface RoundEvaluationItem {
+  evaluationId: string;
+  roundId: string;
+  roundName: string;
+  isFinalRound: boolean;
+  projectId: string;
+  reviewerSlotName: string;
+  novelty: number | null;
+  feasibility: number | null;
+  completeness: number | null;
+  technicalDepth: number | null;
+  clarity: number | null;
+  similarityRisk: number | null;
+  publicationPotential: number | null;
+  overallScore: number | null;
+  grade: string | null;
+  comment: string;
+  isPublished: boolean;
+  publishedAt?: string | null;
+  updatedAt: string;
+}
+
+// ─── Teams ─────────────────────────────────────────────────────────────────
+
+export interface TeamMember {
+  studentId: string;
+  name: string;
+  rollNo?: string | null;
+  role: 'member' | 'lead';
+}
+
+export interface TeamItem {
+  teamId: string;
+  teamCode: string;
+  name?: string | null;
+  members: TeamMember[];
+  createdAt: string;
+}
+
+export interface TeamMessageItem {
+  messageId: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+  mentionedUserIds: string[];
+  createdAt: string;
+}
+
+export type TaskStatus = 'pending' | 'done';
+export type TaskSource = 'manual' | 'guide_request' | 'review_scheduled' | 'team';
+
+export interface TaskItem {
+  taskId: string;
+  projectId?: string | null;
+  projectTitle?: string | null;
+  teamId?: string | null;
+  teamCode?: string | null;
+  assigneeId: string;
+  assigneeName: string;
+  createdByName?: string | null;
+  title: string;
+  description?: string | null;
+  status: TaskStatus;
+  source: TaskSource;
+  dueDate?: string | null;
+  createdAt: string;
+  completedAt?: string | null;
+}
+
+export interface CoordinatorOverview {
+  totalProjects: number;
+  unallocatedProjects: number;
+  pendingRosterRows: number;
+  reviewerSlotCount: number;
+  activeRoundCount: number;
+  rubricsPendingApproval: number;
 }
 
 // ─── Dimension Scores ────────────────────────────────────────────────────────
@@ -300,6 +550,17 @@ export interface VivaSession {
   isComplete: boolean;
 }
 
+export interface VivaHistoryItem {
+  sessionId: string;
+  projectId: string;
+  projectTitle: string;
+  isComplete: boolean;
+  totalScore: number | null;
+  kcs: number | null;
+  questionsAnswered: number;
+  createdAt: string;
+}
+
 // ─── Appeals ─────────────────────────────────────────────────────────────────
 
 export type AppealStatus = 'pending' | 'under_review' | 'resolved' | 'rejected';
@@ -332,6 +593,9 @@ export interface Rubric {
   rubricId: string;
   name: string;
   department: string;
+  academicYear?: string | null;
+  version: number;
+  supersedesId?: string | null;
   createdBy: string;
   isApproved: boolean;
   criteria: RubricCriteria[];
@@ -431,4 +695,100 @@ export interface User {
   department: string;
   isActive: boolean;
   joinedAt: string;
+}
+
+// ─── Live Quality Dashboard (HOD only) ───────────────────────────────────────
+// Every metric is kept separate — there is deliberately no single combined
+// "accuracy %" field anywhere in this module. See app/routers/quality.py.
+
+export interface QualityMetricPoint {
+  metric: string;
+  variant: string;
+  slice: string;
+  value: number | null;
+  n: number | null;
+  ci_low: number | null;
+  ci_high: number | null;
+  target: number | null;
+  target_op: string | null;
+  passed: boolean | null;
+  details: Record<string, unknown>;
+}
+
+export interface QualityRunSummary {
+  run_id: string;
+  started_at: string;
+  trigger: string;
+  label: string | null;
+  method_fingerprint: string | null;
+  n_cases: number | null;
+  duration_ms: number | null;
+  metrics: QualityMetricPoint[];
+}
+
+export interface QualitySummary {
+  current_method_fingerprint: string;
+  current_versions: Record<string, string>;
+  runs: {
+    benchmark: QualityRunSummary | null;
+    graph_integrity: QualityRunSummary | null;
+    faculty_agreement: QualityRunSummary | null;
+    online_rollup: QualityRunSummary | null;
+  };
+}
+
+export interface QualityTimeseries {
+  metric: string;
+  variant: string;
+  slice: string;
+  points: {
+    started_at: string;
+    label: string | null;
+    value: number | null;
+    n: number | null;
+    ci_low: number | null;
+    ci_high: number | null;
+    passed: boolean | null;
+  }[];
+}
+
+export interface QualityAblation {
+  run_id: string | null;
+  started_at?: string;
+  variants: Record<string, { metric: string; slice: string; value: number | null; n: number | null; passed: boolean | null }[]>;
+}
+
+export interface QualityRun {
+  run_id: string;
+  kind: string;
+  trigger: string;
+  status: string;
+  label: string | null;
+  method_fingerprint: string | null;
+  started_at: string;
+  finished_at: string | null;
+  duration_ms: number | null;
+  n_cases: number | null;
+  error: string | null;
+}
+
+export interface QualityTelemetryRow {
+  run_id: string;
+  project_id: string;
+  status: string;
+  failed_stage: string | null;
+  total_ms: number | null;
+  novelty_score: number | null;
+  overall_score: number | null;
+  invariants_passed: boolean | null;
+  evidence_quality: string | null;
+  corpus_key_coverage: number | null;
+  created_at: string;
+}
+
+export interface QualityFacultyAgreement {
+  run_id: string | null;
+  started_at?: string;
+  metrics: { metric: string; value: number | null; n: number | null; details: Record<string, unknown> }[];
+  note: string;
 }

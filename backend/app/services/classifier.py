@@ -8,14 +8,11 @@ and sub-domain using AcadEval_DomainTaxonomy embeddings and LLM tie-breaker.
 import logging
 import re
 import sys
-from pathlib import Path
+
+from app.services.dataset_paths import resolve_dataset_dir
 
 # Add datasets taxonomy directory to path for taxonomy_loader / taxonomy_search imports
-TAXONOMY_CANDIDATES = [Path("/datasets/taxonomy"), Path("D:/acadeval-1/datasets/taxonomy")]
-curr = Path(__file__).resolve()
-for parent in curr.parents:
-    TAXONOMY_CANDIDATES.append(parent / "datasets" / "taxonomy")
-TAXONOMY_DIR = next((p for p in TAXONOMY_CANDIDATES if p.exists()), TAXONOMY_CANDIDATES[0])
+TAXONOMY_DIR = resolve_dataset_dir("taxonomy")
 if str(TAXONOMY_DIR) not in sys.path:
     sys.path.insert(0, str(TAXONOMY_DIR))
 

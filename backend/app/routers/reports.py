@@ -8,6 +8,7 @@ from app.models.project import Project
 from app.models.evaluation import EvaluationReport
 from app.models.user import UserRole
 from app.schemas.report import PublicEvaluationReport, InternalEvaluationReport, DimensionScores
+from app.utils.authz import ensure_assigned
 
 router = APIRouter(tags=["Reports"])
 
@@ -27,11 +28,19 @@ def _empty_dimension_scores(is_abstract: bool) -> DimensionScores:
 def _report_to_public(project: Project, report: EvaluationReport) -> PublicEvaluationReport:
     from app.schemas.report import SimilarityInfo, WritingQuality, CitationInfo, ImprovementWeek
     is_abstract = project.submission_type.value == "abstract"
+    still_processing = project.pipeline_status.value in ("uploaded", "ai_processing")
 
-    # ── Publication Gate ───────────────────────────────────────────────────────
-    # When is_preliminary=True the report has not been published by faculty.
-    # Return a skeleton with status information only — no scores, no feedback.
-    if project.is_preliminary:
+    # ── Publication gate ───────────────────────────────────────────────────────
+    # Before faculty publish (is_preliminary=True), the student sees the real
+    # AI preliminary score, grade, and weakness/improvement feedback right
+    # away — withholding exactly that was the opposite of useful (a low
+    # score with no explanation of *why* just confuses a student with no
+    # avenue to improve before the official review). What's withheld is only
+    # the faculty-review side: notes, score-override history, and the
+    # "published" framing, all of which live on the internal report / are
+    # naturally None here until publish_review() sets them.
+    if project.is_preliminary and still_processing:
+        # Scoring hasn't run yet at all — nothing to show but status.
         return PublicEvaluationReport(
             projectId=str(project.id),
             title=project.title,
@@ -287,6 +296,8 @@ def get_project_explainability(project_id: str, current_user: CurrentUser, db: D
     - 7 Project Datasets comparative benchmark analysis
     """
     project = _get_project_or_404(project_id, db)
+    if current_user.role == UserRole.student and project.student_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
     report = db.query(EvaluationReport).filter(EvaluationReport.project_id == project_id).first()
     from app.services.explainability import explainability_service
     return explainability_service.generate_full_explainability(project, report)
@@ -358,7 +369,9 @@ def get_public_report(project_id: str, current_user: CurrentUser, db: DB):
 
 @router.get("/projects/{project_id}/report/internal", response_model=InternalEvaluationReport)
 def get_internal_report(project_id: str, current_user: CurrentFacultyOrHOD, db: DB):
-    """Full internal report — faculty/HOD only."""
+    """Full internal report — faculty/HOD only, and only the faculty actually
+    assigned to this project (or HOD)."""
     project = _get_project_or_404(project_id, db)
+    ensure_assigned(project, current_user)
     report = _get_or_create_report(project, db)
     return _report_to_internal(project, report)

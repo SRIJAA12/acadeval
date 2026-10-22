@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { LoadingState } from '../../components/States';
+import { useQuery } from '@tanstack/react-query';
+import { LoadingState, ErrorState, EmptyState } from '../../components/States';
+import Badge from '../../components/Badge';
 import type { VivaQuestion, VivaAnswerResult, VivaReport } from '../../types';
-import { getVivaReport, startVivaSession, submitVivaAnswer } from '../../api/endpoints';
+import { getVivaReport, startVivaSession, submitVivaAnswer, getVivaHistory, getMyProjects } from '../../api/endpoints';
 import {
   BookOpen, ChevronRight, CheckCircle, Star, Brain,
-  RotateCcw, Trophy, Loader2, Target, AlertTriangle, Lightbulb, Activity
+  RotateCcw, Trophy, Loader2, Target, AlertTriangle, Lightbulb, Activity, History, AlertCircle,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -47,17 +49,28 @@ const VivaSimulation: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [report, setReport] = useState<VivaReport | null>(null);
   const [kcs, setKcs] = useState<number>(0.0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const { data: history } = useQuery({ queryKey: ['vivaHistory'], queryFn: getVivaHistory, enabled: !!projectId });
+  const projectHistory = history?.filter(h => h.projectId === projectId);
+
+  const { data: projects, isLoading: projectsLoading, isError: projectsError, refetch: refetchProjects } = useQuery({
+    queryKey: ['myProjects'],
+    queryFn: getMyProjects,
+    enabled: !projectId,
+  });
 
   // 1. Start Adaptive Viva Session
   const handleStart = async () => {
     setIsLoading(true);
+    setErrorMessage(null);
     try {
       const data = await startVivaSession(projectId);
       setSessionId(data.sessionId);
       setCurrentQuestion(data.firstQuestion);
       setIsStarted(true);
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to start viva session. Make sure project has extracted entities.');
+      setErrorMessage(err.response?.data?.detail || 'Failed to start viva session. Make sure the project has extracted entities.');
     } finally {
       setIsLoading(false);
     }
@@ -67,6 +80,7 @@ const VivaSimulation: React.FC = () => {
   const handleSubmitAnswer = async () => {
     if (!sessionId || !currentQuestion || answer.trim().length < 5) return;
     setIsSubmitting(true);
+    setErrorMessage(null);
 
     try {
       const data = await submitVivaAnswer(sessionId, currentQuestion.questionId, answer.trim());
@@ -83,7 +97,7 @@ const VivaSimulation: React.FC = () => {
         setCurrentQuestion(data.nextQuestion);
       }
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to evaluate answer');
+      setErrorMessage(err.response?.data?.detail || 'Failed to evaluate your answer. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -98,6 +112,44 @@ const VivaSimulation: React.FC = () => {
       console.error('Failed to fetch final report', err);
     }
   };
+
+  if (!projectId) {
+    if (projectsLoading) return <LoadingState message="Loading your projects..." />;
+    if (projectsError) return <ErrorState retry={refetchProjects} />;
+
+    return (
+      <div className="max-w-2xl mx-auto mt-8">
+        <div className="mb-6">
+          <h1 className="text-2xl font-display font-bold text-navy-900">Viva Simulation</h1>
+          <p className="text-slate-500 mt-1">Pick a project to start (or continue) its adaptive viva.</p>
+        </div>
+
+        {!projects?.length ? (
+          <EmptyState icon={<Brain size={28} />} title="No projects yet" description="Submit a project first to take its viva." />
+        ) : (
+          <div className="space-y-3">
+            {projects.map(project => (
+              <button
+                key={project.projectId}
+                onClick={() => navigate(`/student/viva?projectId=${project.projectId}`)}
+                className="card-hover w-full flex items-center justify-between text-left"
+              >
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Badge type="domain" value={project.domain} size="sm" />
+                  </div>
+                  <p className="font-semibold text-slate-800">{project.title}</p>
+                </div>
+                <span className="flex items-center gap-1 text-navy-700 text-sm font-medium">
+                  <Brain size={15} /> Start Viva <ChevronRight size={15} />
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (!isStarted) {
     return (
@@ -130,7 +182,42 @@ const VivaSimulation: React.FC = () => {
           <button onClick={handleStart} disabled={isLoading} className="btn-navy px-8 py-3 text-base">
             {isLoading ? <><Loader2 size={18} className="animate-spin" /> Building Question Pool...</> : <>Start Adaptive Viva <ChevronRight size={18} /></>}
           </button>
+
+          {errorMessage && (
+            <div className="mt-4 flex items-center gap-2 text-red-600 text-sm bg-red-50 px-4 py-3 rounded-xl border border-red-100 max-w-md mx-auto text-left">
+              <AlertCircle size={16} className="flex-shrink-0" /> {errorMessage}
+            </div>
+          )}
         </div>
+
+        {!!projectHistory?.length && (
+          <div className="card mt-6">
+            <h2 className="font-semibold text-navy-900 mb-4 flex items-center gap-2">
+              <History size={16} className="text-slate-400" /> Past Attempts (This Project)
+            </h2>
+            <div className="space-y-2">
+              {projectHistory.map(h => (
+                <div key={h.sessionId} className="flex items-center justify-between bg-slate-50 rounded-xl p-3 border border-slate-100">
+                  <div>
+                    <p className="text-sm font-medium text-slate-700">{h.projectTitle}</p>
+                    <p className="text-xs text-slate-400">
+                      {new Date(h.createdAt).toLocaleDateString()} · {h.questionsAnswered} questions
+                      {!h.isComplete && ' · Incomplete'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    {h.totalScore !== null ? (
+                      <p className="font-bold text-teal-700">{h.totalScore}%</p>
+                    ) : (
+                      <span className="badge badge-slate text-xs">In progress</span>
+                    )}
+                    {h.kcs !== null && <p className="text-[11px] text-slate-400">KCS {h.kcs}%</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -251,6 +338,12 @@ const VivaSimulation: React.FC = () => {
             ? <><Loader2 size={16} className="animate-spin" /> Evaluating Answer...</>
             : <>Submit & Next Adaptive Question <ChevronRight size={16} /></>}
         </button>
+
+        {errorMessage && (
+          <div className="mt-4 flex items-center gap-2 text-red-600 text-sm bg-red-50 px-4 py-3 rounded-xl border border-red-100">
+            <AlertCircle size={16} className="flex-shrink-0" /> {errorMessage}
+          </div>
+        )}
 
         {/* Semantic Evaluation Result */}
         {lastResult && !isSubmitting && (

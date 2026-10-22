@@ -55,5 +55,13 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 CurrentStudent = Annotated[User, Depends(require_role(UserRole.student))]
 CurrentFaculty = Annotated[User, Depends(require_role(UserRole.guide, UserRole.reviewer))]
 CurrentFacultyOrHOD = Annotated[User, Depends(require_role(UserRole.guide, UserRole.reviewer, UserRole.hod))]
+# The reviewer gives the official grade; the guide's own marks are informal
+# (see app/routers/guide_feedback.py) and never touch the official record.
+CurrentReviewerOrHOD = Annotated[User, Depends(require_role(UserRole.reviewer, UserRole.hod))]
 CurrentHOD = Annotated[User, Depends(require_role(UserRole.hod))]
+CurrentCoordinator = Annotated[User, Depends(require_role(UserRole.coordinator))]
+CurrentCoordinatorOrHOD = Annotated[User, Depends(require_role(UserRole.coordinator, UserRole.hod))]
+CurrentFacultyOrHODOrCoordinator = Annotated[
+    User, Depends(require_role(UserRole.guide, UserRole.reviewer, UserRole.hod, UserRole.coordinator))
+]
 DB = Annotated[Session, Depends(get_db)]

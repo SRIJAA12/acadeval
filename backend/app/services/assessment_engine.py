@@ -316,6 +316,9 @@ class AssessmentEngine:
         entities: Mapping[str, Any],
         novelty_score: float | None,
     ) -> str:
+        # Note: entities already carries "_plagiarism_summary" (stashed by
+        # task_check_plagiarism), so this hash already changes whenever the
+        # plagiarism evidence changes — no separate parameter needed.
         payload = {
             "title": title,
             "submission_type": submission_type,
@@ -341,6 +344,7 @@ class AssessmentEngine:
         writing_analysis: Mapping[str, Any],
         citation_analysis: Mapping[str, Any],
         github_url: str | None = None,
+        plagiarism_summary: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         combined_text = "\n".join(value for value in (title, abstract, full_text) if value).strip()
         normalised = _normalise_text(combined_text)
@@ -352,20 +356,29 @@ class AssessmentEngine:
         clarity = writing_analysis.get("quality_score") if isinstance(writing_analysis, Mapping) else None
         clarity = float(clarity) if clarity is not None else None
 
-        nearest_similarity = 0.0
-        if similar_projects:
-            nearest_similarity = max(float(item.get("similarity_score", 0.0) or 0.0) for item in similar_projects)
-        similarity_internal = _clamp(nearest_similarity * 100.0)
+        # Real plagiarism evidence (text TF-IDF + code winnowing against other
+        # submitted projects — see app/services/plagiarism_checker.py), NOT the
+        # novelty engine's topic-similarity reused. Deliberately independent
+        # from `similar_projects` above, which stays purely a novelty signal.
+        text_max = 0.0
+        code_max = 0.0
+        if isinstance(plagiarism_summary, Mapping):
+            text_max = float(plagiarism_summary.get("text_max", 0.0) or 0.0)
+            code_max = float(plagiarism_summary.get("code_max", 0.0) or 0.0)
+        similarity_internal = _clamp(max(text_max, code_max) * 100.0)
 
-        # External similarity from citation analysis or external corpus search
-        similarity_external = 0.0
+        # No real external/web plagiarism corpus exists yet — an honest "not
+        # computed" rather than a false 0%. See EvaluationReport.similarity_external.
+        similarity_external: float | None = None
         if isinstance(citation_analysis, Mapping):
             ext_score = citation_analysis.get("external_similarity_percent") or citation_analysis.get("similarity_percent")
             if ext_score is not None:
                 similarity_external = _clamp(float(ext_score))
 
-        # Specification: 70% Internal + 30% External
-        similarity_risk = _clamp(round(0.70 * similarity_internal + 0.30 * similarity_external, 2))
+        if similarity_external is None:
+            similarity_risk = similarity_internal
+        else:
+            similarity_risk = _clamp(round(0.70 * similarity_internal + 0.30 * similarity_external, 2))
         originality = 100.0 - similarity_risk
 
         citation_quality = _citation_quality(citation_analysis)

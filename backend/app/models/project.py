@@ -13,8 +13,12 @@ from app.database import Base
 
 class SubmissionType(str, enum.Enum):
     document = "document"
-    video = "video"
+    journal = "journal"
     abstract = "abstract"
+    # "video" remains a valid DB value for historical rows (Postgres enums
+    # can't drop values); it is no longer accepted on new uploads — see
+    # app/routers/projects.py:upload_project.
+    video = "video"
 
 
 class PipelineStatus(str, enum.Enum):
@@ -22,6 +26,7 @@ class PipelineStatus(str, enum.Enum):
     ai_processing = "ai_processing"
     awaiting_review = "awaiting_review"
     reviewed = "reviewed"
+    failed = "failed"
 
 
 class Project(Base):
@@ -38,6 +43,10 @@ class Project(Base):
     submission_type: Mapped[SubmissionType] = mapped_column(Enum(SubmissionType), nullable=False)
     github_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     team_members: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Coordinator-assigned grouping tag (not a separate team entity): every
+    # project sharing the same team_id gets guide/reviewer assignments applied
+    # together in one coordinator action. See app/routers/coordinator.py.
+    team_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     batch_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     related_submission_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
@@ -51,6 +60,13 @@ class Project(Base):
     assigned_reviewer_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
+    # Student-controlled visibility gates (see app/utils/authz.py:is_assigned).
+    # The guide sees nothing about a project until guide_submitted_at is set
+    # (score must be >30). reviewer_ready_at is purely informational — it
+    # flags the project as ready for the Coordinator to pick for a review
+    # round; it does not itself grant any reviewer access.
+    guide_submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewer_ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_preliminary: Mapped[bool] = mapped_column(Boolean, default=True)
     submitted_on: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -76,6 +92,9 @@ class Project(Base):
     graph_ingested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     graph_ingestion_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
+    # Live-evaluation — set when a pipeline task exhausts its retries. See app/eval/telemetry.py.
+    pipeline_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Relationships
     student: Mapped["User"] = relationship(
         "User", back_populates="projects", foreign_keys=[student_id]
@@ -93,6 +112,25 @@ class Project(Base):
     notes: Mapped[list["InternalNote"]] = relationship("InternalNote", back_populates="project", cascade="all, delete-orphan")
     appeals: Mapped[list["Appeal"]] = relationship("Appeal", back_populates="project", cascade="all, delete-orphan")
     viva_sessions: Mapped[list["VivaSession"]] = relationship("VivaSession", back_populates="project", cascade="all, delete-orphan")
+    milestones: Mapped[list["Milestone"]] = relationship(
+        "Milestone", back_populates="project", cascade="all, delete-orphan", order_by="Milestone.order_index"
+    )
+    discussion_messages: Mapped[list["DiscussionMessage"]] = relationship(
+        "DiscussionMessage", back_populates="project", cascade="all, delete-orphan", order_by="DiscussionMessage.created_at"
+    )
+    progress_updates: Mapped[list["ProgressUpdate"]] = relationship(
+        "ProgressUpdate", back_populates="project", cascade="all, delete-orphan",
+        order_by="ProgressUpdate.created_at.desc()",
+    )
+    guide_feedback: Mapped["GuideFeedback | None"] = relationship(
+        "GuideFeedback", back_populates="project", uselist=False, cascade="all, delete-orphan"
+    )
+    round_evaluations: Mapped[list["RoundEvaluation"]] = relationship(
+        "RoundEvaluation", back_populates="project", cascade="all, delete-orphan"
+    )
+    review_slot_assignments: Mapped[list["ReviewSlotAssignment"]] = relationship(
+        "ReviewSlotAssignment", back_populates="project", cascade="all, delete-orphan"
+    )
 
 
 class ProjectFile(Base):

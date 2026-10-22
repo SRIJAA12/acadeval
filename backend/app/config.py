@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     GROBID_URL: str = "http://localhost:8070"
 
+    # Reference corpus for novelty matching. Empty = auto-detect
+    # datasets/new_dataset/new_AcadEval_Corpus.csv.xls (a CSV despite the
+    # extension), falling back to the older corpus files.
+    CORPUS_CSV_PATH: str = ""
+
     UPLOAD_DIR: str = "uploads"
     MAX_UPLOAD_SIZE_MB: int = 500
 

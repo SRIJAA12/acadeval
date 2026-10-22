@@ -5,7 +5,7 @@ Each task wraps one step of the AcadEval+ pipeline.  They are chained via
 Celery's chain() primitive so the submission endpoint stays non-blocking.
 
 Chain order:
-  task_parse_and_classify  →  task_extract_entities
+  task_parse_and_classify  →  task_extract_entities  →  task_check_plagiarism
     →  task_score_and_report  →  task_ingest_graph  →  task_finalise
 
 The candidate is scored before graph ingestion so it cannot affect its own
@@ -41,6 +41,34 @@ def _load_project(db, project_id: str):
     return db.query(Project).filter(Project.id == uuid.UUID(project_id)).first()
 
 
+def _run_id(self) -> str | None:
+    """The Celery chain's root task id — stable across all 5 tasks in one
+    pipeline run, used as scoring_telemetry.run_id. None outside a chain
+    (e.g. a task invoked directly in a test)."""
+    try:
+        return self.request.root_id
+    except Exception:
+        return None
+
+
+def _mark_pipeline_failed(project_id: str, stage: str, exc: BaseException) -> None:
+    """Best-effort: on final retry exhaustion, mark the project failed instead
+    of leaving it stuck at ai_processing forever. Never raises."""
+    db = _get_db()
+    try:
+        from app.models.project import PipelineStatus
+        project = _load_project(db, project_id)
+        if project:
+            project.pipeline_status = PipelineStatus.failed
+            project.pipeline_error = f"{stage}: {type(exc).__name__}: {exc}"[:2000]
+            db.commit()
+    except Exception:
+        db.rollback()
+        log.exception("Could not mark project %s failed (non-fatal)", project_id)
+    finally:
+        db.close()
+
+
 # ── Task 1: Document parsing + domain classification ─────────────────────────
 
 @celery_app.task(
@@ -55,6 +83,9 @@ def task_parse_and_classify(self, project_id: str) -> str:
     then classifies domain/sub-domain and writes results to the DB row.
     Returns project_id so the next task in the chain receives it.
     """
+    from app.eval import telemetry
+    run_id = _run_id(self)
+    _t0 = telemetry.stage_start(project_id, run_id, "parse_and_classify")
     db = _get_db()
     try:
         from app.models.project import PipelineStatus
@@ -129,8 +160,12 @@ def task_parse_and_classify(self, project_id: str) -> str:
     except Exception as exc:
         db.rollback()
         log.exception("parse_and_classify failed for %s: %s", project_id, exc)
+        if self.request.retries >= self.max_retries:
+            telemetry.mark_failed(run_id, "parse_and_classify", exc)
+            _mark_pipeline_failed(project_id, "parse_and_classify", exc)
         raise self.retry(exc=exc)
     finally:
+        telemetry.stage_end(run_id, "parse_and_classify", _t0)
         db.close()
 
 
@@ -147,6 +182,9 @@ def task_extract_entities(self, project_id: str) -> str:
     Reads the effective_abstract stored by Task 1, runs NLP entity extraction,
     and writes the structured entity dict back to project.extracted_entities.
     """
+    from app.eval import telemetry
+    run_id = _run_id(self)
+    _t0 = telemetry.stage_start(project_id, run_id, "extract_entities")
     db = _get_db()
     try:
         from app.services.extractor import extractor_service
@@ -177,8 +215,66 @@ def task_extract_entities(self, project_id: str) -> str:
     except Exception as exc:
         db.rollback()
         log.exception("extract_entities failed for %s: %s", project_id, exc)
+        if self.request.retries >= self.max_retries:
+            telemetry.mark_failed(run_id, "extract_entities", exc)
+            _mark_pipeline_failed(project_id, "extract_entities", exc)
         raise self.retry(exc=exc)
     finally:
+        telemetry.stage_end(run_id, "extract_entities", _t0)
+        db.close()
+
+
+# ── Task 2b: Plagiarism check (text + code evidence) ─────────────────────────
+
+@celery_app.task(
+    bind=True, name="pipeline.check_plagiarism",
+    max_retries=2, default_retry_delay=15,
+    acks_late=True,
+)
+def task_check_plagiarism(self, project_id: str) -> str:
+    """
+    Step 2b — Real plagiarism evidence: TF-IDF/cosine text passage matching
+    against other submitted projects, plus k-gram/winnowing code fingerprint
+    matching against linked GitHub repos. Stashes a summary on
+    extracted_entities["_plagiarism_summary"] for task_score_and_report to
+    consume (same scratch-key convention as _effective_abstract) — the real
+    per-match evidence is persisted straight to the plagiarism_matches table
+    by the service itself, independent of this scratch key.
+    """
+    from app.eval import telemetry
+    run_id = _run_id(self)
+    _t0 = telemetry.stage_start(project_id, run_id, "check_plagiarism")
+    db = _get_db()
+    try:
+        from app.services.plagiarism_checker import run_plagiarism_check
+
+        project = _load_project(db, project_id)
+        if not project:
+            return project_id
+
+        summary = run_plagiarism_check(project, db)
+
+        entities = dict(project.extracted_entities or {})
+        entities["_plagiarism_summary"] = summary
+        project.extracted_entities = entities
+        db.commit()
+
+        log.info(
+            "check_plagiarism done for %s — text_max=%.2f code_max=%.2f (%d text, %d code matches)",
+            project_id, summary.get("text_max", 0.0), summary.get("code_max", 0.0),
+            summary.get("text_match_count", 0), summary.get("code_match_count", 0),
+        )
+        return project_id
+
+    except Exception as exc:
+        db.rollback()
+        log.exception("check_plagiarism failed for %s: %s", project_id, exc)
+        if self.request.retries >= self.max_retries:
+            telemetry.mark_failed(run_id, "check_plagiarism", exc)
+            _mark_pipeline_failed(project_id, "check_plagiarism", exc)
+        raise self.retry(exc=exc)
+    finally:
+        telemetry.stage_end(run_id, "check_plagiarism", _t0)
         db.close()
 
 
@@ -195,6 +291,9 @@ def task_ingest_graph(self, project_id: str) -> str:
     Writes the project and its entities only after a versioned novelty report
     has been persisted.
     """
+    from app.eval import telemetry
+    run_id = _run_id(self)
+    _t0 = telemetry.stage_start(project_id, run_id, "ingest_graph")
     db = _get_db()
     try:
         from datetime import datetime, timezone
@@ -230,8 +329,12 @@ def task_ingest_graph(self, project_id: str) -> str:
     except Exception as exc:
         db.rollback()
         log.exception("ingest_graph failed for %s: %s", project_id, exc)
+        if self.request.retries >= self.max_retries:
+            telemetry.mark_failed(run_id, "ingest_graph", exc)
+            _mark_pipeline_failed(project_id, "ingest_graph", exc)
         raise self.retry(exc=exc)
     finally:
+        telemetry.stage_end(run_id, "ingest_graph", _t0)
         db.close()
 
 
@@ -244,6 +347,9 @@ def task_ingest_graph(self, project_id: str) -> str:
 )
 def task_score_and_report(self, project_id: str) -> str:
     """Score novelty first, then all remaining dimensions from submission evidence."""
+    from app.eval import telemetry
+    run_id = _run_id(self)
+    _t0 = telemetry.stage_start(project_id, run_id, "score_and_report")
     db = _get_db()
     try:
         from datetime import datetime, timezone
@@ -416,6 +522,7 @@ def task_score_and_report(self, project_id: str) -> str:
         ):
             log.info("score_and_report reused persisted Stage 3 evidence for %s", project_id)
             db.commit()
+            telemetry.finalize_run(project, run_id, eval_report, entities, domain, sub_domain)
             return project_id
 
         assessment = assessment_engine.evaluate(
@@ -429,6 +536,7 @@ def task_score_and_report(self, project_id: str) -> str:
             writing_analysis=writing_analysis,
             citation_analysis=citation_analysis,
             github_url=project.github_url,
+            plagiarism_summary=entities.get("_plagiarism_summary"),
         )
         dimension_scores = assessment["scores"]
         eval_report.feasibility_score = dimension_scores["feasibility"]
@@ -445,7 +553,7 @@ def task_score_and_report(self, project_id: str) -> str:
         )
         eval_report.missing_sections = assessment["completeness"]["missing_sections"]
         eval_report.similarity_internal = dimension_scores.get("similarity_internal", dimension_scores["similarity_risk"])
-        eval_report.similarity_external = dimension_scores.get("similarity_external", 0.0)
+        eval_report.similarity_external = dimension_scores.get("similarity_external")
         eval_report.is_duplicate = dimension_scores["similarity_risk"] >= 85
         eval_report.assessment_evidence = assessment
         eval_report.assessment_method_version = ASSESSMENT_METHOD_VERSION
@@ -484,6 +592,7 @@ def task_score_and_report(self, project_id: str) -> str:
         eval_report.badges = badges
 
         db.commit()
+        telemetry.finalize_run(project, run_id, eval_report, entities, domain, sub_domain)
 
         log.info(
             "score_and_report done for %s — novelty=%.1f overall=%.1f",
@@ -496,8 +605,12 @@ def task_score_and_report(self, project_id: str) -> str:
     except Exception as exc:
         db.rollback()
         log.exception("score_and_report failed for %s: %s", project_id, exc)
+        if self.request.retries >= self.max_retries:
+            telemetry.mark_failed(run_id, "score_and_report", exc)
+            _mark_pipeline_failed(project_id, "score_and_report", exc)
         raise self.retry(exc=exc)
     finally:
+        telemetry.stage_end(run_id, "score_and_report", _t0)
         db.close()
 
 
@@ -514,6 +627,9 @@ def task_finalise(self, project_id: str) -> dict:
     Sets pipeline_status to awaiting_review and cleans up the temp abstract
     key from extracted_entities.
     """
+    from app.eval import telemetry
+    run_id = _run_id(self)
+    _t0 = telemetry.stage_start(project_id, run_id, "finalise")
     db = _get_db()
     try:
         from app.models.project import PipelineStatus
@@ -522,10 +638,14 @@ def task_finalise(self, project_id: str) -> dict:
         if not project:
             return {"project_id": project_id, "status": "not_found"}
 
-        # Strip internal scratch key before saving
-        if project.extracted_entities and "_effective_abstract" in project.extracted_entities:
+        # Strip internal scratch keys before saving
+        if project.extracted_entities and (
+            "_effective_abstract" in project.extracted_entities
+            or "_plagiarism_summary" in project.extracted_entities
+        ):
             cleaned = dict(project.extracted_entities)
             cleaned.pop("_effective_abstract", None)
+            cleaned.pop("_plagiarism_summary", None)
             project.extracted_entities = cleaned
 
         project.pipeline_status = PipelineStatus.awaiting_review
@@ -549,7 +669,7 @@ def task_finalise(self, project_id: str) -> dict:
                     project_id=str(project.id),
                 )
 
-            guide = project.assigned_guide
+            guide = project.guide
             if guide and guide.email:
                 notify_faculty_review_needed(
                     guide_email=guide.email,
@@ -580,8 +700,12 @@ def task_finalise(self, project_id: str) -> dict:
     except Exception as exc:
         db.rollback()
         log.exception("finalise failed for %s: %s", project_id, exc)
+        if self.request.retries >= self.max_retries:
+            telemetry.mark_failed(run_id, "finalise", exc)
+            _mark_pipeline_failed(project_id, "finalise", exc)
         raise self.retry(exc=exc)
     finally:
+        telemetry.stage_end(run_id, "finalise", _t0)
         db.close()
 
 
@@ -596,6 +720,7 @@ def enqueue_pipeline(project_id: str):
     pipeline = celery_chain(
         task_parse_and_classify.s(project_id),
         task_extract_entities.s(),
+        task_check_plagiarism.s(),
         task_score_and_report.s(),
         task_ingest_graph.s(),
         task_finalise.s(),

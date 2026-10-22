@@ -72,6 +72,12 @@ DEMO_USERS = [
         "role": UserRole.hod,
         "department": "Computer Science & Engineering",
     },
+    {
+        "name": "Dr. Anjali Nair",
+        "email": "coordinator@college.edu",
+        "role": UserRole.coordinator,
+        "department": "Computer Science & Engineering",
+    },
 ]
 
 

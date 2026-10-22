@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import DB, CurrentStudent, CurrentUser
 from app.models.project import Project
+from app.models.user import UserRole
 from app.models.viva import VivaSession
 from app.schemas.viva import (
     StartVivaRequest,
@@ -16,6 +17,7 @@ from app.schemas.viva import (
     AnswerEvaluation,
     VivaReport,
     VivaSessionStatus,
+    VivaHistoryItem,
 )
 from app.services.viva_engine import (
     question_generator,
@@ -33,6 +35,13 @@ from app.services.viva_engine import (
 )
 
 router = APIRouter(prefix="/viva", tags=["Intelligent Viva Engine"])
+
+
+def _ensure_session_access(session: VivaSession, current_user) -> None:
+    """A student may only view their own project's sessions; faculty/HOD
+    may view any (for oversight)."""
+    if current_user.role == UserRole.student and session.project and session.project.student_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
 
 @router.post("/session/start", response_model=StartVivaResponse, status_code=status.HTTP_201_CREATED)
@@ -244,6 +253,7 @@ def get_viva_report(session_id: str, current_user: CurrentUser, db: DB):
     session = db.query(VivaSession).filter(VivaSession.id == uuid.UUID(session_id)).first()
     if not session:
         raise HTTPException(status_code=404, detail="Viva session not found")
+    _ensure_session_access(session, current_user)
 
     if not session.is_complete or not session.report:
         # If not complete, compute transient report preview
@@ -273,6 +283,7 @@ def get_viva_session_status(session_id: str, current_user: CurrentUser, db: DB):
     session = db.query(VivaSession).filter(VivaSession.id == uuid.UUID(session_id)).first()
     if not session:
         raise HTTPException(status_code=404, detail="Viva session not found")
+    _ensure_session_access(session, current_user)
 
     pool = decode_question_pool(session.questions)
     answer_records = decode_answer_records(session.answers)
@@ -290,3 +301,30 @@ def get_viva_session_status(session_id: str, current_user: CurrentUser, db: DB):
         currentKcs=current_kcs,
         progressPct=progress,
     )
+
+
+@router.get("/history", response_model=List[VivaHistoryItem])
+def get_viva_history(current_user: CurrentStudent, db: DB):
+    """Student: list past viva attempts across all their own projects, most
+    recent first."""
+    sessions = (
+        db.query(VivaSession)
+        .join(Project, Project.id == VivaSession.project_id)
+        .filter(Project.student_id == current_user.id)
+        .order_by(VivaSession.created_at.desc())
+        .all()
+    )
+    out = []
+    for s in sessions:
+        answer_records = decode_answer_records(s.answers)
+        out.append(VivaHistoryItem(
+            sessionId=str(s.id),
+            projectId=str(s.project_id),
+            projectTitle=s.project.title if s.project else "Project Viva",
+            isComplete=s.is_complete,
+            totalScore=s.total_score,
+            kcs=s.kcs,
+            questionsAnswered=len(answer_records),
+            createdAt=s.created_at.isoformat(),
+        ))
+    return out

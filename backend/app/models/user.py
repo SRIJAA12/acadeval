@@ -16,6 +16,7 @@ class UserRole(str, enum.Enum):
     guide = "guide"
     reviewer = "reviewer"
     hod = "hod"
+    coordinator = "coordinator"
 
 
 class User(Base):
@@ -31,6 +32,10 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), nullable=False)
     department: Mapped[str] = mapped_column(String(100), default="CSE")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Reviewer "slot" accounts (Reviewer 1, Reviewer 2, ...) are shared logins the
+    # coordinator reassigns to different real staff per review round, with a
+    # freshly generated password each time — see app/routers/coordinator.py.
+    is_reviewer_slot: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

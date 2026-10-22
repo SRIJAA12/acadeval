@@ -16,7 +16,6 @@ Routes:
 import json
 import logging
 import sys
-from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -25,17 +24,14 @@ from pydantic import BaseModel
 from app.dependencies import DB, CurrentUser, CurrentFacultyOrHOD
 from app.models.project import Project
 from app.services.graph_db import graph_service
+from app.services.dataset_paths import resolve_dataset_dir
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/entities", tags=["Module 3 — Entity Knowledge Base"])
 
 # ── FeatureKB file paths (same as extractor.py) ───────────────────────────────
-FEATURE_KB_CANDIDATES = [Path("/datasets/feature_kb"), Path("D:/acadeval-1/datasets/feature_kb")]
-curr = Path(__file__).resolve()
-for parent in curr.parents:
-    FEATURE_KB_CANDIDATES.append(parent / "datasets" / "feature_kb")
-FEATURE_KB_DIR = next((p for p in FEATURE_KB_CANDIDATES if p.exists()), FEATURE_KB_CANDIDATES[0])
+FEATURE_KB_DIR = resolve_dataset_dir("feature_kb")
 PENDING_REVIEW_PATH = FEATURE_KB_DIR / "pending_review.json"
 FEATURE_KB_JSON = FEATURE_KB_DIR / "AcadEval_FeatureKnowledgeBase.json"
 FEATURE_KB_CSV = FEATURE_KB_DIR / "AcadEval_FeatureKnowledgeBase.csv"

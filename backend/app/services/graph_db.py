@@ -140,8 +140,13 @@ class ProjectGraphService:
         extracted_entities: dict,
         source_type: str = "submission",
         source_version: str = "",
+        co_occurrence: bool = True,
     ) -> dict:
         """
+        co_occurrence=False skips the derived CO_OCCURS edges (used only for the
+        bulk corpus load: they are analytics-only, not read by scoring or the
+        visualization, and writing them is the slowest part of a large load).
+
         Ingests a project's metadata and extracted entities into Neo4j inside a
         single write transaction, so a partially-extracted project never leaves
         a half-written graph (Section 7.3, step 2).
@@ -173,10 +178,12 @@ class ProjectGraphService:
                 content_hash,
                 source_type,
                 source_version,
+                co_occurrence,
             )
 
         nodes_written = 3 + len(entity_pairs)  # Project + Domain + Subdomain + entities
-        edges_written = 2 + len(entity_pairs) + (len(entity_pairs) * (len(entity_pairs) - 1)) // 2
+        pair_edges = (len(entity_pairs) * (len(entity_pairs) - 1)) // 2 if co_occurrence else 0
+        edges_written = 2 + len(entity_pairs) + pair_edges
 
         log.info("Built graph for Project %s (%d nodes, %d edges).", project_id, nodes_written, edges_written)
         return {
@@ -240,27 +247,36 @@ class ProjectGraphService:
         content_hash: str,
         source_type: str,
         source_version: str,
+        co_occurrence: bool = True,
     ):
         # Remove this project's previous contribution before rebuilding it.
-        # This keeps retries and edited submissions idempotent.
-        tx.run(
-            """
-            MATCH ()-[r:CO_OCCURS]->()
-            WHERE $project_id IN coalesce(r.project_ids, [])
-            SET r.project_ids = [pid IN r.project_ids WHERE pid <> $project_id]
-            SET r.weight = size(r.project_ids)
-            WITH r WHERE r.weight = 0
-            DELETE r
-            """,
+        # This keeps retries and edited submissions idempotent. A project that
+        # does not exist yet has nothing to remove, and the CO_OCCURS cleanup
+        # scans every CO_OCCURS edge in the graph, so skip it for new projects
+        # (that scan is what made large loads quadratic).
+        exists = tx.run(
+            "MATCH (p:Project {id: $project_id}) RETURN count(p) AS c",
             project_id=project_id,
-        ).consume()
-        tx.run(
-            """
-            MATCH (p:Project {id: $project_id})-[r]->()
-            DELETE r
-            """,
-            project_id=project_id,
-        ).consume()
+        ).single()["c"]
+        if exists:
+            tx.run(
+                """
+                MATCH ()-[r:CO_OCCURS]->()
+                WHERE $project_id IN coalesce(r.project_ids, [])
+                SET r.project_ids = [pid IN r.project_ids WHERE pid <> $project_id]
+                SET r.weight = size(r.project_ids)
+                WITH r WHERE r.weight = 0
+                DELETE r
+                """,
+                project_id=project_id,
+            ).consume()
+            tx.run(
+                """
+                MATCH (p:Project {id: $project_id})-[r]->()
+                DELETE r
+                """,
+                project_id=project_id,
+            ).consume()
         cls._ingest_tx(
             tx,
             project_id,
@@ -272,7 +288,7 @@ class ProjectGraphService:
             source_type,
             source_version,
         )
-        if len(entity_pairs) > 1:
+        if co_occurrence and len(entity_pairs) > 1:
             cls._co_occurrence_tx(tx, project_id, entity_pairs)
 
     @staticmethod

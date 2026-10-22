@@ -18,17 +18,12 @@ import json
 import logging
 import re
 import sys
-from pathlib import Path
 
 from app.services.llm_client import call_gemini_json
 from app.services.entity_normalizer import canonicalize_extracted_entities
+from app.services.dataset_paths import resolve_dataset_dir
 
-# Robustly find feature_kb directory in Docker (/datasets/feature_kb) or local host
-_possible_kb_dirs = [Path("/datasets/feature_kb"), Path("D:/acadeval-1/datasets/feature_kb")]
-curr = Path(__file__).resolve()
-for parent in curr.parents:
-    _possible_kb_dirs.append(parent / "datasets" / "feature_kb")
-FEATURE_KB_DIR = next((p for p in _possible_kb_dirs if p.exists()), _possible_kb_dirs[0])
+FEATURE_KB_DIR = resolve_dataset_dir("feature_kb")
 if str(FEATURE_KB_DIR) not in sys.path:
     sys.path.insert(0, str(FEATURE_KB_DIR))
 
@@ -195,38 +190,28 @@ class FeatureExtractorService:
                     extracted_by_cat[cat_key].add(name)
 
         # ── Step 2b: Dedicated Dataset & Benchmark Discovery ─────────────────────
-        dataset_patterns = [
+        # Named patterns stay case-insensitive (they only ever match AcadEval's
+        # own literal platform-vocabulary strings, never a student project's own
+        # dataset name, so matching here is intentionally specific).
+        named_dataset_patterns = [
             r"\b(AcadEval[_\s]*(?:Corpus(?:_MASTER)?|Historical[_\s]*Corpus|Master[_\s]*Corpus|Domain[_\s]*Taxonomy|Feature[_\s]*Knowledge[_\s]*Base|SimBench|Trend[_\s]*Base|Project[_\s]*Graph[_\s]*Bank|Citation[_\s]*Benchmark|Writing[_\s]*Quality[_\s]*Benchmark|Benchmark[_\s]*Controls))\b",
-            r"\b(Historical[_\s]+Corpus)\b",
-            r"\b(Domain[_\s]+Taxonomy)\b",
-            r"\b(Feature[_\s]+Knowledge[_\s]*Base)\b",
-            r"\b(SimBench(?:[_\s]+Benchmark)?)\b",
-            r"\b(Trend[_\s]*Base)\b",
-            r"\b(Project[_\s]+Graph[_\s]+Bank)\b",
-            r"\b(Citation[_\s]+Benchmark)\b",
-            r"\b(Benchmark[_\s]+Controls)\b",
-            r"\b([A-Z][a-zA-Z0-9_\-]+(?:\s+[A-Z][a-zA-Z0-9_\-]+)*\s+(?:Dataset|Corpus|Benchmark|Knowledge[_\s]+Base|Data[_\s]+Bank))\b",
         ]
-        for pat in dataset_patterns:
+        for pat in named_dataset_patterns:
             for match in re.finditer(pat, text, flags=re.IGNORECASE):
                 cand = re.sub(r"\s+", " ", match.group(1)).strip()
-                if len(cand) >= 4 and not re.search(r"\b(Project|Section|Module|System|Architecture|Evaluation)\b", cand, re.I):
+                if len(cand) >= 4:
                     extracted_by_cat["datasets"].add(cand)
 
-        # Detect 7 comprehensive project datasets if AcadEval spec or datasets are present
-        acadeval_indicators = ["acadeval", "project evaluation", "novelty benchmark", "featureknowledgebase", "domaintaxonomy"]
-        if any(ind in text.lower() for ind in acadeval_indicators):
-            acadeval_datasets = [
-                "AcadEval Historical Corpus",
-                "AcadEval Domain Taxonomy",
-                "AcadEval Feature Knowledge Base",
-                "AcadEval SimBench",
-                "AcadEval TrendBase",
-                "AcadEval Project Graph Bank",
-                "AcadEval Benchmark Controls",
-            ]
-            for ds in acadeval_datasets:
-                extracted_by_cat["datasets"].add(ds)
+        # Generic "<Name> Dataset/Corpus/Benchmark/..." catch-all: deliberately
+        # case-SENSITIVE (no IGNORECASE) and capped to at most 4 leading words,
+        # so it can only capture an actual proper-noun dataset name rather than
+        # swallowing a whole lowercase sentence fragment ending in one of these
+        # words (e.g. "...the researchers used the RRT-CNUHH dataset").
+        generic_dataset_pattern = r"\b([A-Z][a-zA-Z0-9_\-]+(?:\s+[A-Z][a-zA-Z0-9_\-]+){0,3}\s+(?:Dataset|Corpus|Benchmark|Knowledge Base|Data Bank))\b"
+        for match in re.finditer(generic_dataset_pattern, text):
+            cand = re.sub(r"\s+", " ", match.group(1)).strip()
+            if len(cand) >= 4 and not re.search(r"\b(Project|Section|Module|System|Architecture|Evaluation)\b", cand, re.I):
+                extracted_by_cat["datasets"].add(cand)
 
         # ── Step 2c: Dedicated Hardware & Metric Discovery ───────────────────────
         hw_patterns = [
@@ -365,8 +350,17 @@ Respond with a single JSON object only:
             category = str(result.get("category", "")).strip().lower()
             cat_key = f"{category}s" if not category.endswith("s") else category
 
-            if not result.get("is_new") and result.get("matched_name") and cat_key in extracted_by_cat:
-                extracted_by_cat[cat_key].add(result["matched_name"])
+            matched_name = str(result.get("matched_name") or "").strip()
+            known_names_lookup = {n.lower(): n for n in known_names}
+            if not result.get("is_new") and matched_name and cat_key in extracted_by_cat:
+                # Only trust the LLM's matched_name if it's actually one of the
+                # known feature names we gave it — otherwise it's a hallucinated
+                # string wearing a "verified match" label, so treat it as unresolved.
+                canonical = known_names_lookup.get(matched_name.lower())
+                if canonical:
+                    extracted_by_cat[cat_key].add(canonical)
+                else:
+                    still_unmatched.append(span)
             elif result.get("is_new"):
                 self._queue_pending_review(span, category or "unknown")
                 still_unmatched.append(span)

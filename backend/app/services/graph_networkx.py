@@ -497,342 +497,11 @@ def export_project_d3_graph(db: Session, project_id: str) -> dict:
     }
 
 
-# Global in-memory cache for corpus research projects catalog
-_CORPUS_PROJECTS_CACHE: Optional[List[Dict[str, Any]]] = None
-
-STOPWORDS: Set[str] = {
-    "a", "an", "the", "in", "on", "of", "for", "to", "with", "and", "or", "is",
-    "are", "was", "were", "by", "at", "from", "as", "into", "using", "based",
-    "via", "through", "system", "project", "approach", "framework", "model",
-    "evaluation", "analysis", "application", "development", "implementation"
-}
-
-
-def _split_clean_field(val: Any) -> list[str]:
-    """Splits comma/semicolon/newline separated string into clean items."""
-    if not val or val is None:
-        return []
-    s = str(val).strip()
-    if not s or s.lower() in ["nan", "none", "null", "n/a", "[]", "{}"]:
-        return []
-    items = re.split(r"[,;\n\t|]+", s)
-    res = []
-    seen = set()
-    for item in items:
-        cleaned = item.strip().strip('"\'`')
-        if cleaned and cleaned.lower() not in ["none", "nan", "null", "n/a"] and cleaned.lower() not in seen:
-            seen.add(cleaned.lower())
-            res.append(cleaned)
-    return res
-
-
-def _resolve_dataset_filepaths() -> List[str]:
-    """Finds all candidate corpus CSV files across Docker (/datasets) and host environments safely."""
-    from pathlib import Path
-    candidate_dirs = [Path("/datasets"), Path("D:/acadeval-1/datasets"), Path("./datasets")]
-    curr = Path(__file__).resolve()
-    for parent in curr.parents:
-        candidate_dirs.append(parent / "datasets")
-
-    relative_files = [
-        "AcadEval_Corpus_MASTER.csv",
-        "corpus/new_AcadEval_Corpus.csv",
-        "corpus/AcadEval_Corpus.csv",
-        "corpus/AcadEval_Corpus_250_Projects.csv",
-    ]
-    found_paths = []
-    seen = set()
-    for d in candidate_dirs:
-        try:
-            if not d.exists():
-                continue
-            for rel in relative_files:
-                p = d / rel
-                if p.exists():
-                    str_p = str(p.resolve())
-                    if str_p not in seen:
-                        seen.add(str_p)
-                        found_paths.append(str_p)
-        except Exception:
-            continue
-    return found_paths
-
-
-def load_corpus_projects_catalog(db: Optional[Session] = None) -> List[Dict[str, Any]]:
-    """
-    Loads research projects from AcadEval_Corpus_MASTER.csv (and fallback corpus CSVs)
-    into memory for instant similarity search and comparative graph generation.
-    """
-    global _CORPUS_PROJECTS_CACHE
-    if _CORPUS_PROJECTS_CACHE is not None and len(_CORPUS_PROJECTS_CACHE) > 100:
-        return _CORPUS_PROJECTS_CACHE
-
-    candidate_paths = _resolve_dataset_filepaths()
-    corpus_projects = []
-    seen_ids = set()
-
-    for csv_path in candidate_paths:
-        try:
-            with open(csv_path, mode="r", encoding="utf-8", errors="ignore") as f:
-                reader = csv.DictReader(f)
-                for idx, row in enumerate(reader):
-                    pid = str(row.get("Project_ID") or f"CORPUS_{idx+1}").strip()
-                    if pid in seen_ids:
-                        continue
-                    seen_ids.add(pid)
-
-                    title = str(row.get("Title") or "").strip()
-                    if not title:
-                        continue
-
-                    domain = str(row.get("Domain") or "General CSE").strip()
-                    sub_domain = str(row.get("Sub_Domain") or "Machine Learning").strip()
-                    abstract = str(row.get("Abstract") or "").strip()
-
-                    algos = _split_clean_field(row.get("Algorithms"))
-                    techs = _split_clean_field(row.get("Technologies"))
-                    frameworks = _split_clean_field(row.get("Frameworks"))
-                    tools = _split_clean_field(row.get("Tools"))
-                    hardware = _split_clean_field(row.get("Hardware"))
-                    datasets = _split_clean_field(row.get("Dataset_Used"))
-                    languages = _split_clean_field(row.get("Programming_Languages"))
-                    keywords = _split_clean_field(row.get("Keywords"))
-
-                    # Combine into clean entity set
-                    entity_set = set()
-                    for item in algos + techs + frameworks + tools + hardware + datasets + languages:
-                        entity_set.add(item.strip().lower())
-
-                    # Text tokens for keyword matching
-                    text_blob = f"{title} {domain} {sub_domain} {row.get('Keywords', '')} {' '.join(algos)} {' '.join(techs)}"
-                    raw_tokens = set(re.findall(r"[a-zA-Z0-9]+", text_blob.lower()))
-                    clean_tokens = raw_tokens - STOPWORDS
-
-                    corpus_projects.append({
-                        "id": pid,
-                        "title": title,
-                        "domain": domain,
-                        "sub_domain": sub_domain,
-                        "abstract": abstract,
-                        "algorithms": algos,
-                        "technologies": techs,
-                        "frameworks": frameworks,
-                        "tools": tools,
-                        "hardware": hardware,
-                        "datasets": datasets,
-                        "languages": languages,
-                        "keywords": keywords,
-                        "entity_set": entity_set,
-                        "tokens": clean_tokens,
-                        "source": "corpus_dataset",
-                    })
-        except Exception as e:
-            log.warning("Could not read corpus file %s: %s", csv_path, e)
-
-    # Also load from PostgreSQL Project table if db provided
-    if db:
-        try:
-            from app.models.project import Project
-            db_projects = db.query(Project).all()
-            for p in db_projects:
-                pid = str(p.id)
-                if pid in seen_ids:
-                    continue
-                seen_ids.add(pid)
-                extracted = p.extracted_entities or {}
-                if isinstance(extracted, str):
-                    try:
-                        extracted = json.loads(extracted)
-                    except Exception:
-                        extracted = {}
-                if not isinstance(extracted, dict):
-                    extracted = {}
-
-                algos = extracted.get("algorithms", [])
-                techs = extracted.get("technologies", [])
-                frameworks = extracted.get("frameworks", [])
-                libraries = extracted.get("libraries", [])
-                hardware = extracted.get("hardware", [])
-                datasets = extracted.get("datasets", [])
-                applications = extracted.get("applications", [])
-
-                entity_set = set()
-                for cat in [algos, techs, frameworks, libraries, hardware, datasets, applications]:
-                    if isinstance(cat, list):
-                        for item in cat:
-                            if item:
-                                entity_set.add(str(item).strip().lower())
-
-                db_sub_domain = extracted.get("sub_domain", "")
-                text_blob = f"{p.title or ''} {p.domain or ''} {db_sub_domain} {' '.join(entity_set)}"
-                clean_tokens = set(re.findall(r"[a-zA-Z0-9]+", text_blob.lower())) - STOPWORDS
-
-                corpus_projects.append({
-                    "id": pid,
-                    "title": p.title or "Submitted Project",
-                    "domain": p.domain or "General CSE",
-                    "sub_domain": extracted.get("sub_domain", "") or "Machine Learning",
-                    "abstract": p.abstract or "",
-                    "algorithms": algos if isinstance(algos, list) else [],
-                    "technologies": techs if isinstance(techs, list) else [],
-                    "frameworks": frameworks if isinstance(frameworks, list) else [],
-                    "tools": libraries if isinstance(libraries, list) else [],
-                    "hardware": hardware if isinstance(hardware, list) else [],
-                    "datasets": datasets if isinstance(datasets, list) else [],
-                    "languages": [],
-                    "keywords": [],
-                    "entity_set": entity_set,
-                    "tokens": clean_tokens,
-                    "source": "database",
-                })
-        except Exception as e:
-            log.warning("Could not load database projects into corpus catalog: %s", e)
-
-    _CORPUS_PROJECTS_CACHE = corpus_projects
-    log.info("Loaded %d projects into corpus comparison catalog.", len(corpus_projects))
-    return _CORPUS_PROJECTS_CACHE
-
-
-def find_similar_corpus_projects(
-    target_id: str,
-    target_title: str,
-    target_domain: str,
-    target_sub_domain: str,
-    target_entities: Any,
-    db: Optional[Session] = None,
-    distance_threshold: float = 0.50,
-    top_k: int = 15,
-) -> List[Dict[str, Any]]:
-    """
-    Finds truly related academic research projects from the AcadEval corpus dataset
-    using multi-signal keyword anchor matching, entity overlap, and topic alignment.
-    """
-    catalog = load_corpus_projects_catalog(db)
-    if not catalog:
-        return []
-
-    # Clean target title (strip file extensions, numbers, etc.)
-    cleaned_target_title = re.sub(r"\(\d+\)|\.pdf|\.docx|\.pptx|\.txt", "", target_title or "", flags=re.IGNORECASE).strip()
-
-    # Build target entity set
-    if isinstance(target_entities, str):
-        try:
-            target_entities = json.loads(target_entities)
-        except Exception:
-            target_entities = {}
-    if not isinstance(target_entities, dict):
-        target_entities = {}
-
-    target_entity_set = set()
-    for cat, items in target_entities.items():
-        if isinstance(items, list):
-            for item in items:
-                if item:
-                    target_entity_set.add(str(item).strip().lower())
-        elif isinstance(items, str) and items:
-            target_entity_set.add(items.strip().lower())
-
-    # Build target tokens
-    target_text = f"{cleaned_target_title} {target_domain or ''} {target_sub_domain or ''} {' '.join(target_entity_set)}"
-    target_tokens = set(re.findall(r"[a-zA-Z0-9]+", target_text.lower())) - STOPWORDS
-
-    scored_candidates = []
-    target_dom_lower = (target_domain or "").strip().lower()
-    target_subdom_lower = (target_sub_domain or "").strip().lower()
-
-    # High-impact anchor keywords for specialized topic matching
-    SPECIALIZED_ANCHORS = {
-        "dysgraphia", "rehabilitation", "handwriting", "vr", "virtual", "reality",
-        "kinematics", "motor", "autism", "eeg", "ecg", "cardiac", "steganography",
-        "ransomware", "intrusion", "yolo", "drone", "robotics", "nlp", "bert",
-        "transformer", "gan", "diffusion", "segmentation", "quantum", "blockchain"
-    }
-
-    target_anchors = target_tokens & SPECIALIZED_ANCHORS
-
-    for cand in catalog:
-        if cand["id"] == target_id:
-            continue
-
-        cand_title_clean = re.sub(r"\(\d+\)|\.pdf|\.docx|\.pptx", "", cand.get("title", ""), flags=re.IGNORECASE).strip()
-        cand_entity_set = cand["entity_set"]
-        cand_tokens = cand["tokens"]
-        cand_anchors = cand_tokens & SPECIALIZED_ANCHORS
-
-        # 1. Specialized Anchor Word Overlap (Highest thematic weight)
-        shared_anchors = target_anchors & cand_anchors
-        if target_anchors and cand_anchors:
-            anchor_overlap = len(shared_anchors) / max(len(target_anchors), 1)
-        else:
-            anchor_overlap = 0.0
-
-        # 2. General Token Overlap (Overlap Coefficient: avoids penalizing different document lengths)
-        shared_tokens = target_tokens & cand_tokens
-        min_tokens_len = min(len(target_tokens), len(cand_tokens)) if (target_tokens and cand_tokens) else 1
-        token_overlap_coeff = len(shared_tokens) / min_tokens_len if min_tokens_len > 0 else 0.0
-
-        # 3. Technical Entity Overlap
-        shared_entities = set()
-        if target_entity_set and cand_entity_set:
-            shared_entities = target_entity_set & cand_entity_set
-            # Also check partial/substring entity matching
-            for te in target_entity_set:
-                for ce in cand_entity_set:
-                    if len(te) >= 3 and len(ce) >= 3 and (te in ce or ce in te):
-                        shared_entities.add(te)
-            min_ent_len = min(len(target_entity_set), len(cand_entity_set))
-            entity_overlap_coeff = len(shared_entities) / max(min_ent_len, 1)
-        else:
-            entity_overlap_coeff = 0.0
-
-        # 4. Domain & Subdomain Alignment
-        cand_dom_lower = (cand.get("domain") or "").strip().lower()
-        cand_subdom_lower = (cand.get("sub_domain") or "").strip().lower()
-
-        domain_match = 0.0
-        if target_dom_lower and cand_dom_lower:
-            if target_dom_lower == cand_dom_lower or target_dom_lower in cand_dom_lower or cand_dom_lower in target_dom_lower:
-                domain_match = 1.0
-            elif target_subdom_lower and (target_subdom_lower == cand_subdom_lower or target_subdom_lower in cand_subdom_lower):
-                domain_match = 0.85
-            elif any(w in cand_dom_lower for w in target_dom_lower.split() if len(w) > 3):
-                domain_match = 0.60
-            elif any(w in cand_subdom_lower for w in target_subdom_lower.split() if len(w) > 3):
-                domain_match = 0.60
-
-        # ── Weighted Multi-Signal Similarity ──
-        if len(shared_anchors) >= 1:
-            # Strong thematic match (e.g. both share "dysgraphia", "rehabilitation", "vr")
-            base_sim = 0.55 + 0.25 * min(len(shared_anchors), 3) / 3.0
-            bonus_ent = 0.15 * min(len(shared_entities), 3) / 3.0
-            bonus_tok = 0.10 * min(token_overlap_coeff, 1.0)
-            sim = min(0.96, base_sim + bonus_ent + bonus_tok)
-        elif len(shared_entities) >= 2:
-            sim = 0.40 * entity_overlap_coeff + 0.35 * token_overlap_coeff + 0.25 * domain_match
-            sim = min(0.85, sim + 0.10)
-        else:
-            sim = 0.50 * token_overlap_coeff + 0.30 * domain_match + 0.20 * entity_overlap_coeff
-            sim = min(0.70, sim)
-
-        dist = round(max(0.04, 1.0 - sim), 4)
-
-        scored_candidates.append({
-            **cand,
-            "similarity": round(sim, 4),
-            "distance": dist,
-            "shared_entities": sorted(list(shared_entities)),
-            "shared_tokens": sorted(list(shared_tokens)),
-            "shared_anchors": sorted(list(shared_anchors)),
-        })
-
-    # Sort candidates by similarity descending (distance ascending)
-    scored_candidates.sort(
-        key=lambda x: (len(x.get("shared_anchors", [])), x["similarity"], len(x.get("shared_entities", []))),
-        reverse=True
-    )
-
-    # Return top K candidates
-    return scored_candidates[:top_k]
+# Reference-corpus catalog and rarity-weighted matching live in corpus_matcher.py
+from app.services.corpus_matcher import (  # noqa: E402
+    find_similar_corpus_projects,
+    load_corpus_projects_catalog,
+)
 
 
 def build_corpus_project_d3_graph(candidate: Dict[str, Any], id_offset: int = 10000) -> Dict[str, Any]:
@@ -947,11 +616,29 @@ def build_corpus_project_d3_graph(candidate: Dict[str, Any], id_offset: int = 10
     }
 
 
+def _explain_match(candidate: Dict[str, Any]) -> str:
+    """One plain-language line saying what the match is based on."""
+    detail = candidate.get("shared_entities_detail", [])
+    rare = [d["name"] for d in detail if not d.get("generic")][:4]
+    generic = [d["name"] for d in detail if d.get("generic")][:4]
+    words = candidate.get("shared_tokens", [])[:5]
+    parts = []
+    if rare:
+        parts.append("distinctive shared techniques: " + ", ".join(rare))
+    if words:
+        parts.append("shared problem words: " + ", ".join(words))
+    if not parts:
+        parts.append("only weak overall overlap")
+    note = ""
+    if generic:
+        note = f" Common stack overlap ({', '.join(generic)}) is given very little weight."
+    return "Matched on " + "; ".join(parts) + "." + note
+
+
 def export_comparison_d3_graph(
     db: Session,
     project_id: str,
     compare_project_id: Optional[str] = None,
-    distance_threshold: float = 0.5,
 ) -> dict:
     """
     Exports a dual comparison D3 graph comparing:
@@ -1050,8 +737,8 @@ def export_comparison_d3_graph(
             target_sub_domain=target_sub_domain,
             target_entities=target_entities,
             db=db,
-            distance_threshold=distance_threshold,
             top_k=20,
+            target_abstract=abstract_text,
         )
 
         # Check if a qualified candidate exists
@@ -1060,13 +747,13 @@ def export_comparison_d3_graph(
                 "status": "ok",
                 "project_id": pid_str,
                 "target_title": target_title,
-                "comparison_title": "Related project is not available (Distance > 0.50)",
+                "comparison_title": "No close prior work found",
                 "related_project_available": False,
                 "similarity_score": 0.0,
                 "distance": 1.0,
                 "shared_entities_count": 0,
                 "shared_entities": [],
-                "message": "Related project is not available in the dataset corpus (Distance > 0.50).",
+                "message": "No reference project in the corpus is closely related to this one (best match below the minimum similarity), so this idea has no close prior work in the dataset.",
                 "similar_projects": [],
                 "nodes": target_graph.get("nodes", []),
                 "links": target_graph.get("links", []),
@@ -1074,7 +761,7 @@ def export_comparison_d3_graph(
                 "links_count": target_graph.get("links_count", len(target_graph.get("links", []))),
                 "target_graph": target_graph,
                 "comparison_graph": {
-                    "title": "Related project is not available (Distance > 0.50)",
+                    "title": "No close prior work found",
                     "nodes": [],
                     "links": [],
                     "nodes_count": 0,
@@ -1184,6 +871,7 @@ def export_comparison_d3_graph(
                 "domain": c.get("domain", ""),
                 "sub_domain": c.get("sub_domain", ""),
                 "shared_entities": c.get("shared_entities", []),
+                "shared_entities_detail": c.get("shared_entities_detail", []),
             }
             for c in similar_candidates
         ]
@@ -1201,6 +889,8 @@ def export_comparison_d3_graph(
             "distance": round(float(selected_candidate.get("distance", 0.15)), 2),
             "shared_entities_count": len(shared_entity_names),
             "shared_entities": sorted(list(shared_entity_names)),
+            "shared_entities_detail": selected_candidate.get("shared_entities_detail", []),
+            "match_explanation": _explain_match(selected_candidate),
             "message": f"Successfully matched against related dataset project '{selected_candidate.get('title')}'.",
             "similar_projects": similar_projects_list,
             "nodes": merged_nodes,

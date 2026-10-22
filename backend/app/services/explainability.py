@@ -556,22 +556,27 @@ class ExplainabilityService:
         if key == "originality":
             sim = evidence.get("similarity", {})
             internal = sim.get("similarity_internal", 0.0)
-            external = sim.get("similarity_external", 0.0)
+            external = sim.get("similarity_external")
             risk = sim.get("similarity_risk", 0.0)
-            nearest = (sim.get("nearest_projects") or [])
-            nearest_title = nearest[0].get("title", "N/A") if nearest else "N/A"
-            nearest_pct = nearest[0].get("similarity_score", 0.0) * 100 if nearest else 0.0
+            if external is None:
+                external_line = "  External similarity (web/scholarly corpus) = not computed — no external plagiarism source is configured yet\n"
+                combined_line = f"  Combined risk = internal evidence only (no external source) = {risk:.1f}%\n"
+            else:
+                external_line = f"  External similarity (web/scholarly corpus) = {external:.1f}%\n"
+                combined_line = f"  Combined risk = (0.70 × {internal:.1f}) + (0.30 × {external:.1f}) = {risk:.1f}%\n"
             return (
-                f"Step 1 — Similarity risk computation:\n"
-                f"  Internal similarity (vs AcadEval corpus) = {internal:.1f}%  [SBERT + TF-IDF cosine search]\n"
-                f"  External similarity (vs citation corpus) = {external:.1f}%  [Citation cross-entropy]\n"
-                f"  Combined risk = (0.70 × {internal:.1f}) + (0.30 × {external:.1f}) = {risk:.1f}%\n"
-                f"  Nearest internal match: '{nearest_title}' at {nearest_pct:.1f}% overlap\n"
+                f"Step 1 — Similarity risk computation (real plagiarism evidence — NOT the novelty "
+                f"engine's topic-similarity signal, which is reported separately):\n"
+                f"  Internal similarity (vs other submitted projects + linked code repos) = {internal:.1f}%  "
+                f"[TF-IDF + cosine text passage matching, k-gram + winnowing code fingerprint matching]\n"
+                f"{external_line}"
+                f"{combined_line}"
                 f"\n"
                 f"Step 2 — Originality = 100 − {risk:.1f} = {raw_score:.1f}/100\n"
                 f"\n"
                 f"Step 3 — Rubric contribution: {raw_score:.1f} × {weight_pct}% = {contrib:.2f} pts (out of {max_contrib:.2f} max)\n"
-                f"A risk below 30% yields full originality credit; above 70% triggers duplication review."
+                f"A risk below 30% yields full originality credit; above 70% triggers duplication review.\n"
+                f"See the Plagiarism Report for the full matched-passage/code evidence behind this number."
             )
 
         # ── Publication Potential ────────────────────────────────────────────
@@ -782,15 +787,15 @@ class ExplainabilityService:
             total_ent  = alg_count + tech_count + ds_count + len(entities.get("frameworks", []))
             tech_diversity = min(1.0, total_ent / 10.0)  # 10+ entities → max diversity
 
-            sim_ev = assessment_ev.get("similarity", {})
-            sim_internal = float(sim_ev.get("similarity_internal", 0.0) or 0.0) / 100.0
-            sim_risk     = float(sim_ev.get("similarity_risk", 0.0) or 0.0) / 100.0
-
-            # Signal proxies (all in 0-1 range)
-            s1 = max(0.1, min(0.95, 1.0 - sim_internal))         # graph distance ≈ 1 − similarity
+            # Signal proxies (all in 0-1 range). Deliberately NOT derived from
+            # similarity_internal/similarity_risk — those are now real
+            # plagiarism evidence (near-zero for the vast majority of
+            # non-plagiarizing submissions), not a meaningful proxy for
+            # graph distance/density. Similarity is not the same as novelty.
+            s1 = max(0.1, min(0.95, base_frac))                   # graph distance ≈ composite proxy
             s2 = max(0.1, min(0.95, 0.3 + tech_diversity * 0.6))  # feature rarity ↑ with unique entities
             s3 = max(0.1, min(0.95, base_frac * 0.9 + 0.05))      # rel rarity ≈ composite proxy
-            s4 = max(0.1, min(0.95, 1.0 - sim_risk))              # density ≈ 1 − risk
+            s4 = max(0.1, min(0.95, 1.0 - tech_diversity * 0.5))  # density ≈ sparser with fewer diverse entities
             s5 = max(0.1, min(0.95, tech_diversity * 0.7 + 0.15)) # new connections ↑ with entity diversity
 
             novelty_dict = dict(novelty_dict)  # don't mutate the DB object

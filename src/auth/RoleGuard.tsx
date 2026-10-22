@@ -8,6 +8,7 @@ const roleDashboards: Record<UserRole, string> = {
   guide: '/faculty/dashboard',
   reviewer: '/faculty/dashboard',
   hod: '/hod/overview',
+  coordinator: '/coordinator/overview',
 };
 
 interface RoleGuardProps {

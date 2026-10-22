@@ -1,18 +1,24 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { getEvaluationReport, getProjectEntities } from '../../api/endpoints';
+import {
+  getEvaluationReport, getProjectEntities, getProjectNoveltyReport, getProjectExplainability,
+} from '../../api/endpoints';
 import { useAuth } from '../../auth/AuthContext';
 import { LoadingState, ErrorState } from '../../components/States';
 import RadarChart from '../../components/RadarChart';
 import ScoreGauge from '../../components/ScoreGauge';
 import Badge from '../../components/Badge';
-import AppealModal from '../../components/AppealModal';
 import EntityExtractionPanel from '../../components/EntityExtractionPanel';
+import RoundEvaluationPanel from '../../components/RoundEvaluationPanel';
+import ExplainabilityViewer from '../../components/ExplainabilityViewer';
+import PlagiarismReportView from '../../components/PlagiarismReportView';
+import { NoveltyReportView, type NoveltyReportData } from '../../components/NoveltyReportView';
 import type { PublicEvaluationReport } from '../../types';
 import {
   AlertTriangle, CheckCircle, XCircle, Download, BookOpen,
-  TrendingUp, ChevronDown, ChevronUp, Info, Lightbulb,
+  TrendingUp, ChevronDown, ChevronUp, Info, Lightbulb, MessageSquare, ChevronRight,
+  Network, Sparkles,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -26,8 +32,8 @@ const DIMENSION_KEYS = [
   { key: 'publicationPotential', label: 'Publication Potential' },
 ];
 
-const ScoreBar: React.FC<{ label: string; score: number | null; dimKey: string; projectId: string; onAppeal: (dim: string, score: number) => void }> = ({
-  label, score, dimKey, onAppeal,
+const ScoreBar: React.FC<{ label: string; score: number | null; dimKey: string }> = ({
+  label, score, dimKey,
 }) => {
   if (score === null) {
     return (
@@ -45,20 +51,12 @@ const ScoreBar: React.FC<{ label: string; score: number | null; dimKey: string; 
   const textColor = favorable >= 80 ? 'text-teal-700' : favorable >= 60 ? 'text-gold-700' : 'text-red-700';
 
   return (
-    <div className="flex items-center gap-4 group">
+    <div className="flex items-center gap-4">
       <div className="w-32 text-sm font-medium text-slate-600 flex-shrink-0">{label}</div>
       <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
         <div className={clsx('h-full rounded-full transition-all duration-700', color)} style={{ width: `${score}%` }} />
       </div>
-      <div className="flex items-center gap-2">
-        <span className={clsx('text-sm font-bold w-8 text-right', textColor)}>{score}</span>
-        <button
-          onClick={() => onAppeal(dimKey, score)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-slate-400 hover:text-gold-600 border border-slate-200 hover:border-gold-300 rounded-lg px-2 py-0.5"
-        >
-          Appeal
-        </button>
-      </div>
+      <span className={clsx('text-sm font-bold w-8 text-right', textColor)}>{score}</span>
     </div>
   );
 };
@@ -104,7 +102,6 @@ const ReportDetail: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [appealState, setAppealState] = useState<{ dim: string; score: number } | null>(null);
 
   const { data: report, isLoading, isError, refetch } = useQuery({
     queryKey: ['report', projectId],
@@ -118,10 +115,28 @@ const ReportDetail: React.FC = () => {
     enabled: !!projectId,
   });
 
+  const noveltyQuery = useQuery<NoveltyReportData, Error>({
+    queryKey: ['noveltyReport', projectId],
+    queryFn: () => getProjectNoveltyReport(projectId!),
+    enabled: !!projectId,
+    retry: false,
+  });
+
+  const explainabilityQuery = useQuery({
+    queryKey: ['explainability', projectId],
+    queryFn: () => getProjectExplainability(projectId!),
+    enabled: !!projectId,
+    retry: false,
+  });
+
   if (isLoading) return <LoadingState message="Loading evaluation report..." />;
   if (isError || !report) return <ErrorState retry={refetch} />;
 
   const r = report as PublicEvaluationReport;
+  // Scoring hasn't finished yet (nothing to show at all) vs. scored-but-
+  // not-yet-officially-published (show the real preliminary score and
+  // feedback right away — see app/routers/reports.py for the matching fix).
+  const stillProcessing = r.overallScore === null || r.overallScore === undefined;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -130,16 +145,20 @@ const ReportDetail: React.FC = () => {
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-3">
           <Info size={22} className="text-amber-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold text-amber-900 text-base">Evaluation Pending Faculty Review</p>
+            <p className="font-semibold text-amber-900 text-base">
+              {stillProcessing ? 'Evaluation In Progress' : 'Preliminary AI Score — Official Review Pending'}
+            </p>
             <p className="text-sm text-amber-800 mt-1">
-              Your submission has been parsed and evaluated by the AI engine. However, official scores and dimension breakdown are withheld until your project guide or reviewer finalizes and publishes the report.
+              {stillProcessing
+                ? 'Your submission is still being parsed and evaluated by the AI engine. This page will update automatically once scoring completes.'
+                : 'The score and feedback below are from the automated AI evaluation, shown to you immediately so you can start improving. Your guide or reviewer will finalize and publish the official grade separately — it may differ from this preliminary score.'}
             </p>
           </div>
         </div>
       ) : null}
 
       {/* Duplicate Warning */}
-      {!r.isPreliminary && r.similarity?.isDuplicate && (
+      {!stillProcessing && r.similarity?.isDuplicate && (
         <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
           <AlertTriangle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
           <div>
@@ -159,28 +178,33 @@ const ReportDetail: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <Badge type="submission" value={r.submissionType} />
               <Badge type="domain" value={r.domain} />
-              {!r.isPreliminary && r.noveltyVerdict && <Badge type="novelty" value={r.noveltyVerdict} />}
-              {!r.isPreliminary && r.feasibilityRating && <Badge type="feasibility" value={r.feasibilityRating} />}
-              {r.isPreliminary && <Badge type="pipeline" value="awaiting_review" />}
+              {!stillProcessing && r.noveltyVerdict && <Badge type="novelty" value={r.noveltyVerdict} />}
+              {!stillProcessing && r.feasibilityRating && <Badge type="feasibility" value={r.feasibilityRating} />}
+              {stillProcessing && <Badge type="pipeline" value="ai_processing" />}
             </div>
             <h1 className="text-xl font-display font-bold text-navy-900 mb-2">{r.title}</h1>
 
             {/* Badges */}
-            {!r.isPreliminary && r.badges && r.badges.length > 0 && (
+            {!stillProcessing && r.badges && r.badges.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-3">
                 {r.badges.map(badge => <Badge key={badge} type="achievement" value={badge} />)}
               </div>
             )}
           </div>
-          
+
           <div className="flex items-center gap-6">
-            {!r.isPreliminary && r.overallScore !== null && r.overallScore !== undefined ? (
-              <ScoreGauge value={r.overallScore} grade={r.grade} size={160} />
+            {!stillProcessing ? (
+              <div className="relative">
+                <ScoreGauge value={r.overallScore ?? 0} grade={r.grade} size={160} />
+                {r.isPreliminary && (
+                  <span className="absolute -top-2 -right-2 badge badge-gold text-[10px]">Preliminary</span>
+                )}
+              </div>
             ) : (
               <div className="w-36 h-36 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col items-center justify-center p-4 text-center">
                 <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">Status</span>
-                <span className="text-sm font-semibold text-amber-900 mt-1">Awaiting Review</span>
-                <span className="text-[11px] text-amber-600 mt-1">Scores Hidden</span>
+                <span className="text-sm font-semibold text-amber-900 mt-1">Processing</span>
+                <span className="text-[11px] text-amber-600 mt-1">Score not ready</span>
               </div>
             )}
           </div>
@@ -192,7 +216,7 @@ const ReportDetail: React.FC = () => {
           </button>
           {!r.isPreliminary && (
             <button onClick={() => window.print()} className="btn-outline">
-              <Download size={16} /> Download PDF
+              <Download size={16} /> Download Official PDF
             </button>
           )}
         </div>
@@ -203,15 +227,15 @@ const ReportDetail: React.FC = () => {
         entities={entityData?.extracted_entities}
         isLoading={entitiesLoading}
       />
-      {r.isPreliminary ? (
+      {stillProcessing ? (
         <div className="card bg-slate-50 border-dashed border-2 border-slate-200 text-center py-12 px-6">
           <Info size={36} className="text-slate-400 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-slate-700 mb-1">Detailed Scoring & Roadmap Locked</h3>
+          <h3 className="text-lg font-semibold text-slate-700 mb-1">Scoring In Progress</h3>
           <p className="text-sm text-slate-500 max-w-md mx-auto mb-4">
-            Dimension scores, radar charts, strengths/weaknesses, and the 6-week improvement roadmap will be accessible as soon as your guide publishes the final evaluation.
+            Dimension scores, radar charts, strengths/weaknesses, and the improvement roadmap will appear here as soon as the AI evaluation finishes — usually within a few minutes.
           </p>
           <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-medium">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" /> Awaiting Faculty Review & Publication
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" /> AI Evaluation Running
           </div>
         </div>
       ) : (
@@ -232,16 +256,62 @@ const ReportDetail: React.FC = () => {
                     label={label}
                     score={r.dimensionScores[key as keyof typeof r.dimensionScores]}
                     dimKey={key}
-                    projectId={r.projectId}
-                    onAppeal={(dim, score) => setAppealState({ dim, score })}
                   />
                 ))}
               </div>
-              <p className="text-xs text-slate-400 mt-4 flex items-center gap-1">
-                <Info size={11} /> Hover over a dimension and click "Appeal" to dispute a score
-              </p>
             </div>
           </div>
+
+          {/* Entry point to the guide<->student discussion, progress log, and guide feedback */}
+          <button
+            onClick={() => navigate(`/student/discussion/${r.projectId}`)}
+            className="card-hover w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center text-teal-600 flex-shrink-0">
+                <MessageSquare size={18} />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-800">Discussion & Progress</p>
+                <p className="text-xs text-slate-500">Talk with your guide, see their feedback, and post progress updates</p>
+              </div>
+            </div>
+            <ChevronRight size={18} className="text-slate-400" />
+          </button>
+
+          {/* Published review-round results (each round scored independently) */}
+          <div>
+            <h2 className="text-base font-semibold text-navy-900 mb-3">Review Round Results</h2>
+            <RoundEvaluationPanel projectId={r.projectId} />
+          </div>
+
+          {/* Graph Novelty */}
+          <div className="card">
+            <h2 className="text-base font-semibold text-navy-900 mb-1 flex items-center gap-2">
+              <Network size={18} className="text-indigo-500" /> Graph Novelty
+            </h2>
+            <p className="text-xs text-slate-400 mb-4">How your project compares against the historical project corpus — the same evidence used to compute your novelty score.</p>
+            {noveltyQuery.isLoading && <LoadingState message="Loading graph novelty evidence..." />}
+            {noveltyQuery.isError && (
+              <p className="text-sm text-slate-400">Graph novelty evidence isn't ready yet — check back once your submission has finished processing.</p>
+            )}
+            {noveltyQuery.data && (
+              <NoveltyReportView report={noveltyQuery.data} realEntities={entityData?.extracted_entities ?? null} />
+            )}
+          </div>
+
+          {/* AI Explainability */}
+          <div className="card">
+            <h2 className="text-base font-semibold text-navy-900 mb-1 flex items-center gap-2">
+              <Sparkles size={18} className="text-gold-500" /> AI Explainability
+            </h2>
+            <p className="text-xs text-slate-400 mb-4">Exactly how each dimension score was computed, with the evidence behind it.</p>
+            {explainabilityQuery.isLoading && <LoadingState message="Loading score evidence..." />}
+            {explainabilityQuery.data && <ExplainabilityViewer explainability={explainabilityQuery.data} />}
+          </div>
+
+          {/* Plagiarism Report */}
+          <PlagiarismReportView projectId={r.projectId} />
 
           {/* Strengths & Weaknesses */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -433,17 +503,6 @@ const ReportDetail: React.FC = () => {
             </div>
           )}
         </>
-      )}
-
-      {/* Appeal Modal */}
-      {appealState && (
-        <AppealModal
-          isOpen={true}
-          onClose={() => setAppealState(null)}
-          projectId={r.projectId}
-          dimension={appealState.dim}
-          currentScore={appealState.score}
-        />
       )}
     </div>
   );

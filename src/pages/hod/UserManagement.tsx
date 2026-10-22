@@ -11,6 +11,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
   guide: 'badge-gold',
   reviewer: 'badge-purple',
   hod: 'badge-navy',
+  coordinator: 'badge-slate',
 };
 
 const UserManagement: React.FC = () => {
@@ -101,6 +102,7 @@ const UserManagement: React.FC = () => {
                       <option value="student">Student</option>
                       <option value="guide">Guide</option>
                       <option value="reviewer">Reviewer</option>
+                      <option value="coordinator">Coordinator</option>
                       <option value="hod">HOD</option>
                     </select>
                   ) : (

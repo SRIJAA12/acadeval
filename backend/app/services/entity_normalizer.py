@@ -113,35 +113,27 @@ SYNONYM_MAP: Dict[str, str] = {
     "lime": "LIME",
     "shap": "SHAP",
 
-    # Datasets & Benchmarks (All 7 AcadEval Datasets & Benchmarks)
-    "historical corpus": "AcadEval Historical Corpus",
+    # AcadEval's own internal datasets/benchmarks: normalize only when the
+    # text already says "AcadEval ..." explicitly. Generic phrases like
+    # "historical corpus" or "graph bank" are deliberately NOT mapped here —
+    # they're ordinary English a student's own unrelated project could use,
+    # and aliasing them to AcadEval's product names was leaking the
+    # platform's own catalog into unrelated projects' extracted entities.
     "acadeval historical corpus": "AcadEval Historical Corpus",
     "acadeval corpus": "AcadEval Historical Corpus",
     "acadeval_corpus_master": "AcadEval Historical Corpus",
-    "master corpus": "AcadEval Historical Corpus",
     "acadeval domain taxonomy": "AcadEval Domain Taxonomy",
-    "domain taxonomy": "AcadEval Domain Taxonomy",
     "acadeval_domaintaxonomy": "AcadEval Domain Taxonomy",
     "acadeval feature knowledge base": "AcadEval Feature Knowledge Base",
-    "feature knowledge base": "AcadEval Feature Knowledge Base",
     "acadeval_featureknowledgebase": "AcadEval Feature Knowledge Base",
-    "simbench": "AcadEval SimBench",
     "acadeval simbench": "AcadEval SimBench",
-    "simbench benchmark": "AcadEval SimBench",
     "acadeval_simbench": "AcadEval SimBench",
-    "trendbase": "AcadEval TrendBase",
     "acadeval trendbase": "AcadEval TrendBase",
     "acadeval_trendbase": "AcadEval TrendBase",
-    "project graph bank": "AcadEval Project Graph Bank",
     "acadeval project graph bank": "AcadEval Project Graph Bank",
     "acadeval_projectgraphbank": "AcadEval Project Graph Bank",
-    "graph bank": "AcadEval Project Graph Bank",
-    "benchmark controls": "AcadEval Benchmark Controls",
     "acadeval benchmark controls": "AcadEval Benchmark Controls",
-    "citation benchmark": "AcadEval Benchmark Controls",
     "acadeval citation benchmark": "AcadEval Benchmark Controls",
-    "writing quality benchmark": "AcadEval Benchmark Controls",
-    "novelty benchmark": "AcadEval SimBench",
     "imagenet": "ImageNet",
     "coco": "COCO Dataset",
     "mnist": "MNIST",

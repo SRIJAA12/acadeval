@@ -33,7 +33,9 @@ class EvaluationReport(Base):
 
     # Similarity
     similarity_internal: Mapped[float] = mapped_column(Float, default=0.0)
-    similarity_external: Mapped[float] = mapped_column(Float, default=0.0)
+    # Nullable: no external (web/paper) similarity source exists yet, so this
+    # must read as "not computed" rather than a false "0% external risk".
+    similarity_external: Mapped[float | None] = mapped_column(Float, nullable=True)
     is_duplicate: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Qualitative ratings
@@ -140,6 +142,10 @@ class FacultyEvaluation(Base):
     system_score: Mapped[float] = mapped_column(Float, nullable=False)   # 0..100 scale
     score_delta: Mapped[float] = mapped_column(Float, default=0.0)
     override_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Which scoring-method version produced system_score, so faculty-agreement
+    # metrics (app/eval/faculty_agreement.py) can be grouped/compared per method
+    # instead of mixing scores from before and after an accuracy change.
+    method_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     is_confirmed: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

@@ -18,6 +18,15 @@ class Rubric(Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
     is_approved: Mapped[bool] = mapped_column(Boolean, default=False)
+    academic_year: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Bumped when an already-approved rubric is edited: editing an approved
+    # rubric creates a new row (version + 1, is_approved=False) instead of
+    # mutating it, so past evaluations keep meaning under the version they
+    # were scored with.
+    version: Mapped[int] = mapped_column(default=1)
+    supersedes_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("rubrics.id"), nullable=True
+    )
 
     # Array of {criteriaId, name, weight, isRequired, description}
     criteria: Mapped[list] = mapped_column(JSONB, default=list)

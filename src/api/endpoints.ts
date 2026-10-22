@@ -16,6 +16,34 @@ import type {
   FacultyDashboardStats,
   HODDeptStats,
   User,
+  QualitySummary,
+  QualityTimeseries,
+  QualityAblation,
+  QualityRun,
+  QualityTelemetryRow,
+  QualityFacultyAgreement,
+  AssignRequest,
+  Milestone,
+  DiscussionMessageItem,
+  NotificationItem,
+  AuditLogEntry,
+  VivaHistoryItem,
+  ProgressUpdateItem,
+  GuideFeedback,
+  RosterUploadResponse,
+  RosterAllocationItem,
+  ReviewerSlot,
+  ReviewRound,
+  ReviewSlotAssignmentItem,
+  RoundEvaluationItem,
+  CoordinatorOverview,
+  ExplainabilityResult,
+  TeamItem,
+  TeamMessageItem,
+  TaskItem,
+  PlagiarismReport,
+  PlagiarismMatchItem,
+  PlagiarismReviewStatus,
 } from '../types';
 import type { NoveltyReportData } from '../components/NoveltyReportView';
 
@@ -171,8 +199,20 @@ export const getRubrics = async (): Promise<Rubric[]> => {
   return data;
 };
 
-export const createRubric = async (rubric: Omit<Rubric, 'rubricId' | 'createdAt'>): Promise<Rubric> => {
+export interface RubricCreatePayload {
+  name: string;
+  department: string;
+  academicYear?: string;
+  criteria: Rubric['criteria'];
+}
+
+export const createRubric = async (rubric: RubricCreatePayload): Promise<Rubric> => {
   const { data } = await apiClient.post<Rubric>('/rubrics', rubric);
+  return data;
+};
+
+export const editRubric = async (rubricId: string, rubric: RubricCreatePayload): Promise<Rubric> => {
+  const { data } = await apiClient.put<Rubric>(`/rubrics/${rubricId}`, rubric);
   return data;
 };
 
@@ -279,9 +319,8 @@ export const getProjectGraph = async (projectId: string) => {
   return data;
 };
 
-export const getComparisonGraph = async (projectId: string, compareProjectId?: string, distanceThreshold = 0.5) => {
+export const getComparisonGraph = async (projectId: string, compareProjectId?: string) => {
   const params = new URLSearchParams();
-  params.append('distance_threshold', distanceThreshold.toString());
   if (compareProjectId) {
     params.append('compare_project_id', compareProjectId);
   }
@@ -296,6 +335,341 @@ export const rebuildProjectGraph = async (projectId: string) => {
 
 export const getProjectNoveltyReport = async (projectId: string, distanceThreshold = 0.5) => {
   const { data } = await apiClient.get(`/v1/acadeval/report/${projectId}?distance_threshold=${distanceThreshold}`);
+  return data;
+};
+
+export const getProjectExplainability = async (projectId: string): Promise<ExplainabilityResult> => {
+  const { data } = await apiClient.get<ExplainabilityResult>(`/projects/${projectId}/explainability`);
+  return data;
+};
+
+// ── Live Quality Dashboard (HOD only) — see app/routers/quality.py ────────────
+
+export const getQualitySummary = async (): Promise<QualitySummary> => {
+  const { data } = await apiClient.get('/v1/quality/summary');
+  return data;
+};
+
+export const getQualityTimeseries = async (
+  metric: string, variant = 'graph_only', slice = 'all', days = 30
+): Promise<QualityTimeseries> => {
+  const { data } = await apiClient.get('/v1/quality/timeseries', {
+    params: { metric, variant, slice, days },
+  });
+  return data;
+};
+
+export const getQualityAblation = async (): Promise<QualityAblation> => {
+  const { data } = await apiClient.get('/v1/quality/ablation');
+  return data;
+};
+
+export const getQualityRuns = async (kind?: string, limit = 50): Promise<QualityRun[]> => {
+  const { data } = await apiClient.get('/v1/quality/runs', { params: { kind, limit } });
+  return data;
+};
+
+export const getRecentTelemetry = async (limit = 50): Promise<QualityTelemetryRow[]> => {
+  const { data } = await apiClient.get('/v1/quality/telemetry/recent', { params: { limit } });
+  return data;
+};
+
+export const getFacultyAgreementLatest = async (): Promise<QualityFacultyAgreement> => {
+  const { data } = await apiClient.get('/v1/quality/faculty-agreement');
+  return data;
+};
+
+export const triggerBenchmarkRun = async (label?: string): Promise<{ queued: boolean; task_id: string }> => {
+  const { data } = await apiClient.post('/v1/quality/benchmark/run', null, { params: { label } });
+  return data;
+};
+
+// ── Assignment (HOD) ───────────────────────────────────────────────────────────
+
+export const getUnassignedProjects = async (): Promise<ProjectSummary[]> => {
+  const { data } = await apiClient.get<ProjectSummary[]>('/projects/unassigned');
+  return data;
+};
+
+export const assignProject = async (projectId: string, payload: AssignRequest): Promise<ProjectSummary> => {
+  const { data } = await apiClient.patch<ProjectSummary>(`/projects/${projectId}/assign`, payload);
+  return data;
+};
+
+export const submitToGuide = async (projectId: string): Promise<ProjectSummary> => {
+  const { data } = await apiClient.patch<ProjectSummary>(`/projects/${projectId}/submit-to-guide`);
+  return data;
+};
+
+export const markReadyForReview = async (projectId: string): Promise<ProjectSummary> => {
+  const { data } = await apiClient.patch<ProjectSummary>(`/projects/${projectId}/mark-ready-for-review`);
+  return data;
+};
+
+// ── Milestones ────────────────────────────────────────────────────────────────
+
+export const getMilestones = async (projectId: string): Promise<Milestone[]> => {
+  const { data } = await apiClient.get<Milestone[]>(`/projects/${projectId}/milestones`);
+  return data;
+};
+
+export const submitMilestone = async (milestoneId: string, text: string): Promise<Milestone> => {
+  const { data } = await apiClient.patch<Milestone>(`/milestones/${milestoneId}/submit`, { text });
+  return data;
+};
+
+export const reviewMilestone = async (
+  milestoneId: string, approve: boolean, comment?: string
+): Promise<Milestone> => {
+  const { data } = await apiClient.patch<Milestone>(`/milestones/${milestoneId}/review`, { approve, comment });
+  return data;
+};
+
+// ── Discussion ────────────────────────────────────────────────────────────────
+
+export const getDiscussion = async (projectId: string): Promise<DiscussionMessageItem[]> => {
+  const { data } = await apiClient.get<DiscussionMessageItem[]>(`/projects/${projectId}/discussion`);
+  return data;
+};
+
+export const postDiscussionMessage = async (projectId: string, body: string): Promise<DiscussionMessageItem> => {
+  const { data } = await apiClient.post<DiscussionMessageItem>(`/projects/${projectId}/discussion`, { body });
+  return data;
+};
+
+export const markDiscussionRead = async (projectId: string): Promise<void> => {
+  await apiClient.post(`/projects/${projectId}/discussion/read`);
+};
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export const getNotifications = async (limit = 30): Promise<NotificationItem[]> => {
+  const { data } = await apiClient.get<NotificationItem[]>('/notifications', { params: { limit } });
+  return data;
+};
+
+export const getUnreadNotificationCount = async (): Promise<number> => {
+  const { data } = await apiClient.get<{ count: number }>('/notifications/unread-count');
+  return data.count;
+};
+
+export const markNotificationRead = async (notificationId: string): Promise<void> => {
+  await apiClient.patch(`/notifications/${notificationId}/read`);
+};
+
+export const markAllNotificationsRead = async (): Promise<void> => {
+  await apiClient.post('/notifications/read-all');
+};
+
+// ── Audit log (HOD) ───────────────────────────────────────────────────────────
+
+export const getAuditLogs = async (limit = 100): Promise<AuditLogEntry[]> => {
+  const { data } = await apiClient.get<AuditLogEntry[]>('/audit-logs', { params: { limit } });
+  return data;
+};
+
+// ── Viva history ──────────────────────────────────────────────────────────────
+
+export const getVivaHistory = async (): Promise<VivaHistoryItem[]> => {
+  const { data } = await apiClient.get<VivaHistoryItem[]>('/viva/history');
+  return data;
+};
+
+// ── Progress updates (append-only student log) ────────────────────────────────
+
+export const getProgressUpdates = async (projectId: string): Promise<ProgressUpdateItem[]> => {
+  const { data } = await apiClient.get<ProgressUpdateItem[]>(`/projects/${projectId}/progress`);
+  return data;
+};
+
+export const postProgressUpdate = async (
+  projectId: string, content: string, options?: { file?: File; githubUrl?: string }
+): Promise<ProgressUpdateItem> => {
+  const formData = new FormData();
+  formData.append('content', content);
+  if (options?.githubUrl) formData.append('githubUrl', options.githubUrl);
+  if (options?.file) formData.append('file', options.file);
+  const { data } = await apiClient.post<ProgressUpdateItem>(`/projects/${projectId}/progress`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+};
+
+export const downloadProgressAttachment = async (projectId: string, updateId: string, filename: string): Promise<void> => {
+  const { data } = await apiClient.get(`/projects/${projectId}/progress/${updateId}/attachment`, { responseType: 'blob' });
+  const url = window.URL.createObjectURL(data as Blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+};
+
+// ── Guide feedback (informal — separate from the reviewer's official grade) ───
+
+export const getGuideFeedback = async (projectId: string): Promise<GuideFeedback | null> => {
+  const { data } = await apiClient.get<GuideFeedback | null>(`/projects/${projectId}/guide-feedback`);
+  return data;
+};
+
+export const updateGuideFeedback = async (
+  projectId: string, overallScore: number, comment: string
+): Promise<GuideFeedback> => {
+  const { data } = await apiClient.put<GuideFeedback>(`/projects/${projectId}/guide-feedback`, { overallScore, comment });
+  return data;
+};
+
+// ── Coordinator ────────────────────────────────────────────────────────────────
+
+export const getCoordinatorOverview = async (): Promise<CoordinatorOverview> => {
+  const { data } = await apiClient.get<CoordinatorOverview>('/coordinator/overview');
+  return data;
+};
+
+export const uploadRoster = async (file: File): Promise<RosterUploadResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await apiClient.post<RosterUploadResponse>('/coordinator/roster/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+};
+
+export const getRoster = async (): Promise<RosterAllocationItem[]> => {
+  const { data } = await apiClient.get<RosterAllocationItem[]>('/coordinator/roster');
+  return data;
+};
+
+export const getReviewerSlots = async (): Promise<ReviewerSlot[]> => {
+  const { data } = await apiClient.get<ReviewerSlot[]>('/coordinator/reviewer-slots');
+  return data;
+};
+
+export const createReviewerSlot = async (name: string): Promise<ReviewerSlot> => {
+  const { data } = await apiClient.post<ReviewerSlot>('/coordinator/reviewer-slots', { name });
+  return data;
+};
+
+export const getReviewRounds = async (): Promise<ReviewRound[]> => {
+  const { data } = await apiClient.get<ReviewRound[]>('/coordinator/review-rounds');
+  return data;
+};
+
+export const createReviewRound = async (payload: {
+  name: string; description?: string; scheduledDate?: string; isFinal: boolean;
+}): Promise<ReviewRound> => {
+  const { data } = await apiClient.post<ReviewRound>('/coordinator/review-rounds', payload);
+  return data;
+};
+
+export const getRoundAssignments = async (roundId: string): Promise<ReviewSlotAssignmentItem[]> => {
+  const { data } = await apiClient.get<ReviewSlotAssignmentItem[]>(`/coordinator/review-rounds/${roundId}/assignments`);
+  return data;
+};
+
+export const createRoundAssignment = async (roundId: string, payload: {
+  projectIds?: string[]; teamId?: string; reviewerSlotId: string; staffEmail: string; scheduledAt?: string;
+}): Promise<ReviewSlotAssignmentItem[]> => {
+  const { data } = await apiClient.post<ReviewSlotAssignmentItem[]>(`/coordinator/review-rounds/${roundId}/assignments`, payload);
+  return data;
+};
+
+export const getRoundEvaluations = async (projectId: string): Promise<RoundEvaluationItem[]> => {
+  const { data } = await apiClient.get<RoundEvaluationItem[]>(`/coordinator/projects/${projectId}/round-evaluations`);
+  return data;
+};
+
+export const updateRoundEvaluation = async (
+  projectId: string, roundId: string,
+  payload: {
+    novelty?: number; feasibility?: number; completeness?: number; technicalDepth?: number;
+    clarity?: number; similarityRisk?: number; publicationPotential?: number; comment: string;
+  }
+): Promise<RoundEvaluationItem> => {
+  const { data } = await apiClient.put<RoundEvaluationItem>(
+    `/coordinator/projects/${projectId}/rounds/${roundId}/evaluation`, payload
+  );
+  return data;
+};
+
+export const publishRoundEvaluation = async (
+  projectId: string, roundId: string
+): Promise<{ message: string; isFinal: boolean; syncedOfficialReport: boolean }> => {
+  const { data } = await apiClient.post(`/coordinator/projects/${projectId}/rounds/${roundId}/publish`);
+  return data;
+};
+
+// ── Teams ──────────────────────────────────────────────────────────────────────
+
+export const getMyTeams = async (): Promise<TeamItem[]> => {
+  const { data } = await apiClient.get<TeamItem[]>('/teams/my');
+  return data;
+};
+
+export const getAllTeams = async (): Promise<TeamItem[]> => {
+  const { data } = await apiClient.get<TeamItem[]>('/coordinator/teams');
+  return data;
+};
+
+export const getTeam = async (teamId: string): Promise<TeamItem> => {
+  const { data } = await apiClient.get<TeamItem>(`/teams/${teamId}`);
+  return data;
+};
+
+export const getTeamMessages = async (teamId: string): Promise<TeamMessageItem[]> => {
+  const { data } = await apiClient.get<TeamMessageItem[]>(`/teams/${teamId}/messages`);
+  return data;
+};
+
+export const postTeamMessage = async (teamId: string, body: string): Promise<TeamMessageItem> => {
+  const { data } = await apiClient.post<TeamMessageItem>(`/teams/${teamId}/messages`, { body });
+  return data;
+};
+
+export const getTeamTasks = async (teamId: string): Promise<TaskItem[]> => {
+  const { data } = await apiClient.get<TaskItem[]>(`/teams/${teamId}/tasks`);
+  return data;
+};
+
+export const createTeamTask = async (
+  teamId: string, payload: { title: string; description?: string; assigneeId?: string; dueDate?: string }
+): Promise<TaskItem> => {
+  const { data } = await apiClient.post<TaskItem>(`/teams/${teamId}/tasks`, payload);
+  return data;
+};
+
+export const getMyTasks = async (): Promise<TaskItem[]> => {
+  const { data } = await apiClient.get<TaskItem[]>('/tasks/my');
+  return data;
+};
+
+export const createTask = async (
+  payload: { title: string; description?: string; projectId?: string; dueDate?: string }
+): Promise<TaskItem> => {
+  const { data } = await apiClient.post<TaskItem>('/tasks', payload);
+  return data;
+};
+
+export const updateTaskStatus = async (taskId: string, status: 'pending' | 'done'): Promise<TaskItem> => {
+  const { data } = await apiClient.patch<TaskItem>(`/tasks/${taskId}`, { status });
+  return data;
+};
+
+// ── Plagiarism ─────────────────────────────────────────────────────────────────
+
+export const getPlagiarismReport = async (projectId: string): Promise<PlagiarismReport> => {
+  const { data } = await apiClient.get<PlagiarismReport>(`/projects/${projectId}/plagiarism-report`);
+  return data;
+};
+
+export const reviewPlagiarismMatch = async (
+  matchId: string, reviewStatus: Exclude<PlagiarismReviewStatus, 'unreviewed'>, reviewerComment?: string
+): Promise<PlagiarismMatchItem> => {
+  const { data } = await apiClient.patch<PlagiarismMatchItem>(`/plagiarism-matches/${matchId}/review`, {
+    reviewStatus, reviewerComment,
+  });
   return data;
 };
 

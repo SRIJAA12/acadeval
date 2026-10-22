@@ -16,8 +16,20 @@ class ProjectSummary(BaseModel):
     submittedOn: str   # ISO date string
     pipelineStatus: PipelineStatus
     overallScore: Optional[float]
+    githubUrl: Optional[str] = None
+    guideName: Optional[str] = None
+    reviewerName: Optional[str] = None
+    isPreliminary: bool = True
+    teamId: Optional[str] = None
+    guideSubmittedAt: Optional[str] = None
+    reviewerReadyAt: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+class AssignRequest(BaseModel):
+    guideId: Optional[str] = None
+    reviewerId: Optional[str] = None
 
 
 class ProjectStatusResponse(BaseModel):

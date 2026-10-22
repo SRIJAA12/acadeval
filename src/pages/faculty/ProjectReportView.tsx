@@ -10,10 +10,15 @@ import Badge from '../../components/Badge';
 import ExplainabilityViewer from '../../components/ExplainabilityViewer';
 import { NoveltyReportView, type NoveltyReportData } from '../../components/NoveltyReportView';
 import EntityExtractionPanel from '../../components/EntityExtractionPanel';
+import ProgressUpdateFeed from '../../components/ProgressUpdateFeed';
+import GuideFeedbackPanel from '../../components/GuideFeedbackPanel';
+import DiscussionThread from '../../components/DiscussionThread';
+import RoundEvaluationPanel from '../../components/RoundEvaluationPanel';
+import PlagiarismReportView from '../../components/PlagiarismReportView';
 import type { InternalEvaluationReport } from '../../types';
 import {
   Edit2, Save, X, Flag, StickyNote, Send, CheckCircle, Eye,
-  User, Clock, Sparkles, Network, RefreshCw,
+  User, Clock, Sparkles, Network, RefreshCw, ListChecks, Info, CalendarClock,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -32,7 +37,7 @@ const ProjectReportView: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<'report' | 'explainability' | 'notes' | 'history' | 'novelty'>('report');
+  const [activeTab, setActiveTab] = useState<'report' | 'explainability' | 'notes' | 'history' | 'novelty' | 'progress' | 'rounds'>('report');
   const [overrideState, setOverrideState] = useState<{ dim: string; value: number; comment: string } | null>(null);
   const [newNote, setNewNote] = useState('');
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
@@ -45,6 +50,8 @@ const ProjectReportView: React.FC = () => {
   });
 
   const r = data as InternalEvaluationReport;
+  const isGuide = user?.role === 'guide';
+  const canEditOfficialScore = user?.role === 'reviewer' || user?.role === 'hod';
 
   const overrideMutation = useMutation({
     mutationFn: () => overrideScore(projectId!, overrideState!.dim, overrideState!.value, overrideState!.comment),
@@ -88,6 +95,8 @@ const ProjectReportView: React.FC = () => {
     { id: 'explainability', label: 'AI Explainability', icon: <Sparkles size={15} /> },
     { id: 'notes', label: `Faculty Notes (${r.facultyNotes?.length || 0})`, icon: <StickyNote size={15} /> },
     { id: 'history', label: 'Score History', icon: <Clock size={15} /> },
+    { id: 'progress', label: 'Progress & Discussion', icon: <ListChecks size={15} /> },
+    { id: 'rounds', label: 'Review Rounds', icon: <CalendarClock size={15} /> },
   ];
 
   return (
@@ -131,7 +140,7 @@ const ProjectReportView: React.FC = () => {
           </div>
         ) : (
           <div className="flex gap-3 mt-5">
-            {r.pipelineStatus !== 'reviewed' && (
+            {r.pipelineStatus !== 'reviewed' && canEditOfficialScore && (
               showPublishConfirm ? (
                 <div className="flex items-center gap-3 bg-teal-50 rounded-xl p-3 border border-teal-200 flex-1">
                   <p className="text-sm text-teal-700 flex-1">Publish this review? The student will be notified and can see the final report.</p>
@@ -145,6 +154,12 @@ const ProjectReportView: React.FC = () => {
                   <Send size={16} /> Publish Review
                 </button>
               )
+            )}
+            {r.pipelineStatus !== 'reviewed' && isGuide && (
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-600 flex-1">
+                <Info size={15} className="text-slate-400 flex-shrink-0" />
+                Only the reviewer can publish the official grade. Share your own read with the student under "Progress & Discussion".
+              </div>
             )}
             <button onClick={() => window.print()} className="btn-outline">
               Download PDF Report
@@ -182,6 +197,15 @@ const ProjectReportView: React.FC = () => {
       {/* Tab: Report */}
       {activeTab === 'report' && (
         <div className="space-y-5">
+          {isGuide && (
+            <div className="flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-xl p-3">
+              <Info size={15} className="text-slate-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-slate-600">
+                These are the AI/reviewer scores — read-only for guides. Give your own informal feedback in the
+                "Progress & Discussion" tab; the student sees it immediately, clearly marked as not final.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div className="card">
               <h2 className="font-semibold text-navy-900 mb-1">Dimension Scores</h2>
@@ -236,18 +260,20 @@ const ProjectReportView: React.FC = () => {
                                 )}
                               </span>
                             )}
-                            <button
-                              onClick={() => isEditing ? setOverrideState(null) : setOverrideState({ dim: key, value: rawScore ?? 0, comment: '' })}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-slate-100"
-                            >
-                              {isEditing ? <X size={13} className="text-red-500" /> : <Edit2 size={13} className="text-slate-400" />}
-                            </button>
+                            {canEditOfficialScore && (
+                              <button
+                                onClick={() => isEditing ? setOverrideState(null) : setOverrideState({ dim: key, value: rawScore ?? 0, comment: '' })}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-slate-100"
+                              >
+                                {isEditing ? <X size={13} className="text-red-500" /> : <Edit2 size={13} className="text-slate-400" />}
+                              </button>
+                            )}
                           </>
                         ) : (
                           <span className="text-xs text-slate-300">N/A (Abstract)</span>
                         )}
                       </div>
-                      {isEditing && (
+                      {isEditing && canEditOfficialScore && (
                         <div className="mt-2 pl-40 space-y-2 animate-fade-in">
                           <input
                             className="input text-sm py-2"
@@ -289,6 +315,8 @@ const ProjectReportView: React.FC = () => {
               <RadarChart scores={r.dimensionScores} size="sm" />
             </div>
           </div>
+
+          <PlagiarismReportView projectId={projectId!} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div className="card">
@@ -441,6 +469,32 @@ const ProjectReportView: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {/* Tab: Progress & Discussion */}
+      {activeTab === 'progress' && projectId && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="space-y-5">
+            <GuideFeedbackPanel projectId={projectId} editable={isGuide} />
+            <ProgressUpdateFeed projectId={projectId} canPost={false} />
+          </div>
+          {user?.role !== 'reviewer' ? (
+            <DiscussionThread projectId={projectId} />
+          ) : (
+            <div className="card flex items-start gap-2">
+              <Info size={15} className="text-slate-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-slate-500">
+                The discussion thread is between the student and their guide. As reviewer you see the student's
+                progress updates and guide feedback here, which is the evidence relevant to your official grade.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Review Rounds (scheduled by the Coordinator; each round scores independently) */}
+      {activeTab === 'rounds' && projectId && (
+        <RoundEvaluationPanel projectId={projectId} />
       )}
     </div>
   );

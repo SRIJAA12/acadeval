@@ -99,13 +99,31 @@ class AssessmentEngineTests(unittest.TestCase):
                 "summary": {"reference_count": 8, "percent_verified": 75, "percent_recent": 60},
             },
             github_url="https://github.com/example/project",
+            plagiarism_summary={"text_max": 0.3, "code_max": 0.1, "text_match_count": 1, "code_match_count": 0},
         )
         self.assertEqual(report["completeness"]["score"], 100.0)
-        self.assertEqual(report["scores"]["similarity_risk"], 14.0)
-        self.assertEqual(report["scores"]["similarity_internal"], 20.0)
-        self.assertEqual(report["scores"]["similarity_external"], 0.0)
+        # similarity_risk now comes from real plagiarism evidence (max of text/code
+        # channels), NOT from `similar_projects` (the novelty engine's topic
+        # similarity, reused here only for novelty — never for plagiarism).
+        self.assertEqual(report["scores"]["similarity_internal"], 30.0)
+        self.assertIsNone(report["scores"]["similarity_external"])
+        self.assertEqual(report["scores"]["similarity_risk"], 30.0)
         self.assertIsNotNone(report["scores"]["overall"])
         self.assertGreater(report["scores"]["feasibility"], 60)
+
+    def test_no_plagiarism_summary_yields_zero_risk_not_a_crash(self):
+        """A caller that doesn't pass plagiarism_summary (e.g. an older test,
+        or a call site that hasn't run the plagiarism stage yet) must not
+        crash, and must not silently fabricate risk from the novelty signal."""
+        report = AssessmentEngine().evaluate(
+            title="T", submission_type="abstract", abstract="A short proposal.", full_text="",
+            entities={}, novelty_score=50.0, similar_projects=[{"similarity_score": 0.9, "title": "Near twin"}],
+            writing_analysis={"quality_score": None, "metrics": {}, "status": "no_data"},
+            citation_analysis={"status": "not_applicable", "summary": {}},
+        )
+        self.assertEqual(report["scores"]["similarity_internal"], 0.0)
+        self.assertEqual(report["scores"]["similarity_risk"], 0.0)
+        self.assertIsNone(report["scores"]["similarity_external"])
 
     def test_abstract_does_not_fabricate_completeness(self):
         report = AssessmentEngine().evaluate(

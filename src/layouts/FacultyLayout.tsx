@@ -4,18 +4,18 @@ import { useAuth } from '../auth/AuthContext';
 import {
   LayoutDashboard, Users, Inbox, ClipboardList, Upload,
   BarChart2, Settings, LogOut, GraduationCap, ChevronRight,
-  Bell, Scale, History, MessageSquare, FlaskConical, Network,
+  History, FlaskConical, Network, MessageSquare,
 } from 'lucide-react';
 import clsx from 'clsx';
+import NotificationBell from '../components/NotificationBell';
 
 const navItems = [
   { to: '/faculty/dashboard', icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
   { to: '/faculty/submissions', icon: <Users size={18} />, label: 'All Submissions' },
   { to: '/faculty/queue', icon: <Inbox size={18} />, label: 'Review Queue' },
+  { to: '/faculty/discussion', icon: <MessageSquare size={18} />, label: 'Discussion' },
   { to: '/faculty/batch', icon: <Upload size={18} />, label: 'Batch Upload' },
   { to: '/faculty/comparison', icon: <BarChart2 size={18} />, label: 'Comparison Table' },
-  { to: '/faculty/rubric', icon: <Scale size={18} />, label: 'Rubric Builder' },
-  { to: '/faculty/appeals', icon: <MessageSquare size={18} />, label: 'Appeals Inbox' },
   { to: '/faculty/benchmarks', icon: <History size={18} />, label: 'Benchmarks' },
   { to: '/faculty/entity-review', icon: <FlaskConical size={18} />, label: 'Entity Review' },
   { to: '/faculty/graph-explorer', icon: <Network size={18} />, label: 'Graph Explorer' },
@@ -91,10 +91,7 @@ const FacultyLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <span className="px-3 py-1 bg-gold-50 text-gold-700 rounded-full text-xs font-semibold capitalize border border-gold-200">
               {user?.role}
             </span>
-            <button className="relative p-2 hover:bg-slate-100 rounded-xl transition-colors">
-              <Bell size={18} className="text-slate-500" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
+            <NotificationBell />
           </div>
         </header>
 

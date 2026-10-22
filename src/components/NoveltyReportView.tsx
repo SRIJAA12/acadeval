@@ -81,6 +81,10 @@ export interface ComparisonGraphPayload {
   distance?: number;
   shared_entities_count?: number;
   shared_entities?: string[];
+  /** Shared entities with their rarity; `generic` ones (Python, React...) carry little weight. */
+  shared_entities_detail?: Array<{ name: string; idf: number; generic: boolean }>;
+  /** One plain-language line saying what the match is based on. */
+  match_explanation?: string;
   message: string;
   similar_projects: Array<{
     project_id: string;
@@ -90,6 +94,7 @@ export interface ComparisonGraphPayload {
     domain?: string;
     sub_domain?: string;
     shared_entities?: string[];
+    shared_entities_detail?: Array<{ name: string; idf: number; generic: boolean }>;
   }>;
   nodes: GraphNodeData[];
   links: GraphLinkData[];
@@ -343,6 +348,15 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
     return set;
   }, [comparisonPayload]);
 
+  // Generic shared entities (very common in the corpus) are shown muted: they are not evidence of similarity.
+  const genericEntityNames = useMemo(() => {
+    const set = new Set<string>();
+    (comparisonPayload?.shared_entities_detail || []).forEach(d => {
+      if (d.generic) set.add(d.name.toLowerCase());
+    });
+    return set;
+  }, [comparisonPayload]);
+
   const similarityPercentage = useMemo(() => {
     if (!isRelatedAvailable) return 0;
     const raw = comparisonPayload?.similarity_score ?? report.most_similar_projects?.[0]?.similarity_score ?? 0;
@@ -389,7 +403,7 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
               </h3>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              Dual-graph structural comparison: inspect the uploaded implementation alongside similar research projects from the 4,191+ AcadEval dataset corpus.
+              Dual-graph structural comparison: inspect the uploaded implementation alongside similar research projects from the AcadEval dataset corpus.
             </p>
           </div>
 
@@ -441,12 +455,12 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
                 </span>
                 {isRelatedAvailable && (
                   <span className="text-[10px] font-mono uppercase tracking-wider bg-amber-950 text-amber-300 px-2 py-0.5 rounded border border-amber-800">
-                    CORPUS_MATCH (Distance &le; 0.50)
+                    CORPUS_MATCH
                   </span>
                 )}
                 {!isRelatedAvailable && (
                   <span className="text-[10px] font-mono uppercase tracking-wider bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800">
-                    NOVEL (Distance &gt; 0.50)
+                    NOVEL (no close prior work)
                   </span>
                 )}
               </div>
@@ -461,7 +475,7 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
                   </>
                 ) : (
                   <>
-                    <strong className="text-white">{report.title}</strong> has no close duplicate in the dataset corpus (Distance &gt; 0.50).
+                    <strong className="text-white">{report.title}</strong> has no close prior work in the dataset corpus.
                   </>
                 )}
               </p>
@@ -489,13 +503,27 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
             <span className="text-slate-400 font-semibold flex items-center gap-1 shrink-0">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Shared Overlap with Corpus Match (Golden Glow in Graph):
             </span>
-            {Array.from(sharedEntityNames).slice(0, 10).map(name => (
-              <span key={name} className="px-2 py-0.5 bg-amber-950/60 text-amber-200 border border-amber-800/70 rounded-md font-mono text-[11px]">
-                {name}
-              </span>
-            ))}
+            {Array.from(sharedEntityNames)
+              .sort((a, b) => Number(genericEntityNames.has(a)) - Number(genericEntityNames.has(b)))
+              .slice(0, 10)
+              .map(name => (
+                <span
+                  key={name}
+                  title={genericEntityNames.has(name) ? 'Common in the corpus: counts for very little in the match' : 'Distinctive shared term'}
+                  className={
+                    genericEntityNames.has(name)
+                      ? 'px-2 py-0.5 bg-slate-900/60 text-slate-500 border border-slate-700/70 rounded-md font-mono text-[11px]'
+                      : 'px-2 py-0.5 bg-amber-950/60 text-amber-200 border border-amber-800/70 rounded-md font-mono text-[11px]'
+                  }
+                >
+                  {name}
+                </span>
+              ))}
             {sharedEntityNames.size > 10 && (
               <span className="text-slate-500 text-[11px]">+{sharedEntityNames.size - 10} more</span>
+            )}
+            {comparisonPayload?.match_explanation && (
+              <p className="basis-full text-[11px] text-slate-400 mt-1">{comparisonPayload.match_explanation}</p>
             )}
           </div>
         )}
@@ -577,11 +605,12 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
                   <div className="space-y-1.5 max-w-md">
                     <div className="text-base font-bold text-slate-100">Related Project is Not Available</div>
                     <div className="text-xs font-mono text-amber-400 bg-amber-950/80 border border-amber-800/60 px-2.5 py-1 rounded-full inline-block">
-                      Distance &gt; 0.50 (Distinct Architecture)
+                      Below 15% Rarity-Weighted Similarity
                     </div>
                     <p className="text-xs text-slate-400 mt-2">
-                      No candidate research project in the 4,191+ AcadEval Corpus Dataset exceeded the 50% similarity threshold.
-                      This submission represents a distinct architectural configuration with no close duplicates.
+                      No candidate research project in the AcadEval Corpus reached the minimum rarity-weighted
+                      similarity (entity + text overlap, weighted so common stack terms count for little)
+                      needed to be shown as a related project. This submission has no close match in the corpus.
                     </p>
                   </div>
                 </div>
@@ -594,10 +623,10 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
         <div className="p-4 bg-slate-950/90 rounded-xl border border-slate-800 space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-              <Database className="w-3.5 h-3.5 text-amber-400" /> AcadEval Research Corpus Ground Truth (4,191+ Indexed Projects in <code className="text-indigo-300 font-mono">AcadEval_Corpus_MASTER.csv</code>)
+              <Database className="w-3.5 h-3.5 text-amber-400" /> AcadEval Research Corpus Ground Truth (<code className="text-indigo-300 font-mono">AcadEval_Corpus_MASTER.csv</code>)
             </span>
             <span className="text-[10px] text-slate-400 font-mono">
-              {similarProjects.length > 0 ? 'Click any matched project to view in Graph 2' : 'Distance > 0.50'}
+              {similarProjects.length > 0 ? 'Click any matched project to view in Graph 2' : 'Below 15% similarity'}
             </span>
           </div>
 
@@ -642,7 +671,7 @@ export const NoveltyReportView: React.FC<Props> = ({ report, onFacultyScoreSubmi
             </div>
           ) : (
             <div className="p-4 bg-slate-900/60 rounded-lg border border-slate-800 text-center text-xs text-slate-400">
-              No dataset projects in <code className="text-indigo-300 font-mono">AcadEval_Corpus_MASTER.csv</code> met the &le; 0.50 distance threshold for this submission.
+              No dataset projects in <code className="text-indigo-300 font-mono">AcadEval_Corpus_MASTER.csv</code> reached the minimum 15% rarity-weighted similarity for this submission.
             </div>
           )}
         </div>
