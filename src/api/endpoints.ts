@@ -1,5 +1,7 @@
 import apiClient from './client';
 import type {
+  ScoreCoach,
+  CoachAnswer,
   LoginRequest,
   LoginResponse,
   ProjectSummary,
@@ -340,6 +342,16 @@ export const getProjectNoveltyReport = async (projectId: string, distanceThresho
 
 export const getProjectExplainability = async (projectId: string): Promise<ExplainabilityResult> => {
   const { data } = await apiClient.get<ExplainabilityResult>(`/projects/${projectId}/explainability`);
+  return data;
+};
+
+export const getScoreCoach = async (projectId: string): Promise<ScoreCoach> => {
+  const { data } = await apiClient.get<ScoreCoach>(`/projects/${projectId}/score-coach`);
+  return data;
+};
+
+export const askScoreCoach = async (projectId: string, question: string, dimensionKey?: string): Promise<CoachAnswer> => {
+  const { data } = await apiClient.post<CoachAnswer>(`/projects/${projectId}/score-coach/ask`, { question, dimensionKey });
   return data;
 };
 

@@ -1,4 +1,4 @@
-Project_ID,Title,Abstract,Domain,Sub_Domain,Keywords,Objectives,Problem_Statement,Methodology,Modules,Technologies,Algorithms,Dataset_Used,Programming_Languages,Frameworks,Tools,Hardware,Expected_Output,GitHub_Link,Paper_Link,Authors,Institution,Year,Source,Publication_Type,Faculty_Label,Notes
+﻿Project_ID,Title,Abstract,Domain,Sub_Domain,Keywords,Objectives,Problem_Statement,Methodology,Modules,Technologies,Algorithms,Dataset_Used,Programming_Languages,Frameworks,Tools,Hardware,Expected_Output,GitHub_Link,Paper_Link,Authors,Institution,Year,Source,Publication_Type,Faculty_Label,Notes
 P000001,BERT,"BERT is an open-source project focused on natural language processing. It provides reusable components, reference implementations and workflows for practical or research-oriented use.",Artificial Intelligence,Machine Learning,"Natural Language Processing, Transformer encoder, TensorFlow","Develop and evaluate a reliable natural language processing solution that can be reproduced, extended and integrated into real applications.","Existing natural language processing solutions may be difficult to reproduce, scale, configure or deploy consistently across different environments.","Collect or load Wikipedia and BookCorpus; preprocess the inputs; apply Transformer encoder; train, configure or execute the system using TensorFlow; and evaluate the outputs with task-appropriate metrics.",data ingestion; tokenization; model training; fine-tuning; evaluation,"Git, Python, TensorFlow",Transformer encoder,Wikipedia and BookCorpus,Python,TensorFlow,Git,,"A working natural language processing system with reproducible results, documented configuration and measurable output.",https://github.com/google-research/bert,https://arxiv.org/abs/1810.04805,BERT contributors,Google Research,2018,https://github.com/google-research/bert,Research paper with official code,Excellent,GitHub repository is real. Core technical fields are curated from project documentation or associated publications. Narrative fields are project-aligned inferences and should be verified before being treated as quoted facts.
 P000002,T5,"T5 is an open-source project focused on natural language processing. It provides reusable components, reference implementations and workflows for practical or research-oriented use.",Artificial Intelligence,Machine Learning,"Natural Language Processing, Text-to-text Transformer, TensorFlow","Develop and evaluate a reliable natural language processing solution that can be reproduced, extended and integrated into real applications.","Existing natural language processing solutions may be difficult to reproduce, scale, configure or deploy consistently across different environments.","Collect or load C4 and GLUE; preprocess the inputs; apply Text-to-text Transformer; train, configure or execute the system using TensorFlow; and evaluate the outputs with task-appropriate metrics.",data ingestion; tokenization; model training; fine-tuning; evaluation,"Git, Python, TensorFlow",Text-to-text Transformer,C4 and GLUE,Python,TensorFlow,Git,,"A working natural language processing system with reproducible results, documented configuration and measurable output.",https://github.com/google-research/text-to-text-transfer-transformer,https://arxiv.org/abs/1910.10683,T5 contributors,Google Research,2019,https://github.com/google-research/text-to-text-transfer-transformer,Research paper with official code,Excellent,GitHub repository is real. Core technical fields are curated from project documentation or associated publications. Narrative fields are project-aligned inferences and should be verified before being treated as quoted facts.
 P000003,Sentence Transformers,"Sentence Transformers is an open-source project focused on semantic text representation. It provides reusable components, reference implementations and workflows for practical or research-oriented use.",Artificial Intelligence,Machine Learning,"Semantic Text Representation, Siamese Transformer networks, PyTorch","Develop and evaluate a reliable semantic text representation solution that can be reproduced, extended and integrated into real applications.","Existing semantic text representation solutions may be difficult to reproduce, scale, configure or deploy consistently across different environments.","Collect or load STS and NLI datasets; preprocess the inputs; apply Siamese Transformer networks; train, configure or execute the system using PyTorch; and evaluate the outputs with task-appropriate metrics.",data input; preprocessing; core engine; evaluation; output interface,"Git, PyTorch, Python, Transformers",Siamese Transformer networks,STS and NLI datasets,Python,"PyTorch, Transformers",Git,,"A working semantic text representation system with reproducible results, documented configuration and measurable output.",https://github.com/UKPLab/sentence-transformers,https://arxiv.org/abs/1908.10084,Sentence Transformers contributors,UKP Lab,2019,https://github.com/UKPLab/sentence-transformers,Research paper with official code,Excellent,GitHub repository is real. Core technical fields are curated from project documentation or associated publications. Narrative fields are project-aligned inferences and should be verified before being treated as quoted facts.
@@ -38148,3 +38148,1047 @@ P038146,Agentic Optimization of Facility Location Allocation In Heterogeneous Sy
 P038147,Microservice-Oriented Control and Navigation of Stormwater Grid Control with Rasterio,"This project introduces microservice-oriented control and navigation of stormwater grid control with rasterio specifically constructed for the domain of Civil Engineering & Infrastructure (Stormwater Grid Control). To address performance, efficiency, and reliability constraints, the system combines U-Net Image Segmentation with scalable software modules. Evaluated on Sentinel-2 Satellite Data, the methodology yields high predictive accuracy, minimal latency, and robust domain generalization across empirical tests.",Civil Engineering & Infrastructure,Stormwater Grid Control,"civil engineering & infrastructure, stormwater grid control, u-net image segmentation, optimization, bench",Develop and benchmark an end-to-end software pipeline for stormwater grid control within civil engineering & infrastructure systems.,"Existing techniques in stormwater grid control struggle with scalability, overhead, or domain generalization.",Obtain Sentinel-2 Satellite Data; run automated preprocessing; construct model via Rasterio; evaluate performance.,data acquisition; preprocessing pipeline; core inference model; validation engine; analytical dashboard,"Python, QGIS, GDAL, Sentinel API","U-Net Image Segmentation, Random Forest",Sentinel-2 Satellite Data,"Python, SQL","Rasterio, GeoPandas","QGIS, PostGIS",Cloud VM Server,"A benchmarked, open-source software project for stormwater grid control with reproducible documentation.",https://github.com/acadeval-research/microservice-oriented-control-and-naviga,https://arxiv.org/abs/2026.62202,"Prof. Beatrice Vance, Dr. Rajiv Sharma",University of Washington CSE,2025,arXiv,Conference Paper,Needs Revision,Generated for AcadEval large-scale multi-domain benchmark expansion.
 P038148,Autonomous Fault Diagnosis in Memory Encoding Models with Hardhat,"This project introduces autonomous fault diagnosis in memory encoding models with hardhat specifically constructed for the domain of Neurotechnology & Cognition (Memory Encoding Models). To address performance, efficiency, and reliability constraints, the system combines Zero-Knowledge Proof with scalable software modules. Evaluated on Etherscan Logs, the methodology yields high predictive accuracy, minimal latency, and robust domain generalization across empirical tests.",Neurotechnology & Cognition,Memory Encoding Models,"neurotechnology & cognition, memory encoding models, zero-knowledge proof, optimization, bench",Develop and benchmark an end-to-end software pipeline for memory encoding models within neurotechnology & cognition systems.,"Existing techniques in memory encoding models struggle with scalability, overhead, or domain generalization.",Obtain Etherscan Logs; run automated preprocessing; construct model via Hardhat; evaluate performance.,data acquisition; preprocessing pipeline; core inference model; validation engine; analytical dashboard,"Solidity, Rust, Hardhat, Ethers.js","Zero-Knowledge Proof, Merkle Tree, PBFT",Etherscan Logs,"Solidity, Rust, TypeScript","Hardhat, Anchor","Remix, Truffle, Docker",Ethereum Testnet Node,"A benchmarked, open-source software project for memory encoding models with reproducible documentation.",https://github.com/acadeval-research/autonomous-fault-diagnosis-in-memory-enc,https://arxiv.org/abs/2026.27208,"Prof. Michael Zhang, Prof. Kenji Takahashi",University of Toronto Vector Institute,2026,Springer Link,Thesis Project,Good,Generated for AcadEval large-scale multi-domain benchmark expansion.
 P038149,Multimodal Transformers Optimization: A Cross-Domain Approach,"This project introduces multimodal transformers optimization: a cross-domain approach specifically constructed for the domain of Artificial Intelligence (Multimodal Transformers). To address performance, efficiency, and reliability constraints, the system combines U-Net Image Segmentation with scalable software modules. Evaluated on Sentinel-2 Satellite Data, the methodology yields high predictive accuracy, minimal latency, and robust domain generalization across empirical tests.",Artificial Intelligence,Multimodal Transformers,"artificial intelligence, multimodal transformers, u-net image segmentation, optimization, bench",Develop and benchmark an end-to-end software pipeline for multimodal transformers within artificial intelligence systems.,"Existing techniques in multimodal transformers struggle with scalability, overhead, or domain generalization.",Obtain Sentinel-2 Satellite Data; run automated preprocessing; construct model via Rasterio; evaluate performance.,data acquisition; preprocessing pipeline; core inference model; validation engine; analytical dashboard,"Python, QGIS, GDAL, Sentinel API","U-Net Image Segmentation, Random Forest",Sentinel-2 Satellite Data,"Python, SQL","Rasterio, GeoPandas","QGIS, PostGIS",Cloud VM Server,"A benchmarked, open-source software project for multimodal transformers with reproducible documentation.",https://github.com/acadeval-research/multimodal-transformers-optimization-a-c,https://arxiv.org/abs/2026.49641,"Dr. Lucas Silva, Prof. Michael Zhang",TU Munich Department of Informatics,2026,Springer Link,Research Proposal,Needs Revision,Generated for AcadEval large-scale multi-domain benchmark expansion.
+REAL0001,RAG based Expense Report Feedback System,"R Manimegalai, Alisha Shinaz N, Anbuchelvan K, and Ramya A
+
+PSG Institute of Technology and Applied Research, Neelambur, Coimbatore, India
+
+drrm@psgitech.ac.in",Business Analytics,Financial Analytics,"Chatbot, Fraud Detection",,,,,"MongoDB, React","Anomaly Detection, Support Vector Machine (SVM), Transfer Learning",Receipts Dataset,,"Flask, Retrieval-Augmented Generation (RAG)",,,,,,,,,181_camera_ready.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0002,1 . Introduction,"R. Manimegalai1 • J. Dharineesh2 • Ganesh Balaji V2 • Srinitish D
+
+*Corresponding author(s). E-mail(s): drrm@psgitech.ac.in;
+
+Contributing authors: ganeshbalajiv2004@gmail.com; 22z115@psgitech.ac.in; duraisrinitish@gmail.com",Geospatial & Remote Sensing,Satellite Multispectral Image Segmentation,"Chatbot, IDS, Network Intrusion Detection",,,,,"Docker, Elasticsearch, GDPR",Anomaly Detection,,,,,"Cloud VM / Workstation, GPU Server",,,,,,,ALE_23May2025.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0003,Agathiyam: Sandhi-Aware Tokenization for Tamil,"Tokenization plays a critical role in Natural Language Processing (NLP) pipelines,
+directly affecting performance in language modeling, machine translation, and other
+downstream tasks. For morphologically rich and agglutinative languages like Tamil,
+existing tokenizers such as Byte Pair Encoding (BPE) often fail to handle complex
+morphophonemic transformations caused by Sandhi rules, resulting in semantically
+lossy segmentations.
+In this work, we propose Agathiyam, a Sandhi-aware tokenization framework
+designed for Tamil. Our method integrates linguistically curated Sandhi rules with
+grapheme-aware pre-segmentation and Constrained Byte Pair Encoding (CBPE) to
+preserve phonological structure. We conduct extensive experiments on the Saman-
+tar parallel dataset for Tamil-English and Tamil-Hindi translation tasks, demon-
+strating improvements in segmentation accuracy, token efficiency, and downstream
+BLEU scores compared to standard BPE/GPE baselines. For evaluation and bench-
+marking only, we also compare against byte-level models such as google/byt5-base;
+no ByT5 fine-tuning is used in our pipeline.
+1",Natural Language Processing,Machine Translation,Network Intrusion Detection,,,,,,Transfer Learning,Samantar Dataset,,,,,,,,,,,Agathiyam__Sandhi_Aware_TamilTokenization.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0004,Time-Varying Portfolio Risk Attribution and,"Visualization under Changing Market Conditions:
+
+An Interpretable Analytics Framework
+
+1stDr. R. Manimegalai",FinTech,InsurTech,Explainable AI,,,,,FastAPI,,,,,"NumPy, pandas","Cloud VM / Workstation, GPU Server",,,,,,,Analytics_MarketConditions.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0005,Deep Learning-Based Secure Real Time Face Recognition System,"Rapid digital transformation has precipitated widespread automation of operational processes across both 
+domestic and organizational contexts. Accurate attendance management constitutes a critical administrative function 
+within educational institutions and enterprise environments alike. Conventional attendance monitoring systems are, 
+however, susceptible to significant security vulnerabilities, including identity spoofing and fraudulent record manipulation. 
+Facial morphology represents a prominent biometric modality owing to its non-intrusive acquisition properties and its 
+foundational role in human identity verification. This study presents the design and implementation of a deep learning-
+based automated attendance system capable of detecting and logging the presence of employees or students in real time. 
+The proposed system is implemented in Python and employs a Convolutional Neural Network (CNN) architecture to 
+extract discriminative facial features and perform individual identification. The Viola–Jones Haar-cascade detector is 
+applied for real-time face localisation within video streams. Anti-spoofing security is enforced through a Chaotic Logistic 
+Key Mapping Algorithm for facial data encryption, integrated within a graphical user interface developed using the PyQt 
+framework. User enrolment records and attendance logs are persisted in a PostgreSQL relational database. The synergistic 
+integration of the CNN-based recognition module and the Viola–Jones Haar-cascade detector yields measurably improved 
+face recognition accuracy compared with either algorithm in isolation. Experimental results demonstrate the system's 
+effectiveness across three critical dimensions: face recognition accuracy, real-time face localisation, and resilience against 
+spoofing attacks, thereby establishing a robust and comprehensive biometric attendance solution. The proposed system 
+benchmarks four face recognition algorithms—Eigenfaces, Local Binary Pattern Histograms (LBPH)",Computer Vision,Face Analysis,,,,,,"Edge Computing, OpenCV, PostgreSQL","CRISPR Off-Target Prediction, Convolutional Neural Network (CNN), DL, Data Augmentation, Deep Learning, DeepFace, Feature Engineering, Feature Extraction, Image Augmentation, K-Nearest Neighbor, K-Nearest Neighbors (KNN), LR, Logistic Regression, NB, Naive Bayes, Neural Network, Object Detection, Pose Estimation, ResNet, Support Vector Machine (SVM), YOLO","LFW, Labeled Faces in the Wild",,TensorFlow,,"Edge AI Hardware, Raspberry Pi",,,,,,,Ashika_FaceRecognition_09June2026.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0006,--- Slide 1 ---,"Graph Representation and Chromatic Number Computation for Engineering Applications
+
+Dharineesh J
+
+--- Slide 2 ---",Edge Hardware Design,FPGA & RISC-V Neural Accelerators,,,,,,,,,,,,,,,,,,,ChromaticNumber_28Oct2024.pptx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0007,Algorithmic Approach of Chromatic Number in Networks,"The chromatic number  stands as a fundamental concept, representing the minimum number of colors required to properly color the vertices of a graph such that no adjacent vertices share the same color. This paper provides a focused exploration of the chromatic number, emphasizing its mathematical significance and practical applications. We investigate the behavior of the chromatic number across various graph structures. Leveraging computational tools, we develop algorithms to analyze the chromatic number across diverse graph structures and explore its implications for graph coloring problems. Additionally, we introduce visualization techniques to graphically represent graph coloring, providing intuitive insights into the dynamics of the chromatic number.
+
+Keywords: Chromatic coloring, Networks,  Scheduling,  Algorithms.",Deep Learning,Graph Neural Networks,,,,,,,,,,,,"Cloud VM / Workstation, GPU Server",,,,,,,Chromatic_Number_Dharineesh.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0008,PROOF,"Crop price prediction is one of the big areas of interest in agricultural econom­
+ics, concerning farm planning and decision-making for the farmer, stakeholder, 
+or policymaker. In this work, various machine learning models are developed to 
+predict crop prices accurately using the historical dataset. The proposed meth­
+odology in this paper identifies the robust crop price prediction model. Models 
+are built using random forest regression, long-short-term memory (LSTM), and 
+statistical time series models such as autoregressive integrated moving average 
+(ARIMA) and seasonal autoregressive integrated moving average (SARIMA). The 
+models built using the above mentioned algorithms are compared on the basis of 
+their accuracy and robustness. The proposed methodology involves gathering and 
+pre-processing the dataset consisting of crop prices from historical data. Tasks 
+such as feature engineering, model training, hyper-parameter tuning, ensem­
+bling, and evaluation are carried out in order to identify the robust model for 
+crop prediction. Experimental results demonstrate the validity of the proposed",Machine Learning,Supervised Learning,Explainable AI,,,,,,"Anomaly Detection, Decision Tree, Deep Learning, Feature Engineering, Logistic Regression, Long Short-Term Memory (LSTM), Neural Network, Outlier Detection, Random Forest, SVR, Support Vector Machine (SVM), Transfer Learning, XGBoost","Final Predicted Value Training Dataset, Machine Learning Trainable Dataset, Models Dataset, Testing Dataset",,"Keras, TensorFlow",,"Cloud VM / Workstation, GPU Server",,,,,,,CropPrediction_27Oct2025.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0009,RSCPF_ML: Region-Specific Crop Price Forecasting,"RSCPF_ML: Region-Specific Crop Price Forecasting
+
+through Machine Learning Techniques
+
+Team Members",Agriculture & AgriTech,Yield Prediction,Explainable AI,,,,,,"Bayesian Optimization, Bi-LSTM, CatBoost, Convolutional Neural Network (CNN), Decision Tree, Deep Learning, Feature Engineering, Gated Recurrent Unit (GRU), Generative Adversarial Network (GAN), Long Short-Term Memory (LSTM), Object Detection, Optuna, Random Forest, Recurrent Neural Network (RNN), SSD, SVR, Support Vector Machine (SVM), XGBoost",Coconut Dataset,,,"Matplotlib, SHAP","Cloud VM / Workstation, GPU Server",,,,,,,CropPrice_Forecasting_29July2026.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0010,Early Behavioral Detection of Cryptojacking,"Malware Using Multi-Layer System Telemetry and
+
+Machine Learning*
+
+Swethaswini Rajmohan",Cybersecurity,Malware Analysis,"Intrusion Detection, Network Intrusion Detection",,,,,,"Anomaly Detection, CatBoost, Class Activation Mapping, Deep Learning, Feature Engineering, Feature Extraction, LightGBM, Random Forest, Support Vector Machine (SVM), XGBoost",,,,SHAP,"Cloud VM / Workstation, GPU Server",,,,,,,CryptoJacking_17Marc2026.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0011,DepreSym Research Collection,"to use the
+
+DepreSym Research Collection
+
+I, Dr Maimegalai R  , a person engaging in research and development of AI-EDTA : AI",Healthcare & Medical Technology,Mental Health AI,,,,,,,,Depression Symptom Annotated Corpus,,,,,,,,,,,DepreSym_agreement.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0012,Comprehensıve Survey On Intrusıon Detectıon,"of the IDS classification mechanism is presented in Table 5 and a list of datasets 
+that are used for IDS is listed in Table 6. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+14  
+ 
+Table 5: Advantages and Disadvantages of IDS Mechanisms 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Detection 
+Mechanism 
+ 
+Advantages 
+Disadvantages 
+ 
+Signature 
+Based 
+• 
+This simple method is 
+more effective and 
+accurate in capturing 
+known intrusions.  
+• 
+Detection is fast. 
+• 
+Fast and frequent 
+protection. 
+• 
+Unknown attacks are 
+unable to be detected. 
+• 
+Lack of understanding in 
+states and protocol. 
+• 
+Frequent updates are 
+unpliable. 
+• 
+More time is needed in 
+maintaining the 
+knowledge. 
+ 
+ 
+      Anomaly     
+Based 
+o 
+ 
+• 
+Unknown attacks are 
+handled here. 
+• 
+Not much dependent 
+on System software 
+such as Operating 
+systems. 
+• 
+Provide facility for 
+detection of 
+privileged abuse. 
+o 
+ 
+• 
+Because of frequent 
+change in observed 
+events, profile 
+maintenance may be poor. 
+• 
+While rebuilding the 
+profile with changes in the 
+normal behavior, the 
+service is stopped. 
+• 
+Timely provision of alarm 
+is poor 
+o 
+ 
+ 
+ 
+       Hybrid 
+ 
+● 
+According to the 
+requirements, the IDS 
+is developed. 
+● 
+Any type of 
+mechanism can be 
+adopted due to its 
+hybrid nature. 
+ 
+● 
+Not suitable for devices 
+that are more concerned 
+with memory usage. 
+● 
+Powerful computations 
+lead to high consumption 
+of power. 
+ 
+
+
+15 
+ 
+ 
+ 
+ 
+ 
+Table 6: Overview of IDS Classification Mechanisms 
+ 
+ 
+Primary IDS 
+Techniques 
+Used 
+Additional Schemes used 
+Parameters 
+Considered 
+ 
+Genetic 
+Algorithm [9] 
+GNP-based Fuzzy Class Association Rule 
+Detection Accuracy, 
+Low False Alarm 
+Rate 
+HNGFA Framework, OGFA & IGFA 
+NIDS Detection 
+Accuracy 
+IFS, CNN Extractor & BG Classifier and 
+5-fold CV 
+BG Classifier Over 
+fitting Problem & 
+Performance 
+Deep Learning 
+[13] 
+ 
+Feed Forward Deep Neural Networks, 
+Extra Trees (ET) algorithm, WFEU-
+FFDNN, CNN–WDLSTM IDS Large-
+scale big data 
+Binary and 
+Multi-class 
+classification,  
+NIDS and real-time 
+IDS 
+SR",Cybersecurity,Network Security,"IDS, IPS, Intrusion Detection, Intrusion Prevention System, NIDS, Network Intrusion Detection",,,,,Peer-to-Peer,"CRISPR Off-Target Prediction, Convolutional Neural Network (CNN), DL, Decision Tree, Deep Learning, FL, Feature Engineering, Feature Selection, Federated Learning, Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), Neural Network, Reinforcement Learning (RL), Support Vector Machine (SVM)","Bot-IoT, Important Dataset, NSL-KDD, UNSW-NB15",,,,"Cloud VM / Workstation, GPU Server",,,,,,,Dharineesh_IDS_Paper.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0013,1.1 Automated Drug Information Retrieval,"Purpose: Exhaustive and in-depth pharmaceutical research has elevated the need for efficient and reliable drug information retrieval systems. Traditional medical resources often present unstructured, lengthy content, leading to cognitive overload and inefficiency in healthcare research for both professionals and patients. This study proposes automated, structured, and concise drug information from multiple authoritative medical sources for reducing the cognitive load in drug information retrieval.
+
+Methods:  The proposed methodology consists of both web scrapping and API based data extraction and the parameters like interactions and mechanism of actions which are generally structured in paragraphs are subjected to biomedical semantic text summarization[16]. While python libraries such as BeautifulSoup, lxml, Selenium offer sequential navigations for structured data retrieval, multi-threading and batch processing optimizes the script’s performance.
+
+Results: The system was able to extract drug profiling information for about 519 medications including dosage (444 records), side effects (423 records), interactions, target receptors and pharmacological actions (392 each), and adverse drug reactions (519), and drug class (519). Automation in information retrieval significantly reduced the extraction time, and the complete database, which included 8 drug parameters for all 519 drugs, took around 20 hours of runtime.
+
+Conclusions: The study demonstrates a reliable, scalable and automated solution for the drug information retrieval, mitigating cognitive load and improvising research efficiency.
+
+Keywords: Drug information retrieval, pattern matching, API integration, web scraping, cognitive load reduction",Healthcare & Medical Technology,Electronic Health Records,Medical Diagnosis,,,,,,"Adam, BERT, BioBERT, Decision Tree, Deep Learning, Gradient Descent, NLTK, Named Entity Recognition (NER), Natural Language Processing (NLP), Transformer Architecture, Word Embeddings, Word2Vec",Biomedical Relation Extraction Dataset,,,"DataFrame, Pandas","Cloud VM / Workstation, GPU Server",,,,,,,Drug_Journal_19Aug2025.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0014,Introduction to ESG and orchestration of ESG information,", Ganesh Balaji V, Siddiq M, and
+
+Sivanandhini N
+
+PSG Institute of Technology and Applied Research",Web & Mobile Systems,Mobile Cross-Platform Systems,,,,,,"AWS, Azure","BERT, Deep Learning, GPT-4, GPT-4o, GloVe, LLaMA, LoRA, Low-Rank Adaptation, N-gram, Named Entity Recognition (NER), QLoRA, TF-IDF, Transfer Learning, Word2Vec",,,"Hugging Face PEFT, PEFT, Retrieval-Augmented Generation (RAG), TensorFlow",,"Cloud VM / Workstation, GPU Server",,,,,,,ESG_Paper_04_May2026.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0015,Embryonics Fault Tolerant Hardware and Cyclic,"Redundancy Codes
+
+Praveen Kumar R and Vijay Raj Kumar M
+
+1 First Author Department of Computer Science and Engineering, PSG Institute of",Cybersecurity,Software Vulnerability Analysis,,,,,,,"Deep Learning, Long Short-Term Memory (LSTM)",,,,,"Cloud VM / Workstation, GPU Server",,,,,,,Embryonics_and_Cyclic_Redundancy_Codes.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0016,Comprehensıve Survey on Intrusıon Detectıon Technıques for MANETs,"Abstract. Ad-hoc networks have been playing a vital role in various applications for many years. Dynamic Topology, Limited Resources, Open Environment, Lack of Infrastructure, Limited Bandwidth, Node Mobility are some of the key characteristics of the mobile adhoc networks and these unique characteristics post a significant threat to the security of the network. Encryption, authentication and firewall systems provide basic security features in Mobile Ad-hoc networks. However, the Intrusion Detection System (IDS) establishes extra security by preventing various attacks. Various IDS are built to provide better security features. In this work, the taxonomy of IDS based on different parameters are presented. This work compares performance of various IDS that are implemented using different techniques.  This work concludes by indicating the research opportunities available for researchers to explore further.
+
+Keywords: ad-hoc Network, intrusion detection system, manet, topology.
+
+1	Introduction",Cybersecurity,Cloud & Network Security,"IDS, IPS, Intrusion Detection, Intrusion Prevention System, Network Intrusion Detection",,,,,,"Convolutional Neural Network (CNN), DL, Decision Tree, Deep Learning, Feature Engineering, Long Short-Term Memory (LSTM), Reinforcement Learning (RL), Support Vector Machine (SVM)","Bot-IoT, Important Dataset, NSL-KDD, UNSW-NB15",,,,"Cloud VM / Workstation, GPU Server",,,,,,,IDS.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0017,Comprehensıve Survey on Intrusıon Detectıon Technıques for MANETs,"of IDS Classification Mechanisms
+
+Table 7: Important Dataset for IDS
+
+4 Conclusions
+
+The paper presents a survey on the features of Mobile Ad-hoc Networks and their challenges. Various types of attacks, such as active attacks, passive attacks, wormhole, and black hole attacks, occur in different scenarios within ad-hoc networks. The Intrusion Detection System (IDS) is elaborated, including its working modules, challenges faced, requirements, and its role in ad-hoc network security. Detection techniques, datasets used, associated schemes, tools, merits, and demerits which are supported by figures and tables are present in this survey. The interactive architecture and key information of IDS types have been explained based on the detection mechanisms provided by the taxonomy of IDS. Classification of IDS includes Signature-based, anomaly-based, and Hybrid techniques. IDS detection methodologies containing various schemes are summarized. Many issues in previous works related to IDS are pointed out and elaborated. Strong points and limitations are clearly stated for the work of each reference. Clear comparisons are given through detailed tables.
+
+In the future, it would be a great idea to increase the range of different attacks in a single attempt and consider privacy issues when installing the system in a mobile ad-hoc network. Dealing with a multi-level or hybrid approach poses a high computational cost for attaining results. Future research aims to adopt mechanisms that achieve cost-effectiveness. Shortening the expected time for feature training and testing is crucial. Reducing false alarms plays a significant role in IDS since these issues degrade overall performance. Existing intrusion detection systems lack sufficient accuracy in real-time threat detection. Thus, new research focuses on real-time IDS to identify attacks promptly.",Cybersecurity,Network Security,"IDS, IPS, Intrusion Detection, Intrusion Prevention System, Network Intrusion Detection",,,,,,"CRISPR Off-Target Prediction, Convolutional Neural Network (CNN), DL, Decision Tree, Deep Learning, Feature Engineering, Feature Extraction, Feature Selection, Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), Reinforcement Learning (RL), Support Vector Machine (SVM)","Bot-IoT, Important Dataset, NSL-KDD, UNSW-NB15",,,,,,,,,,,IDS_ICISS_8Aug2024.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0018,Comprehensıve Survey on Intrusıon Detectıon,"of IDS Classification Mechanisms 
+ 
+Primary IDS 
+Techniques 
+Used 
+Additional Schemes used 
+Parameters Considered 
+ 
+Genetic 
+Algorithm [3] 
+GNP-based Fuzzy Class Association Rule 
+Detection Accuracy, 
+Low False Alarm Rate 
+HNGFA Framework, OGFA & IGFA 
+NIDS Detection 
+Accuracy 
+IFS, CNN Extractor & BG Classifier and 5-fold 
+CV 
+BG Classifier Over 
+fitting Problem & 
+Performance 
+Deep Learning 
+[7] 
+ 
+Feed Forward Deep Neural Networks, Extra 
+Trees (ET) algorithm, WFEU-FFDNN, CNN–
+WDLSTM IDS Large-scale big data 
+Binary and 
+Multi-class 
+classification,  
+NIDS and real-time IDS 
+SRDLM method for re-encodes, SRDLC 
+Accuracy and 
+Robustness of algorithm, 
+Web character injection 
+network attack 
+Particle  Swarm 
+Optimization 
+[14] 
+WOA and genetic operators Performance 
+Binary and Multi-class 
+classification 
+ 
+Friedman statistical test & Ranking methods 
+BD-PSO-V Botnet 
+Threat 
+Ant Colony 
+Optimization 
+[17] 
+3-opt local search 
+Multi-scale local binary 
+pattern and 
+Low and small budget 
+function 
+Fuzzy Logic 
+[19] 
+Allen’s intervals algebra operators 
+Redundant data removal 
+Reinforcement 
+Learning 
+Deep Q-Learning  with Deep Autoencoder 
+Detection Rate, False 
+Positive Rate 
+Reinforcement learning-based malicious nodes 
+Accuracy and False 
+Detection Rate 
+Reputation Opportunistic Routing based on Q-
+learning (RORQ) 
+Packet loss, 
+Average end-to-end 
+delay, Energy efficiency 
+Q-learning in Ad-hoc 
+On-demand Distance Vector Protocol (AODV) 
+Accuracy and Packet 
+Drop Ratio 
+ 
+
+
+10  
+Table 7: Important Dataset for IDS 
+Dataset ID 
+ 
+Description 
+UNSW-NB15 
+ 
+Network traffic dataset for intrusion detection, focusing on network-based attacks. 
+AWID 
+ 
+Ambient Wi-Fi and Bluetooth device dataset for activity recognition and 
+localization research. 
+CICIDS2017 
+ 
+Intrusion detection evaluation dataset from the Canadian Institute for 
+Cybersecurity, 2017 edition. 
+ADFA-LD 
+ 
+Australian Defence Force Academy Labeled Dataset, used for intrusion detection 
+and network securit",Cybersecurity,Network Security,"IDS, IPS, Intrusion Detection, Intrusion Prevention System, NIDS, Network Intrusion Detection",,,,,,"Action Recognition, CRISPR Off-Target Prediction, Convolutional Neural Network (CNN), DL, Decision Tree, Deep Learning, FL, Feature Engineering, Feature Selection, Federated Learning, Gated Recurrent Unit (GRU), Long Short-Term Memory (LSTM), Neural Network, Reinforcement Learning (RL), Support Vector Machine (SVM)","Bot-IoT, Defence Force Academy Labeled Dataset, IDS Dataset, Important Dataset, NSL-KDD, UNSW-NB15",,,,"Cloud VM / Workstation, GPU Server",,,,,,,IDS_ICISS_8Aug2024.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0019,Compact Wisdom at Small Scale: Small Language,"Models as Cultural Assistants
+
+Manimegalai R
+
+PSG Institute of Technology and Applied Research",Generative AI,Large Language Models,"Chatbot, Network Intrusion Detection",,,,,"Neo4j, Prometheus","AdamW, BERT, Fine-tuning, GPT-4, Gradient Descent, Knowledge Distillation, LoRA, Low-Rank Adaptation, Sentence-BERT (SBERT), Transfer Learning",,,"Hugging Face PEFT, PEFT, Retrieval-Augmented Generation (RAG)",,"Cloud VM / Workstation, GPU Server",,,,,,,IEEE_ICSEC2_2026_691.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0020,--- Slide 1 ---,"& Motivation
+Why small models need retrieval to be trustworthy
+02
+Research Question
+Can retrieval + light adaptation replace scale?
+03",Machine Learning,Transfer Learning,Network Intrusion Detection,,,,,Neo4j,"AdamW, Fine-tuning, Gradient Descent, LoRA, Transfer Learning",Attribute Cite Kural IDs Corpus,,Retrieval-Augmented Generation (RAG),,"Cloud VM / Workstation, GPU Server",,,,,,,IEEE_ICSEC2_2026_691.pptx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0021,An effective three phase clustering algorithm,"Spatial data clustering has played an important role in the knowledge discovery in spatial data. However, due to the increasing volume and diversity of data, conventional spatial clustering methods are inefficient even on moderately large data sets, and usually fail to discover clusters with diverse shapes and densities. To address these challenges, we propose a three-phase clustering method named OKMDD (Optimized clustering by combining K-means with density and distance-based method) to fast find clusters with diverse shapes and densities in spatial databases. In the first phase, OKMDD uses a partition-based algorithm (K-means) to cluster the data set into several relatively small spherical or ball-shaped subclusters. After that, each subcluster is given a local density; to merge subclusters, OKMDD utilizes the idea that genuine cluster cores are characterized by a higher density than their neighbor subclusters and by a relatively large distance from subclusters with higher densities. So far, many spatial clustering algorithms have been proposed. In the recent work two-phase clustering method named KMDD (clustering by combining K-Means with Density and Distance-based method) to fast find clusters with diverse shapes and densities in spatial databases is proposed. But, it also exhibits many drawbacks. First, it considers only the spatial attributes, without taking the non-spatial attributes in spatial databases into account. Secondly, it tends to become hard to have the K-Value predicted and the choice of centroid values from the dataset. In order to resolve this issue, the proposed system developed an Optimized clustering by integrating K-Means with Density and Distance-based method (OKMDD) technique. At first, a hybrid Differential Evolution (DE) and bat optimization algorithm is used for selecting the k values and centroid values from the dataset. Next, enhanced partition-based algorithm is used for clustering the data set into multiple comparatively smaller sphe",Machine Learning,Unsupervised Learning,,,,,,,"DBSCAN, Deep Learning, Generative Adversarial Network (GAN), k-Means",,,,,,,,,,,,JCS_Q4_Dec2026.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0022,Automated Minutiae Extraction and Fingerprint Analysis using,"In the digital world, traditional methods 
+of biometric recognition are being challenged. 
+Traditional systems such as RFID and cards are 
+vulnerable to fraud. However, fingerprints contain 
+varied degrees of unique identifiers for each 
+individual and can be exploited for precise 
+recognition 
+of 
+people. 
+Automatic 
+feature 
+extraction, a key part of fingerprint analysis, 
+identifies unique ridge and edge patterns in a 
+fingerprint image. This information can be 
+digitally signed to enable secure identification and 
+verification, eliminating the risk of manipulation. 
+This work proposes a fingerprint analysis and 
+matching system using deep learning and machine 
+learning techniques. For feature extraction, edge 
+detection and adaptive thresholding have been 
+implemented. 
+To 
+prevent 
+spoofing 
+attacks, 
+templates are generated using pattern recognition 
+(using level 1 features fingerprints) and minutiae 
+(also known as level 2 feature) of fingerprints. The 
+work compares CNN, Random Forest, KNN, and 
+SVM for fingerprint matching.  The analysis of 
+ML models reveals that CNN performs better 
+compared to others with an accuracy of 97.6%. 
+ 
+Keywords: Minutiae, CNN, KNN, Random 
+Forest, 
+SVM, 
+Edge 
+Detection, 
+Adaptive 
+Thresholding 
+I. Introduction 
+Our everyday lives are increasingly 
+dependent on secure and reliable identification 
+methods. Traditional attendance systems, often 
+relying on cards or codes, are vulnerable to loss, 
+sharing, or even theft. Fingerprint recognition 
+technology offers an effective solution to these 
+challenges. Fingerprints are a unique identifier for 
+each individual, and they remain relatively 
+unchanged throughout life. This uniqueness makes 
+them highly suitable for secure attendance 
+systems. The fingerprint recognition technology 
+captures the intricate network of ridges and valleys 
+on a person's fingertip. These distinctive patterns 
+are 
+subsequently 
+translated 
+into 
+a 
+digital 
+fingerprint, which is essentially a mapped 
+r",Computer Vision,Face Analysis,,,,,,,"Adam, CRISPR Off-Target Prediction, Convolutional Neural Network (CNN), Data Augmentation, Decision Tree, Deep Learning, Feature Engineering, Gradient Descent, K-Nearest Neighbor, K-Nearest Neighbors (KNN), LR, Logistic Regression, Random Forest, Support Vector Machine (SVM), Transformer Architecture, k-NN","SOCOFing Dataset, Sokoto Coventry Fingerprint Dataset",,,,"Cloud VM / Workstation, GPU Server",,,,,,,Jayasri_FingerPrint.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0023,IN,"Accurate people counting within defined regions of interest (ROIs) is paramount in numerous domains such as retail, public safety, transportation, and event management. However, traditional methods often suffer from real-time limitations and imprecise results, leading to operational inefficiencies. To tackle this challenge, we propose an innovative approach that harnesses advanced object detection algorithms, specifically YOLOv8, to enhance precision and efficiency in real-time people counting applications.
+
+Our methodology encompasses several key steps in implementation. First, we meticulously curate and preprocess datasets to ensure robust model training. Next, leveraging the power of YOLOv8, we train our model on the prepared datasets, fine-tuning it to accurately detect and count people within defined ROIs. Subsequently, we seamlessly integrate the trained model into a comprehensive system, complete with a user-friendly frontend interface for intuitive interaction and result presentation. This holistic approach streamlines the process from data collection to system deployment, ensuring optimal performance and usability.
+
+Through rigorous evaluation and comparative analysis, the implementation using YOLOv8 emerges as highly effective, boasting a precision rate of 90.4%. By offering results in various formats, including images, videos, and real-time camera feeds, our system significantly enhances accuracy and efficiency in real-world people counting applications. The robustness and versatility of our approach pave the way for improved decision-making and resource allocation in diverse domains reliant on precise people counting capabilities.
+
+TABLE OF CONTENTS
+
+SNO                                                TITLE                                            PAGE NO
+
+ACKNOWLEDGEMENT                                                          iii
+
+ABSTRACT								iv
+
+LIST OF ABBREVATIONS						vi
+
+LIST OF FIGURES                                                         ",Deep Learning,Convolutional Neural Networks,,,,,,"OpenCV, cv2","CRISPR Off-Target Prediction, Computer Vision, Computer Vision Toolkit, Convolutional Neural Network (CNN), Data Augmentation, Deep Learning, EfficientNet, Feature Engineering, Feature Extraction, Knowledge Distillation, Object Detection, Optical Flow, ResNet, Support Vector Machine (SVM), Transfer Learning, Transformer Architecture, YOLO, YOLOv5, YOLOv8, You Only Look Once",YOLOv8 Dataset,,"Flask, PyTorch, TensorFlow","Matplotlib, NumPy, Pandas, Seaborn, scikit-learn",,,,,,,,KaviSri_HumanDetection_RoI.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0024,S.NO,"Details of the Paper
+
+Problem Solved
+
+Proposed",Zero-Knowledge Systems,zk-Rollups & Smart Contract Audit,,,,,,,"GNN, Graph Neural Network, Support Vector Machine (SVM), Transfer Learning, XGBoost",,,"Keras, PyTorch, React Native, TensorFlow","Pandas, SHAP",,,,,,,,Literature_Review.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0025,MedTech Meets Language Model;,"The model is referenced from OpenAI GPT -2 paper called “Language Models for Unsupervised 
+Multitask Learning” and OpenAI GPT -3 paper called  “Language Models are Few Shot Learners”. Here, 
+we make GPT-2 124M parameters model. The code snippet are Referenced from Andrej Karpathy 
+Videos and Open source GIThub repositories.",Generative AI,Large Language Models,,,,,,,"AdamW, Attention Mechanism, Gradient Descent, NLTK, Natural Language Processing (NLP), Transformer Architecture",Training Dataset,,"PyTorch, TensorFlow, torch",,GPU Server,,,,,,,MedGPT_22Aug2025.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0026,Finding Minimum Dominating Set,"This paper explores the Minimum Dominating Set (MDS) problem, focusing on developing 
+and applying an algorithm suited to different graph structures. The algorithm is tested on 
+various graphs, including path, ladder, cycle, comb, binary trees, and sibling trees. Through 
+extensive testing, the paper evaluates the algorithm's performance in terms of solution 
+quality, runtime efficiency, and scalability across diverse graph types. The findings provide 
+valuable insights into algorithmic solutions for practical graph-based scenarios. Furthermore, 
+
+
+ 
+the algorithm exhibits potential applications in fields such as facility location, surveillance, 
+and network design, demonstrating its versatility and relevance in real-world contexts. 
+ 
+Keywords : Dominating set; Facility location problem; Python program; Greedy algorithm; 
+Algorithm optimization; 
+  
+ 
+1 Introduction 
+ 
+The Minimum Dominating Set (MDS) in graph is a subset S of vertices within a graph such 
+that every vertex in the graph is either included in the set or directly connected to the set of 
+vertices. The cardinality of the minimum dominating set represents the minimum number of 
+vertices that are required to achieve the condition of domination over the graph.  
+The minimum dominating set (MDS) problem plays a crucial role in the domain of facility 
+location, where the objective is to position the fewest number of facility to serve efficiently for 
+set of demand points. Minimum Dominating Set problem (MDSP) also applied in various do- 
+main like network monitoring, social networking etc. 
+It is an optimization problem in computer science and it is Np -hard . Identification of MDS is 
+important as it have various application, starting from designing an efficient communicational 
+network to reduce the spread of diseases in a population. Other than facility location and new 
+monitoring, nowadays communication is growing exponentially and they play an important 
+role in our daily life. They influence all the",Big Data,NoSQL Databases,"IDS, Network Intrusion Detection",,,,,,"Deep Learning, Gradient Descent",,,,,"Cloud VM / Workstation, GPU Server",,,,,,,MinimumDominating_Set.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0027,2%,"This paper explores the Minimum Dominating Set (MDS) problem, focusing on developing 
+and applying an algorithm suited to different graph structures. The algorithm is tested on 
+various graphs, including path, ladder, cycle, comb, binary trees, and sibling trees. Through 
+extensive testing, the paper evaluates the algorithm's performance in terms of solution 
+quality, runtime efficiency, and scalability across diverse graph types. The findings provide 
+valuable insights into algorithmic solutions for practical graph-based scenarios. Furthermore, 
+8
+17
+
+
+ 
+the algorithm exhibits potential applications in fields such as facility location, surveillance, 
+and network design, demonstrating its versatility and relevance in real-world contexts. 
+ 
+Keywords : Dominating set; Facility location problem; Python program; Greedy algorithm; 
+Algorithm optimization; 
+  
+ 
+1 Introduction 
+ 
+The Minimum Dominating Set (MDS) in graph is a subset S of vertices within a graph such 
+that every vertex in the graph is either included in the set or directly connected to the set of 
+vertices. The cardinality of the minimum dominating set represents the minimum number of 
+vertices that are required to achieve the condition of domination over the graph.  
+The minimum dominating set (MDS) problem plays a crucial role in the domain of facility 
+location, where the objective is to position the fewest number of facility to serve efficiently for 
+set of demand points. Minimum Dominating Set problem (MDSP) also applied in various do- 
+main like network monitoring, social networking etc. 
+It is an optimization problem in computer science and it is Np -hard . Identification of MDS is 
+important as it have various application, starting from designing an efficient communicational 
+network to reduce the spread of diseases in a population. Other than facility location and new 
+monitoring, nowadays communication is growing exponentially and they play an important 
+role in our daily life. They influence al",Big Data,NoSQL Databases,"IDS, Network Intrusion Detection",,,,,,"Deep Learning, Gradient Descent",Open Images,,,,"Cloud VM / Workstation, GPU Server",,,,,,,MinimumDominating_Set_PlagiarismReport.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0028,Vision-Based Multi-Robot Coordination for Efficient,"of warehouse history and Amazon’s robotics case 
+study. The remainder of the paper is organized to provide a survey of AGVs and 
+AMRs in modern warehouses in Section 2. Section 3 details the proposed",Industry 4.0,Smart Factory,,,,,,"AWS, Cloud Computing, OpenCV","A* Search, Pose Estimation, Reinforcement Learning (RL), SLAM",DRIVE,,,,"ESP8266, LiDAR",,,,,,,MultiRobot_Collaboration_21July2025.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0029,Learning to Ask: Adaptive Query Strategies for,"This paper presents a unique interactive song identification 
+system that analyses multiple AI approaches to find the song that the 
+user is thinking of through a series of yes-or-no questions. The target 
+is to find and analyse existing methods for optimal question selection 
+to reduce the state space. The system evaluates three unique 
+approaches here: an entropy-based hard elimination model, an ML-
+based probabilistic model and an innovative adaptive engine that 
+balances between exploration and exploitation. To imitate real world 
+situtations, a noise simulation mechanism is integrated into the 
+system to test the models under various degrees of noise. 
+Experimental tests show that under noise-free conditions, all three 
+models perform with high accuracy, with the entropy model edging 
+the others in convergence rate and average number of questions. 
+However, it collapses under the introduction of noise. The paper 
+attempts to provide alternative methods to cope with and combat the 
+fall of accuracy under the introduction of noise by exploring 
+different methods. The ML model is thus explored. It gives good 
+accuracy even under noise, but its rigid, pretrained structure limits 
+its flexibility and dynamic nature. To address this, we propose an 
+innovative adaptive engine that adjusts the question to ask based on 
+its current state, confidence and uncertainty while retaining the 
+influence and information of the ML model. Under different noise 
+levels, the adaptive model consistently outstrips the other two in an 
+overall engine score, which is calculated through the accuracy and 
+rate of convergence. These results and inferences show the 
+importance of noise-aware design to mimic real life and establish an 
+adaptive questioning strategy as an optimal strategy for real-world 
+interactive AI systems/ 
+Keywords— Interactive AI, Decision-Making Systems, 
+Adaptive Questioning, Exploration–Exploitation Tradeoff, Entropy-
+Based Methods, Machine Learning, Noise Robustnes",Education Technology,Intelligent Tutoring Systems,,,,,,,"BERT, XGBoost",,,,"NumPy, Pandas",,,,,,,,Music_Akinetor_20May2026.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0030,Developing the,"1
+
+OBE Implementation Phases
+
+• Phase I",Internet of Things,Smart Energy & Telemetry,,,,,,,"CAM, Class Activation Mapping",,,,,,,,,,,,OBE_Session 1.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0031,Optimal Placement of PMUs using,"Electric power grids primarily rely on traditional meters, but they integrate
+more advanced and accurate Phasor Measurement Units (PMUs) to enhance mon-
+itoring and control capabilities. PMUs are deliberately selected for their ability to
+provide precise and synchronized readings of voltage and current at different points
+within the power grid, thereby playing a crucial role in grid operations. However,
+due to the high cost and the need for communication infrastructure, the installation
+of only a limited number of PMUs is possible in networks. Therefore, there is a
+need for a simple yet effective algorithm for Optimal PMU Placement (OPP) in
+electric grid systems. In this paper, k-power domination algorithm is used to iden-
+tify nodes that are k-power dominating in the given network. The paper validates
+the k-power domination algorithm for specific networks and evaluates its perfor-
+mance across these networks. Furthermore, the algorithm’s outputs are used for
+various other applications such as fault detection and localization, state identifica-
+tion, accuracy improvement, and cybersecurity enhancement, thereby making it a
+valuable tool for utilities and grid operators.
+Keywords:
+Optimal PMUs Placement; Dominating Set; Facility Location
+Problem; Electrical Power System; Power Grid Monitoring.
+1",Smart Cities,Urban Energy Management,,,,,,,,,,,,,,,,,,,PMU_Placement_14Aug2024.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0032,A Computer Vision Framework for Automated,"Foot Size Estimation Using Comparative
+
+Clustering Approaches
+
+​",AI & Machine Learning,Computer Vision,Chatbot,,,,,OpenCV,"Convolutional Neural Network (CNN), DBSCAN, Feature Engineering, KMeans, Long Short-Term Memory (LSTM), NLTK, Natural Language Processing (NLP), Transformer Architecture, k-Means",,,Flask,NumPy,"Cloud VM / Workstation, GPU Server",,,,,,,PedalPro_FootSizeEstimation_14Aug2026.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0033,Manimegalai Rajkumar,"Submission ID trn:oid:::22828:80345464
+Page 2 of 21 - Integrity Overview
+Submission ID trn:oid:::22828:80345464
+
+
+Match Groups
+53 Not Cited or Quoted 10%
+Matches with neither in-text citation nor quotation marks
+0
+Missing Quotations 0%
+Matches that are still very similar to source material
+0
+Missing Citation 0%
+Matches that have quotation marks, but no in-text citation
+0
+Cited and Quoted 0%
+Matches with in-text citation present, but no quotation marks
+Top Sources
+7%
+Internet sources
+7%
+Publications
+0%
+Submitted works (Student Papers)
+Top Sources
+The sources with the highest number of matches within the submission. Overlapping sources will not be displayed.
+1
+Publication
+Peng Lu, Baoye Song, Lin Xu. ""Human face recognition based on convolutional ne…
+1%
+2
+Publication
+Ashwin Rao. ""AttenFace: A Real Time Attendance System Using Face Recognition""…
+<1%
+3
+Internet
+docs.activeloop.ai
+<1%
+4
+Publication
+Dzmitry Tsishkou. ""Mobile face detection and tracking for media streaming appli…
+<1%
+5
+Internet
+www.coursehero.com
+<1%
+6
+Internet
+hal.inria.fr
+<1%
+7
+Internet
+eitca.org
+<1%
+8
+Publication
+Ying Guo, Vadim Gerasimov, Geoff Poulton. ""Vision-Based Drivable Surface Detect…
+<1%
+9
+Internet
+technodocbox.com
+<1%
+10
+Internet
+www.kheljournal.com
+<1%
+Page 3 of 21 - Integrity Overview
+Submission ID trn:oid:::22828:80345464
+Page 3 of 21 - Integrity Overview
+Submission ID trn:oid:::22828:80345464
+
+
+11
+Publication
+Anil K. Jain, Arun A. Ross, Karthik Nandakumar, Thomas Swearingen. ""Introductio…
+<1%
+12
+Publication
+J. C. Sekhar, P. Joel Josephson, A. Chinnasamy, M. Maheswari, S. Sankar, Ruth Ram…
+<1%
+13
+Internet
+www.ijraset.com
+<1%
+14
+Internet
+dokumen.tips
+<1%
+15
+Publication
+Vivek S. Sharma, Shubham Mahajan, Anand Nayyar, Amit Kant Pandit. ""Deep Lear…
+<1%
+16
+Internet
+dokumen.pub
+<1%
+17
+Internet
+link.springer.com
+<1%
+18
+Internet
+ijisae.org
+<1%
+19
+Publication
+Basma Ammour, Toufik Bouden, Larbi Boubchir, Souad Biad. ""Face identification …
+<1%
+20
+Internet
+kylo.tv
+<1%
+21
+Internet
+login.easychair.org
+<1",Computer Vision,Face Analysis,,,,,,"OpenCV, PostgreSQL","CRISPR Off-Target Prediction, Convolutional Neural Network (CNN), DL, Data Augmentation, Deep Learning, DeepFace, Feature Engineering, Feature Extraction, Image Augmentation, K-Nearest Neighbor, K-Nearest Neighbors (KNN), LR, Logistic Regression, NB, Naive Bayes, Neural Network, Object Detection, ResNet, Support Vector Machine (SVM), YOLO","LFW, Labeled Faces in the Wild, Open Images",,TensorFlow,,"Edge AI Hardware, Raspberry Pi",,,,,,,PlagiarismReport.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0034,--- Slide 1 ---,"Presented by
+
+Gayathri C
+
+International Conference on Communication Systems (ICOCS-2023)",Autonomous Vehicles,V2X Communication,,,,,,NVIDIA CUDA,,,,,,GPU Server,,,,,,,Presentation1-typing tutor.pptx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0035,Problem Statement #2:,"Hotels and Vacation Homes spend considerable time and cost on creating marketing visuals such as social media creatives, promotional banners, and seasonal campaign images. Many small and mid-size hospitality brands lack dedicated design teams, leading to inconsistent or low-quality creatives. We need a Generative AI product that automatically generates marketing creatives, ad banners, and social media posts for hospitality businesses. The product should take inputs such as property name, theme (romantic getaway, business stay, weekend offer, etc.), target audience, existing property content and campaign goal (awareness, conversion, loyalty). It should then generate Ready-to-post images or short videos in brand style. The system can leverage open-source image and text generation models, fine-tuned for hospitality-specific tone and visual aesthetic (luxury, boutique, business, resort, etc.).
+
+Problem Statement #4:
+
+One of the challenges faced by Hotels and Vacation homes businesses due to the explosion of 3rd party distribution platforms (such as Booking(dot)com, Makemytrip, Expedia, Agoda, Airbnb etc) which sells rooms online is the inability of the hospitality businesses to monitor the content, policies, prices and promotions across all the platforms. This leads to different prices/promotions on different platforms leading to revenue loss. The content, promotions and policies of our properties on various platforms have to be monitored in an automated fashion.",Generative AI,Diffusion Models,,,,,,,,,,,,,,,,,,,Problem Statement(1).docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0036,Problem Statement #2:,"Hotels and Vacation Homes spend considerable time and cost on creating marketing visuals such as social media creatives, promotional banners, and seasonal campaign images. Many small and mid-size hospitality brands lack dedicated design teams, leading to inconsistent or low-quality creatives. We need a Generative AI product that automatically generates marketing creatives, ad banners, and social media posts for hospitality businesses. The product should take inputs such as property name, theme (romantic getaway, business stay, weekend offer, etc.), target audience, existing property content and campaign goal (awareness, conversion, loyalty). It should then generate Ready-to-post images or short videos in brand style. The system can leverage open-source image and text generation models, fine-tuned for hospitality-specific tone and visual aesthetic (luxury, boutique, business, resort, etc.).
+
+Problem Statement #4:
+
+One of the challenges faced by Hotels and Vacation homes businesses due to the explosion of 3rd party distribution platforms (such as Booking(dot)com, Makemytrip, Expedia, Agoda, Airbnb etc) which sells rooms online is the inability of the hospitality businesses to monitor the content, policies, prices and promotions across all the platforms. This leads to different prices/promotions on different platforms leading to revenue loss. The content, promotions and policies of our properties on various platforms have to be monitored in an automated fashion.",Generative AI,Diffusion Models,,,,,,,,,,,,,,,,,,,Problem Statement.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0037,Creative Full-Stack & AI Development,"Internship
+
+Internship Duration
+
+60 Days",AI & Machine Learning,Explainable AI & Interpretability,"Chatbot, Fraud Detection",,,,,"FastAPI, React","Decision Tree, Named Entity Recognition (NER)",,,,,"Cloud VM / Workstation, GPU Server",,,,,,,Problem Statements - Creative Full-Stack & AI Development Internship.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0038,"On continuing this procedure, we will get the original message without errors as:          
+                                                             0 1 1 1 0 1 0","Abstract. In this present and future of computer technology, data transmission has become very crucial for every meager part of an individual’s life. Data transmission in the form of texts,        pictures and videos have become a part of the daily routine. It has become a mandatory part of everyone’s lives as there is a need of transmission of data from one place to another no matter if it would be for short or for longer distances. Not only the distance, but also the fast transmission of data is required. Various techniques have been proposed for the fast transmission of   data. But, the effect of noise or any other unwanted signal during the transmission is impossible to separate practically. Along with the fast transmission it is necessary that the data is being              accurately transmitted, so as to not deliver a corrupted or a wrong data to the receiving party.         Therefore, the need for data transmission with no errors through communication channels has been increased, which makes the study of detection and correction of errors significant. In this paper, various aspects and different approaches of the encoding and decoding of the Reed Muller technique, one of the most ancient and frequently used Error-correction and Error-detection    techniques, has been pondered. Traditional error correction and detection techniques like        hamming code and their failures are discussed. A bullseye view of the application of this          technique has been studied. The methodology for the python implementation of the said           technique has been proposed in this paper along with the comparison of consumption of power for the Reed Muller Encoding using Array Multipliers and Encoding using Booth Multiplier has been studied.
+
+Keywords: Error-correction, Error-detection, Majority Logic Check, Codeword, Redundant bit, Transmitter, Receiver, Array Multiplier, Booth Multiplier.
+
+Introduction",Image Processing,Image Compression,,,,,,,"Deep Learning, Reinforcement Learning (RL)",,,,,FPGA,,,,,,,ReedMuller_22August2024.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0039,3%,"Similarity Report ID:
+
+PAPER NAME
+
+ReedMuller_22August2024.docx",FinTech,Fraud Detection,,,,,,,"Deep Learning, Reinforcement Learning (RL)",Open Images,,,,FPGA,,,,,,,ReedMuller_22August2024_PlagiarismReport.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0040,Agenda,"1.Padma Priya R (715522244032)
+
+2.Sanjeevi V (715522244044)
+
+3.Tarunaa A C (715522244054)",Cybersecurity,Cryptography & Privacy,"Chatbot, Explainable AI, Model Interpretability, XAI",,,,,React,"BERT, Deep Learning, Feature Engineering, LightGBM, Multimodal AI, Multimodal Learning, NLTK, Natural Language Processing (NLP), Random Forest, Transformer Architecture, XGBoost",React Dataset,,"Flask, PyTorch, TensorFlow","LIME, NumPy, Pandas, SHAP","Cloud VM / Workstation, GPU Server",,,,,,,Review2_12Feb2026.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0041,Zero Hunger - AI Crop Disease Detection Device,"HARI ADITHYA V(LEAD) (II Year - CSE)
+
+SABARISH R S (III Year - ECE)
+
+BAALAMURUGA Y K(II Year - CSE)",Agriculture & AgriTech,Crop Disease Detection,"Chatbot, Edge AI, Precision Agriculture, Smart Agriculture, TinyML",,,,,,LoRA,,,,,"ESP32, Edge AI Hardware, Raspberry Pi",,,,,,,SDGNO-2_statement-2_The Ideators_Hari Adithya V.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0042,SFEAM: Secured Face Encryption and Authentication Model,"for Unique Personal Identification
+
+PSG Institute of Technology and Applied Research, Coimbatore, India
+
+1.  Introduction",Computer Vision,Face Analysis,"Explainable AI, XAI",,,,,"Azure, Firebase","ArcFace, Deep Learning, DeepFace, FaceNet, Feature Engineering, Knowledge Distillation, Object Detection, SSD",LFW,,TensorFlow,,"Cloud VM / Workstation, GPU Server",,,,,,,SFEAM_28May2025.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0043,SFEAM: Secured Face Encryption and Authentication Model for Unique Personal Identification,"PSG Institute of Technology and Applied Research, Coimbatore, India
+
+Abstract. This work presents the design and implementation of SFEAM, a system for Aadhaar-based face authentication offering facial recognition as a secure and user-friendly alternative to traditional username and password methods. SFEAM achieves client-side face detection, recognition, and integrated anti-spoofing capabilities within a web browser using face-api.js, built on TensorFlow.js, ensuring efficient operation. Advanced security is provided through multiple layers, including hash verification, AES-256-CBC encryption, and obfuscation. The system demonstrates robust performance across network environments, achieving a perfect score on 5G networks and maintaining acceptable performance on both 4G and 3G networks. Its architecture leverages Azure services for scalable backend operations, featuring Key Vault for encryption key management and geo-replication for high availability. Model size optimization techniques, such as quantization and pruning, successfully keep the model under 7 MB without sacrificing accuracy, enabling efficient use on resource-limited devices. Client-side rendering and computation ensure stringent data privacy by processing all facial recognition tasks locally within the browser, eliminating the transmission of sensitive biometric data. With a face detection and comparison time of under one second, SFEAM offers rapid authentication. This research contributes to the advancement of secure, privacy-preserving biometric authentication systems suitable for widespread adoption in national identity verification frameworks such as MeriPehchaan.
+
+Keywords: Facial authentication, Aadhaar integration, Client-side computing, Anti-spoofing, Caching mechanisms, Biometric, Privacy-preserving authentication.",Cybersecurity,Cloud Security,"Explainable AI, XAI",,,,,"Azure, Firebase","ArcFace, Deep Learning, DeepFace, FaceNet, Feature Engineering, Knowledge Distillation, Object Detection, SSD","LFW, Labeled Faces in the Wild",,TensorFlow,,"Cloud VM / Workstation, GPU Server",,,,,,,Shyam gokul - SEAM - 27 May  2025.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0044,--- Slide 1 ---,"Robo - Scout
+
+Multi-Robot Coordinated System for Optimized
+
+Warehouse Management",Robotics,Swarm Robotics,,,,,,OpenCV,A* Search,DRIVE,,,,ESP8266,,,,,,,Sridhar_RoboBots_Review2_PPT_25Oct2024.pptx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0045,Autonomous Navigation of Waypoints over Virtual,"Terrain using SLAM and ROS
+
+Manimegali R                                                                                                                     Srinitish D
+
+drrm@psgitech.ac.in                                                                                                    duraisrinitish@gmail.com",Robotics & Autonomy,Autonomous Rover SLAM Navigation,Autonomous Vehicles,,,,,"ROS, ROS2, Robot Operating System",SLAM,DRIVE,,"TensorFlow, tf",,LiDAR,,,,,,,Srinithish_Robot_Navigation.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0046,Strong Edge Colouring in Sierpinski-Like Graphs,"Edge colouring which is a basic concept in the graph theory has applications in
+network designing, task scheduling algorithm and in resource allocation. A strong edge
+colouring is a strict version of the edge colouring in which the edges that are less than
+3 edges apart receive unique colours. This way of strong edge colouring ensures conflict
+free assignment of the distinct colours to the edges in the graph that are at a distance
+less than 3 edges apart. In this paper, the strong edge colouring is implemented in
+the sierpinski graph which is a factorial graph and recursive in nature. It is a self-
+similar graph. This algorithm involves backtracking for the edge colouring purpose.
+The efficiency of the algorithm lies at assigning the minimum no of colours to the edges
+in the graph in accordance with the constraint. The priority is given to the edges based
+on their degree. Our findings provide insights into the practical applications of strong
+edge colouring in wireless channel assignments, optical wavelength routing, efficient
+CPU task scheduling, and circuit layout optimization in VLSI design. By using fractal-
+based graph structures, this study contributes to improved combinatorial optimization
+techniques for structured network design and resource allocation problems.
+Keywords: Strong edge Coloring, Sierpi´nski Carpet ,Task Scheduling algorithm.
+1",Deep Learning,Graph Neural Networks,Network Intrusion Detection,,,,,,,,,,,,,,,,,,StrongEdgeColoring_3June2025.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0047,A Supervised Learning Framework for Real-Time,"The growing development of contemporary 
+networks and IoT infrastructure has led to an increase in 
+the number of cyberattacks, such as UDP flooding and 
+ARP spoofing attacks, which can cause a substantial 
+decrease in network availability and communication 
+integrity. The use of traditional signature-based Intrusion 
+Detection Systems (IDS) is often ineffective in identifying 
+such cyberattacks due to their static nature and inability to 
+adapt to the dynamic nature of cyber threats. In order to 
+overcome these issues, this research work proposes an 
+AI-based real-time network threat analysis system that 
+treats intrusion detection as a supervised multi-class 
+classification task. The Edge-IIoTSet dataset, which 
+provides a realistic representation of network flow 
+characteristics in IoT and IIoT settings, is employed to 
+design and evaluate the performance of a variety of 
+supervised machine learning classifiers, including Logistic 
+Regression, Support Vector Machine, Random Forest, 
+Gradient Boosted Decision Trees (XGBoost), and a 
+shallow Multi-Layer Perceptron, which this work 
+demonstrates high detection accuracy in-domain, as per 
+the experimental findings, with tree-based classifiers 
+achieving a more balanced trade-off between accuracy and 
+minority class detection. The Knowledge Discovery in 
+Databases i.e. KDDderived dataset serves as a sanity 
+benchmark, and the BETH honeypot dataset serves as a 
+cross-domain benchmark to further validate the proposed 
+models. The existence of a large domain shift between 
+network flow data and host-level honeypot data is shown 
+through 
+evaluation 
+on the BETH dataset, while 
+near-perfect performance on the KDD-derived dataset 
+indicates the existence of bias in the dataset. These results 
+imply that robustness in the real world cannot be 
+guaranteed by high detection accuracy. 
+ 
+Keywords: Intrusion Detection System, UDP Flood, ARP 
+Spoofing, Machine Learning, XGBoost, Network  
+ 
+Security, Domain Shift, Random Forest,",Cybersecurity,Network Security,"IDS, Intrusion Detection, Network Intrusion Detection",,,,,,"Deep Learning, Feature Engineering, Feature Extraction, Federated Learning, Logistic Regression, Random Forest, Support Vector Machine (SVM), Transfer Learning, XGBoost","BETH Dataset, Edge-IIoTSet Dataset, Edge-IIoTSet Rishi Kumar Dataset, Real-World Host-Based Dataset, Sanity Benchmark, Secondary Robustness Dataset, Split Full Dataset, Support Dataset",,,,"Cloud VM / Workstation, GPU Server",,,,,,,Supervised Learning Framework_final_12Feb26.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0048,Transcription and Text Summarization using Deep Learning Techniques,"obtaining crucial information from the large data generated. One method for locating the most important and useful information in a
+
+document is text summarization. It condenses it into a shorter form while preserving the primary idea. Voice-powered transcription reduces
+
+the time by taking care of the preliminary transcribing in real-time. The efficiency is improved as the generated summary has proper",Natural Language Processing,Text Summarization,,,,,,,"DL, Deep Learning, N-gram, TF-IDF",,,TensorFlow,NLTK,"Cloud VM / Workstation, GPU Server",,,,,,,Susmeta_TextSummarization - Copy.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0049,Transcription and Text Summarization using Deep Learning Techniques,"obtaining crucial information from the large data generated. One method for locating the most important and useful information in a
+
+document is text summarization. It condenses it into a shorter form while preserving the primary idea. Voice-powered transcription reduces
+
+the time by taking care of the preliminary transcribing in real-time. The efficiency is improved as the generated summary has proper",Natural Language Processing,Text Summarization,,,,,,,"DL, Deep Learning, N-gram, TF-IDF",,,TensorFlow,NLTK,"Cloud VM / Workstation, GPU Server",,,,,,,Susmeta_TextSummarization.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0050,--- Slide 1 ---,"In this project, we introduce a robust system for real-time people counting within a defined region of interest (ROI).
+Compared performance of HOG, Roboflow 3.0, YOLOv5, and YOLOv8 algorithms.
+Identified YOLOv8 as the most accurate and efficient algorithm.
+Created a user-friendly frontend interface for seamless interaction, providing results in image, video, and real-time camera formats.
+
+--- Slide 3 ---",Computer Vision,Pose Estimation,,,,,,,"Computer Vision, Computer Vision Toolkit, Deep Learning, Object Detection, YOLO, YOLOv5, YOLOv8",,,Flask,,,,,,,,,Team_11.pptx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0051,PROJECT REPORT,"Clinical trials play a major role in biomedical research by evaluating the safety and effectiveness of medical interventions. However, an important portion of studies terminate because of problems such as improper research design, difficulties in recruiting participants, and several operational constraints. This leads to financial loss and wastage of resources.ClinWise is introduced as an interpretable machine learning framework implemented to assist in evidence-based decision-making during trial preparation and to predict the completion of clinical trials. For predicting completion, textual data such as brief summaries are combined with structural parameters including trial phase, enrollment size, and sponsor information.
+
+A number of machine learning algorithms are considered, and tuning is done for improvement in predictive performance. From the experimentation, it can be observed that ensemble techniques perform much better than conventional techniques, where XGBoost performs best with an accuracy of about 92%, and also shows excellent ROC-AUC values, which means that it has high discriminatory ability between completed and non-completed trial groups. LightGBM also shows good performance, especially when different train-test splits are considered; this algorithm shows good generalization ability. On the other hand, logistic regression gives much poorer performance results. SHAPley Additive explanations (SHAP) is used to highlight the important variables that push predictions.Through an interactive chat interface users can input trial parameters and get probability of completion with explainability and recommendations.This helps in identifying parameters that influence outcome and boost success rate of clinical trials.
+
+Keywords: Clinical Trial Prediction, Machine Learning, XGBoost, Explainable AI, SHAP, Multimodal Data Analysis
+
+TABLE OF CONTENTS
+
+LIST OF FIGURES
+
+LIST OF ABBREVIATIONS
+
+CHAPTER 1",Healthcare & Medical Technology,Clinical Decision Support,"Chatbot, Explainable AI",,,,,FastAPI,"BERT, BioBERT, Deep Learning, Feature Engineering, LightGBM, Logistic Regression, Multimodal AI, N-gram, NLTK, Natural Language Processing (NLP), Random Forest, TF-IDF, Transformer Architecture, XGBoost",DRIVE,,TensorFlow,"LIME, Pandas, SHAP, Streamlit","Cloud VM / Workstation, GPU Server",,,,,,,Thesis_28April2026.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0052,--- Slide 1 ---,"PSG Institute of Technology and Applied Research, Coimbatore
+
+TripSync: A Unified Platform for Trip Planning and Management
+
+1",GIS,Route Optimization,Fraud Detection,,,,,Firebase,,,,Flutter,,,,,,,,,Trip_Sync (2) (1).pptx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0053,Twin Edge Coloring in Engineering Applications,"The concept of twin coloring, a variation of graph coloring, focuses on assigning colors to the
+vertices of a graph such that no two adjacent vertices share the same color and vertices in each color
+class exhibit structural similarity under graph automorphism. Let k ≥2 be an integer and G be a
+connected graph of order at least 3. A twin k-edge coloring of G is a proper edge coloring of G that
+uses colors from Zk and that induces a proper vertex coloring on G where the color of a vertex v
+is the sum (in Zk) of the colors of the edges incident with v. The smallest integer k for which G
+has a twin k-edge coloring is the twin chromatic index of G and is denoted by χ
+′
+t(G). This work
+presents an exhaustive discussion of twin coloring with stress on its mathematics and applications.
+In this paper, the behavior of twin coloring is studied in different graph topologies.
+Algorithms
+are introduced in the literature for calculating twin coloring in different types of graphs, to study
+its properties, and its consequences for specific graph coloring problems. In addition, visualization
+methods are proposed to visualize twin-colored graphs, giving easy-to-understand insights into their
+structural and symmetry behaviors. Experimental outcomes comprise the graphical representation
+of twin-colored graphs, the twin color class number for specific graph structures, and the algorithm’s
+execution time for different types of graphs. The developed algorithm can handle graphs with any
+number of vertices, and the results are provided for different graph categories at different scales.
+This paper also presents the engineering applications of twin coloring such as network analysis,
+graph compression, understanding redundancy in protein-protein interaction networks, and error
+detection in networks. Twin coloring provides new techniques for maximizing resource allocation,
+network construction, and system reliability using graph symmetry and automorphism properties.
+Keywords: Twin Coloring, Gra",Deep Learning,Graph Neural Networks,,,,,,,Anomaly Detection,,,,,"Cloud VM / Workstation, GPU Server",,,,,,,TwinColoring_06June2025.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0054,Virtual Reality based Exposure Therapy with,"of the existing literature, summarizing evidence 
+across various mental health conditions [7]. The umbrella 
+review approach allows for a synthesis of findings from 
+multiple systematic reviews and meta-analyses. This study is 
+instrumental in understanding the overarching impact of 
+virtual reality interventions on mental health, offering 
+insights into the diverse range of disorders that can be 
+addressed using this innovative technology. 
+ 
+North, M. M., North, S. M., & Coble, J. R. (1998) discuss 
+Virtual Reality Therapy (VRT) as an innovative therapeutic 
+approach aimed at addressing challenges in traditional phobia 
+treatments. VRT utilizes virtual environments to generate 
+stimuli for desensitization therapy, similar to imaginal and in 
+vivo modalities. The authors highlight the origin of using 
+virtual reality technology for psychological disorders, 
+originating from the Human-Computer Interaction Group at 
+Clark Atlanta University in 1992. They present pilot 
+experiments demonstrating the effectiveness of VRT in 
+treating specific phobias such as fear of flying, heights, 
+enclosed spaces, and public speaking [8]. 
+ 
+Powers, M. B., & Emmelkamp, P. M. (2008). Virtual reality 
+exposure therapy for anxiety disorders: A meta-analysis. 
+Journal of Anxiety Disorders, Powers and Emmelkamp 
+synthesize findings from multiple studies to assess the overall 
+effectiveness of VRET across different anxiety disorders, 
+including specific phobias, social anxiety disorder, and post-
+traumatic stress disorder (PTSD). The analysis underscores 
+VRET's ability to provide controlled and immersive exposure 
+to feared stimuli, leading to significant reductions in anxiety 
+symptoms [9]. 
+ 
+Opriş, D., Pintea, S., García-Palacios, A., Botella, C., 
+Szamosközi, Ş., & David, D. (2012). Virtual reality exposure 
+therapy in anxiety disorders: A quantitative meta-analysis. 
+Depression and Anxiety, synthesize data from multiple 
+studies to quantitatively assess the impact of VRET on 
+anxiet",AR/VR,Virtual Reality,,,,,,Firebase,Naive Bayes,Open Images,,,,Arduino,,,,,,,VR_AnxietyExposure_PlagiarismReport_30July2024.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0055,Virtual Reality based Exposure Therapy with Biofeedback,"INTRODUCTION
+
+A. INTRODUCTION TO ANXIETY DISORDERS
+
+Anxiety disorders represent a widespread mental health challenge affecting individuals worldwide. Anxiety disorder is a mental health condition characterized by excessive worry, fear, or unease about everyday situations. It involves persistent and uncontrollable feelings of anxiety. Symptoms can vary but often include restlessness, fatigue, difficulty concentrating, irritability, muscle tension, and sleep disturbances.",Healthcare & Medical Technology,Mental Health AI,,,,,,Firebase,Action Recognition,,,,,Arduino,,,,,,,VR_AnxietyExposure_Therapy_Resmi.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0056,Introduction,"Arvind Madhavan
+
+Computer Science and Engineering
+
+PSG Institute of Technology and Applied Research",Software Engineering,Code Intelligence & Automation,,,,,,,"Convolutional Neural Network (CNN), Deep Learning, Long Short-Term Memory (LSTM), Neural Network",,,,"Matplotlib, Pandas","Cloud VM / Workstation, GPU Server",,,,,,,WindForecasting_RM.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0057,Trend Analysis and Short-term Time Series Forecasting of Wind,"Speed Patterns
+
+Arvind Madhavan
+
+Computer Science and Engineering",Renewable Energy,Wind Energy,,,,,,,"Convolutional Neural Network (CNN), Deep Learning, Long Short-Term Memory (LSTM), Neural Network",,,,"Matplotlib, Pandas","Cloud VM / Workstation, GPU Server",,,,,,,WindForecasting_RM.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0058,PSG Institute of Technology and Applied Research,"PSG iTech Launchpad
+
+iTech IDEATHON 2024
+
+Winner Prize Details",Edge Hardware Design,FPGA & RISC-V Neural Accelerators,,,,,,,,,,,,,,,,,,,Winner Account details.docx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0059,PROBLEM STATEMENT,"& Final
+Revision
+✓
+✓
+GitHub Repository &
+Reproducibility Package
+✓
+Publication Figures & Tables
+✓
+Internal Review & Journal
+Submission
+✓
+Member
+Role
+Key Responsibilities
+Adhithya J
+Experiments
+Experimental pipeline, Phase 5–9 fixes,
+ablation & robustness studies, NASA
+IGBT adaptation, decision-support
+engine, final results.
+Arya A
+Writing &
+Literature",Software Engineering,Code Intelligence & Automation,"Explainable AI, XAI",,,,,,"ADASYN, AutoML, Bayesian Optimization, Decision Tree, Feature Engineering, Federated Learning, K-Nearest Neighbor, K-Nearest Neighbors (KNN), LR, LightGBM, Logistic Regression, Neural Architecture Search, Random Forest, SMOTE, Support Vector Machine (SVM), XGB, XGBoost","Attribute Dataset, NASA IGBT Dataset, Synthetic Dataset, Synthetic VLSI Dataset",,,"LIME, Matplotlib, NumPy, SHAP, Seaborn, pandas, scikit-learn",,,,,,,,XAI_FaultDiagnosis_Framework_29July2026.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0060,1-Factor Forcing Set in Product Graphs,"A dynamically colour a graph G of vertices is to start with an initial subset S of
+coloured vertices and leave the other vertices uncoloured. A neighbour is coloured when
+a coloured vertex has exactly one non-coloured neighbour at each discrete time interval.
+The first set S is a zero forcing set (ZFS) of G. The zero forcing number (ZFN) ζ(G)
+of a graph G is the smallest cardinality of a zero-forcing set of G. S is called a 1-factor
+forcing set of G if the initial set S has the additional condition that the subgraph in-
+duced by S is a perfect matching, or 1-factor. The minimal cardinality of a 1-factor
+forcing set of G is the 1-factor forcing number of G, or ζP2(G). In this paper, we solve
+the 1-factor forcing number for product graphs of certain class and cactus-like graphs.
+Further, we propose algorithm to execute the zero-forcing number for certain networks.
+2020 Mathematics Subject Classification:
+05C69, 05C85, 05C90 and
+05C20.
+1",Deep Learning,Graph Neural Networks,,,,,,,,,,,,,,,,,,,ZFS_12Aug2024.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0061,1-Factor Forcing Set in Product Graphs,"A dynamically colour a graph G of vertices is to start with an initial subset S of
+coloured vertices and leave the other vertices uncoloured. A neighbour is coloured when
+a coloured vertex has exactly one non-coloured neighbour at each discrete time interval.
+The first set S is a zero forcing set (ZFS) of G. The zero forcing number (ZFN) ζ(G)
+of a graph G is the smallest cardinality of a zero-forcing set of G. S is called a 1-factor
+forcing set of G if the initial set S has the additional condition that the subgraph in-
+duced by S is a perfect matching, or 1-factor. The minimal cardinality of a 1-factor
+forcing set of G is the 1-factor forcing number of G, or ζP2(G). In this paper, we solve
+the 1-factor forcing number for product graphs of certain class and cactus-like graphs.
+Further, we propose algorithm to execute the zero-forcing number for certain networks.
+2020 Mathematics Subject Classification:
+05C69, 05C85, 05C90 and
+05C20.
+1",Deep Learning,Graph Neural Networks,,,,,,,Vision Transformer (ViT),Open Images,,,,,,,,,,,ZFS_12Aug2024_PlagiarismReport.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0062,Project Presentation,"HerRise – Women Entrepreneurship
+
+Mentoring Platform Kit
+
+By,",Software Engineering,DevOps & Microservices CI/CD,Chatbot,,,,,"Firebase, MongoDB",,Labelled Multilingual Dataset,,React Native,,,,,,,,,Zeroth_REview_31Aug2026.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0063,--- Slide 1 ---,"of Crop Price
+Literature Review
+Gaps Identified
+Problem Statement and Objectives
+Proposed Methodology for Region-Specific Crop Price Forecasting using ML Algorithms
+Innovation and Social Impact of the Proposed  Crop-Price Prediction System
+Modules to be Implemented
+Roles and Responsibilities of Team Members
+Timeline of the Project
+Conclusions",Agriculture & AgriTech,Yield Prediction,"Explainable AI, XAI",,,,,"FastAPI, React","Deep Learning, Long Short-Term Memory (LSTM), XGBoost",,,TensorFlow,"LIME, SHAP","Cloud VM / Workstation, GPU Server",,,,,,,Zeroth_review.pptx,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0064,Conference Paper Title*,"or reference list.
+Use letters for table footnotes.
+Unless there are six authors or more give all authors’ names;
+do not use “et al.”. Papers that have not been published,
+even if they have been submitted for publication, should be
+cited as “unpublished” [4]. Papers that have been accepted for
+publication should be cited as “in press” [5]. Capitalize only
+the ﬁrst word in a paper title, except for proper nouns and
+element symbols.
+For papers published in translation journals, please give the
+English citation ﬁrst, followed by the original foreign-language
+citation [6].",AI & Machine Learning,Natural Language Processing,,,,,,,,DRIVE,,,,,,,,,,,conference_101719.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0065,Generative AI for Business Expense Management,"Dr. R. Manimegalai, Devadarshini M, Karthikeyan A S
+
+Department of Computer Science and Engineering
+
+PSG Institute of Technology and Applied Research",FinTech,InsurTech,Emotion Recognition,,,,,MongoDB,"Adam, Feature Engineering, Feature Extraction, Gradient Descent, NLTK, Natural Language Processing (NLP), Transfer Learning, Transformer Architecture",,,"Flask, PyTorch, PyTorch Lightning",,"Cloud VM / Workstation, GPU Server",,,,,,,reg2018.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.
+REAL0066,-,"Thrust Areas for Airborne Surveillance Antenna Structures
+
+works.
+
+Centre for Airborne Systems (CABS) is a nodal agency of the Defence Research and",Drone Technology,Drone Inspection,,,,,,,"Attention Multiple Instance Learning, MIL",,,,,,,,,,,,research problems for academia -CABS.pdf,Real Student/Academic Project Sample,,Parsed directly from an actual submitted document in datasets/PROJECTS via the app's own document parser/classifier/extractor pipeline — not machine-generated like the bulk corpus rows.

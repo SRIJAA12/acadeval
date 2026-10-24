@@ -56,10 +56,21 @@ def graph_distance(
 
 
 def feature_rarity(feature_counts: Iterable[int], corpus_size: int) -> float:
+    """Rarity of each feature, saturating with its own historical count rather
+    than scaling with corpus_size. The previous `(corpus_size - count) / corpus_size`
+    formula meant that in a large, multi-domain corpus almost every individual
+    feature — however common within its own niche — is a tiny fraction of the
+    whole corpus, so it always scored near 1.0 ("maximally rare") regardless of
+    whether it actually appeared in 1 project or 1,600. That made feature rarity
+    collapse to ~1.0 for virtually any submission once the corpus grew large,
+    instead of discriminating genuinely unique features from common ones.
+    `1 / (1 + count)` mirrors relationship_rarity's existing, corpus-size-
+    independent style: count=0 -> 1.0, count=1 -> 0.5, count=10 -> ~0.09.
+    """
     counts = [max(0, int(count)) for count in feature_counts]
     if corpus_size <= 0 or not counts:
         return 0.5
-    return clamp(sum((corpus_size - min(count, corpus_size)) / corpus_size for count in counts) / len(counts))
+    return clamp(sum(1.0 / (1.0 + count) for count in counts) / len(counts))
 
 
 def relationship_rarity(pair_counts: Iterable[int]) -> float:
@@ -70,9 +81,19 @@ def relationship_rarity(pair_counts: Iterable[int]) -> float:
 
 
 def neighborhood_sparsity(sibling_count: int, corpus_size: int) -> float:
+    """How saturated the candidate's own domain/sub-domain neighborhood is,
+    independent of total corpus size. The previous `1 - sibling_count / corpus_size`
+    formula meant that as long as the corpus spans many domains, any single
+    domain's sibling_count is a small share of the total, so this signal read
+    as "sparse" (near 1.0) even for an oversubscribed niche with hundreds of
+    prior projects — and it got WORSE (more falsely "novel") the more the
+    corpus grew, which is backwards. `1 / (1 + sibling_count)` instead measures
+    saturation directly against how many prior projects already share this
+    neighborhood, matching relationship_rarity's corpus-size-independent style.
+    """
     if corpus_size <= 0:
         return 0.5
-    return clamp(1.0 - (max(0, sibling_count) / corpus_size))
+    return clamp(1.0 / (1.0 + max(0, sibling_count)))
 
 
 def new_connection_score(

@@ -465,27 +465,25 @@ class ExplainabilityService:
             td = evidence.get("technical_depth", {})
             criteria = td.get("criteria", {})
             spec = criteria.get("technical_specificity", {})
-            meth = criteria.get("method_depth", {})
+            meth = criteria.get("method_detail", {})
             arch = criteria.get("architecture_detail", {})
-            ev_plan = criteria.get("evaluation_plan", {})
-            spec_s = spec.get("score", "N/A")
-            meth_s = meth.get("score", "N/A")
-            arch_s = arch.get("score", "N/A")
-            evp_s = ev_plan.get("score", "N/A")
+            ev_plan = criteria.get("evaluation_rigor", {})
+            repro = criteria.get("reproducibility", {})
             spec_ev = spec.get("evidence", [])
             meth_ev = meth.get("evidence", [])
             arch_ev = arch.get("evidence", [])
             return (
                 f"Step 1 — Sub-criteria scoring (equal weight within dimension):\n"
-                f"  Technical Specificity  = {spec_s}/100  → Named entities: {', '.join(str(e) for e in spec_ev[:3]) or 'none found'}\n"
-                f"  Method Depth           = {meth_s}/100  → {', '.join(str(e) for e in meth_ev[:3]) or 'no method terms detected'}\n"
-                f"  Architecture Detail    = {arch_s}/100  → {', '.join(str(e) for e in arch_ev[:3]) or 'no architecture terms'}\n"
-                f"  Evaluation Plan        = {evp_s}/100  → metrics/experiment plan coverage\n"
+                f"  Technical Specificity  = {spec.get('score', 'N/A')}/100  → {'; '.join(str(e) for e in spec_ev[:2]) or 'no named technical entities found'}\n"
+                f"  Method Detail          = {meth.get('score', 'N/A')}/100  → {'; '.join(str(e) for e in meth_ev[:2]) or 'no method terms detected'}\n"
+                f"  Architecture Detail    = {arch.get('score', 'N/A')}/100  → {'; '.join(str(e) for e in arch_ev[:2]) or 'no architecture terms'}\n"
+                f"  Evaluation Rigor       = {ev_plan.get('score', 'N/A')}/100  → metrics, baselines and validation terms\n"
+                f"  Reproducibility        = {repro.get('score', 'N/A')}/100  → repository, Docker, tests, versions\n"
                 f"\n"
-                f"Step 2 — Average: ({spec_s} + {meth_s} + {arch_s} + {evp_s}) ÷ 4 ≈ {raw_score:.1f}/100\n"
+                f"Step 2 — Unweighted mean of the 5 criteria ≈ {raw_score:.1f}/100\n"
                 f"\n"
                 f"Step 3 — Rubric contribution: {raw_score:.1f} × {weight_pct}% = {contrib:.2f} pts (out of {max_contrib:.2f} max)\n"
-                f"Named algorithms, datasets, and frameworks each add +8 pts; method/architecture terms add +10 pts each."
+                f"See the Score Coach for what each criterion needs to reach 100."
             )
 
         # ── Feasibility ─────────────────────────────────────────────────────

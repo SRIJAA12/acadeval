@@ -4,6 +4,7 @@ from app.services.novelty_math import (
     combine_signals,
     feature_rarity,
     graph_distance,
+    neighborhood_sparsity,
     new_connection_score,
     relationship_rarity,
 )
@@ -26,8 +27,23 @@ class NoveltyMathTests(unittest.TestCase):
         )
         self.assertEqual(signal, 0.5)
 
-    def test_feature_rarity_uses_only_historical_counts(self):
-        self.assertAlmostEqual(feature_rarity([0, 2], corpus_size=4), 0.75)
+    def test_feature_rarity_saturates_on_own_count_not_corpus_size(self):
+        # 1/(1+0)=1.0, 1/(1+2)=1/3 -> mean 2/3. Must NOT scale with corpus_size
+        # (a feature seen in 2 of 4 projects is exactly as rare as 2 of 40,000).
+        self.assertAlmostEqual(feature_rarity([0, 2], corpus_size=4), 2 / 3)
+        self.assertAlmostEqual(feature_rarity([0, 2], corpus_size=40000), 2 / 3)
+
+    def test_feature_rarity_discriminates_common_from_unique(self):
+        self.assertGreater(feature_rarity([0], corpus_size=1000), feature_rarity([900], corpus_size=1000))
+
+    def test_neighborhood_sparsity_saturates_on_sibling_count_not_corpus_size(self):
+        # An oversubscribed niche (142 siblings) must read as near-saturated
+        # regardless of how large the overall multi-domain corpus is.
+        self.assertAlmostEqual(neighborhood_sparsity(142, corpus_size=4000), 1 / 143)
+        self.assertAlmostEqual(neighborhood_sparsity(142, corpus_size=36000), 1 / 143)
+
+    def test_neighborhood_sparsity_rewards_a_genuinely_empty_niche(self):
+        self.assertGreater(neighborhood_sparsity(0, corpus_size=10000), neighborhood_sparsity(500, corpus_size=10000))
 
     def test_relationship_rarity_declines_with_repeated_pair(self):
         self.assertGreater(relationship_rarity([0]), relationship_rarity([5]))

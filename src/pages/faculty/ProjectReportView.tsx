@@ -15,10 +15,11 @@ import GuideFeedbackPanel from '../../components/GuideFeedbackPanel';
 import DiscussionThread from '../../components/DiscussionThread';
 import RoundEvaluationPanel from '../../components/RoundEvaluationPanel';
 import PlagiarismReportView from '../../components/PlagiarismReportView';
+import ScoreCoachPanel from '../../components/ScoreCoachPanel';
 import type { InternalEvaluationReport } from '../../types';
 import {
   Edit2, Save, X, Flag, StickyNote, Send, CheckCircle, Eye,
-  User, Clock, Sparkles, Network, RefreshCw, ListChecks, Info, CalendarClock,
+  User, Clock, Sparkles, Network, RefreshCw, ListChecks, Info, CalendarClock, Target,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -37,7 +38,7 @@ const ProjectReportView: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<'report' | 'explainability' | 'notes' | 'history' | 'novelty' | 'progress' | 'rounds'>('report');
+  const [activeTab, setActiveTab] = useState<'report' | 'coach' | 'explainability' | 'notes' | 'history' | 'novelty' | 'progress' | 'rounds'>('report');
   const [overrideState, setOverrideState] = useState<{ dim: string; value: number; comment: string } | null>(null);
   const [newNote, setNewNote] = useState('');
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
@@ -92,6 +93,7 @@ const ProjectReportView: React.FC = () => {
   const TABS = [
     { id: 'report', label: 'Evaluation Report', icon: <Eye size={15} /> },
     { id: 'novelty', label: 'Graph Novelty', icon: <Network size={15} /> },
+    { id: 'coach', label: 'Score Coach', icon: <Target size={15} /> },
     { id: 'explainability', label: 'AI Explainability', icon: <Sparkles size={15} /> },
     { id: 'notes', label: `Faculty Notes (${r.facultyNotes?.length || 0})`, icon: <StickyNote size={15} /> },
     { id: 'history', label: 'Score History', icon: <Clock size={15} /> },
@@ -382,6 +384,9 @@ const ProjectReportView: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Tab: Score Coach (read-only for faculty) */}
+      {activeTab === 'coach' && <ScoreCoachPanel projectId={projectId!} />}
 
       {/* Tab: Explainability */}
       {activeTab === 'explainability' && (

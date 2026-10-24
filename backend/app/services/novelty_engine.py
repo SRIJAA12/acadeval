@@ -22,7 +22,7 @@ from app.services.novelty_math import (
     relationship_rarity,
 )
 
-SCORING_METHOD_VERSION = "graph-novelty-v2.0"
+SCORING_METHOD_VERSION = "graph-novelty-v2.2"
 COMBINER_METHOD = "unweighted-mean-v2"
 SIMILAR_PROJECTS_TOP_K = 5
 ADEQUATE_CORPUS_SIZE = 30
@@ -293,13 +293,35 @@ class NoveltyEngineService:
         }
         signal_3 = relationship_rarity(pair_counts.values())
 
+        # The live classifier's taxonomy (datasets/taxonomy/) and the corpus
+        # generator's own Domain/Sub_Domain columns were built independently
+        # and don't share one vocabulary — e.g. a project classified with
+        # domain="Digital Twin", sub_domain="Predictive Digital Twin" has its
+        # real corpus siblings filed under domain="Industrial Automation &
+        # Industry 4.0", sub_domain="Digital Twin Manufacturing". Exact-string
+        # equality between the two independently-built taxonomies misses
+        # these almost every time. Substring matching in both directions on
+        # both fields is a cheap, dependency-free way to catch a shared
+        # vocabulary term (e.g. "digital twin") regardless of which field or
+        # exact phrasing either taxonomy happened to use, instead of reading
+        # a real niche as falsely "sparse" purely from a labeling mismatch.
         neighborhood = tx.run(
             """
             MATCH (p:Project)
             WHERE p.id IN $corpus_ids
               AND (
-                ($sub_domain <> '' AND toLower(coalesce(p.sub_domain, '')) = toLower($sub_domain))
-                OR ($sub_domain = '' AND toLower(coalesce(p.domain, '')) = toLower($domain))
+                ($sub_domain <> '' AND (
+                    toLower(coalesce(p.sub_domain, '')) CONTAINS toLower($sub_domain)
+                    OR toLower($sub_domain) CONTAINS toLower(coalesce(p.sub_domain, ''))
+                    OR toLower(coalesce(p.domain, '')) CONTAINS toLower($sub_domain)
+                    OR toLower($sub_domain) CONTAINS toLower(coalesce(p.domain, ''))
+                ))
+                OR ($domain <> '' AND (
+                    toLower(coalesce(p.domain, '')) CONTAINS toLower($domain)
+                    OR toLower($domain) CONTAINS toLower(coalesce(p.domain, ''))
+                    OR toLower(coalesce(p.sub_domain, '')) CONTAINS toLower($domain)
+                    OR toLower($domain) CONTAINS toLower(coalesce(p.sub_domain, ''))
+                ))
               )
             RETURN count(DISTINCT p) AS sibling_count
             """,

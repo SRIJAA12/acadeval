@@ -448,6 +448,72 @@ export interface ExplainabilityResult {
   dataset_comparisons?: ExplainabilityDatasetComparison[];
 }
 
+// ─── Score Coach ───────────────────────────────────────────────────────────────
+
+export type CoachStatus = 'strong' | 'fair' | 'low' | 'not_scored';
+
+export interface CoachAction {
+  text: string;
+  points: number;
+}
+
+export interface CoachCriterion {
+  key: string;
+  name: string;
+  score: number;
+  max_reachable: number;
+  status: CoachStatus;
+  standard: string;
+  found: string[];
+  gaps: string[];
+}
+
+export interface CoachDimension {
+  key: string;
+  name: string;
+  weight_percent: number;
+  score: number | null;
+  status: CoachStatus;
+  points_earned: number;
+  points_recoverable: number;
+  max_reachable: number;
+  why: string[];
+  gaps: string[];
+  actions: CoachAction[];
+  standard_for_100: string[];
+  note: string;
+  criteria: CoachCriterion[];
+}
+
+export interface CoachPriority {
+  dimension_key: string;
+  name: string;
+  points_recoverable: number;
+  top_action: string;
+}
+
+export interface ScoreCoach {
+  method_version: string;
+  available: boolean;
+  message?: string;
+  overall_score?: number;
+  grade?: string;
+  max_overall_reachable?: number;
+  next_grade?: { grade: string; threshold: number; points_needed: number } | null;
+  evidence_quality?: string;
+  grading_scale?: { grade: string; min: number }[];
+  summary?: string;
+  dimensions: CoachDimension[];
+  priorities: CoachPriority[];
+  disclaimer?: string;
+}
+
+export interface CoachAnswer {
+  answer: string;
+  source: 'ai' | 'rules';
+  relatedDimensions: string[];
+}
+
 export interface ScoreOverrideEntry {
   dimension: string;
   oldValue: number;

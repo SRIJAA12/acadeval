@@ -8,7 +8,7 @@ from app.models.project import Project
 from app.models.evaluation import EvaluationReport
 from app.models.user import UserRole
 from app.schemas.report import PublicEvaluationReport, InternalEvaluationReport, DimensionScores
-from app.utils.authz import ensure_assigned
+from app.utils.authz import ensure_assigned, ensure_participant
 
 router = APIRouter(tags=["Reports"])
 
@@ -287,7 +287,7 @@ def _report_to_internal(
     )
 
 
-@router.get("/{project_id}/explainability")
+@router.get("/projects/{project_id}/explainability")
 def get_project_explainability(project_id: str, current_user: CurrentUser, db: DB):
     """
     Returns full explainability breakdown for the project:
@@ -296,8 +296,7 @@ def get_project_explainability(project_id: str, current_user: CurrentUser, db: D
     - 7 Project Datasets comparative benchmark analysis
     """
     project = _get_project_or_404(project_id, db)
-    if current_user.role == UserRole.student and project.student_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    ensure_participant(project, current_user)
     report = db.query(EvaluationReport).filter(EvaluationReport.project_id == project_id).first()
     from app.services.explainability import explainability_service
     return explainability_service.generate_full_explainability(project, report)

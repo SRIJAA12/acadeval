@@ -13,6 +13,7 @@ import EntityExtractionPanel from '../../components/EntityExtractionPanel';
 import RoundEvaluationPanel from '../../components/RoundEvaluationPanel';
 import ExplainabilityViewer from '../../components/ExplainabilityViewer';
 import PlagiarismReportView from '../../components/PlagiarismReportView';
+import ScoreCoachPanel from '../../components/ScoreCoachPanel';
 import { NoveltyReportView, type NoveltyReportData } from '../../components/NoveltyReportView';
 import type { PublicEvaluationReport } from '../../types';
 import {
@@ -261,6 +262,9 @@ const ReportDetail: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Score Coach: why each score, gaps, how to improve, what 100% needs, Ask box */}
+          <ScoreCoachPanel projectId={r.projectId} canAsk />
 
           {/* Entry point to the guide<->student discussion, progress log, and guide feedback */}
           <button

@@ -12,7 +12,7 @@ from app.routers import (
     acadeval_plus, entities, graph, integrations,
     quality,
     milestones, discussion, notifications, audit,
-    progress, guide_feedback, coordinator, teams, plagiarism,
+    progress, guide_feedback, coordinator, teams, plagiarism, score_coach,
 )
 from app.database import engine, Base
 
@@ -64,6 +64,7 @@ app.include_router(guide_feedback.router, prefix=API_PREFIX)
 app.include_router(coordinator.router,   prefix=API_PREFIX)
 app.include_router(teams.router,         prefix=API_PREFIX)
 app.include_router(plagiarism.router,    prefix=API_PREFIX)
+app.include_router(score_coach.router,   prefix=API_PREFIX)
 
 
 @app.on_event("startup")
